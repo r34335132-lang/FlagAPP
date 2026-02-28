@@ -1,0 +1,163 @@
+Create a mobile app using Expo React Native inspired by flagdurango.com.mx.
+
+IMPORTANT:
+
+* Do NOT connect Git
+* Fresh project mindset (refactor existing code if needed)
+* Viewer app (read-only)
+* Focus on performance and real data rendering
+
+DATA CONNECTION:
+
+Supabase is already configured via environment variables.
+
+IMPORTANT DATA RULES:
+
+* Team logos are stored as public URLs in logo_url
+* Do NOT render blobs
+* Always use logo_url as image source
+* If logo_url is missing, show a fallback placeholder logo
+
+DATABASE STRUCTURE (SIMPLIFIED):
+
+TEAMS:
+
+* id
+* name
+* category
+* logo_url
+* color1
+* color2
+* captain_name
+* coach_name
+* season
+* status
+
+GAMES:
+
+* id
+* home_team
+* away_team
+* home_score
+* away_score
+* game_date
+* game_time
+* venue
+* category
+* status
+* season
+* stage
+* jornada
+
+TEAM_STATS:
+
+* team_name
+* team_category
+* season
+* games_played
+* games_won
+* games_lost
+* games_tied
+* points_for
+* points_against
+* points
+
+STATISTICS RULES:
+
+* Load standings directly from team_stats table
+* Do not require joins to display standings
+* Do not filter by season initially (debug mode)
+* Sort standings by points descending
+* Create a useStats hook that fetches team_stats and always displays data if available
+
+SCREENS:
+
+HOME:
+
+* Large hero match card using team color gradients
+* Horizontal scroll for latest matches
+* Upcoming matches carousel
+* Standings preview (top 5 teams)
+* Modern section headers with spacing
+
+TEAMS:
+
+* Rich TeamCard using logo_url, color1, color2
+* Team detail screen with gradient header
+* Show captain and coach
+* Smooth list animations
+
+STATISTICS:
+
+* Improved StandingsTable
+* Highlight top 3 teams visually
+* Points badge
+* Colored indicators for wins/losses
+* Sticky header
+
+MATCH UI:
+
+* Bigger match cards
+* Highlight scores with large typography
+* Show team logos prominently on both sides
+* Status badge pill (en vivo / finalizado / programado)
+* Use team colors as gradients
+* Rounded corners and soft shadows
+
+COMPONENTS:
+
+* TeamLogo (fallback + loading)
+* TeamCard
+* MatchCard
+* ScoreDisplay
+* LiveBadge
+* StandingsTable
+* StatRow
+
+VISUAL STYLE:
+
+* ESPN / NFL style sports design
+* Soft shadows
+* Border radius 16–20
+* Modern spacing system
+* Subtle card animations
+* Depth layers
+* Horizontal scroll sections
+
+ARCHITECTURE:
+
+* Feature based hooks:
+
+  * useTeams
+  * useMatches
+  * useStats
+  * useNotifications
+* Clean folders:
+
+  * components
+  * hooks
+  * services
+  * screens
+  * utils
+
+PERFORMANCE:
+
+* Cache teams, games and stats
+* Optimize images from logo_url
+* Reuse card components
+* Lightweight queries
+* Lazy screen loading
+* Skeleton loading states
+
+NOTIFICATIONS:
+
+* Implement push token registration
+* Save token in Supabase
+* Do not send notifications yet
+
+DEBUG MODE:
+
+* Temporarily remove season and status filters so real data is visible
+
+GOAL:
+A visually rich premium sports mobile app that correctly displays teams, logos, matches and standings using Supabase data and feels like an ESPN/NFL style league app.
