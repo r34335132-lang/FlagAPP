@@ -7,12 +7,16 @@ interface LiveBadgeProps {
 }
 
 const STATUS_CONFIG: Record<string, { label: string; bg: string; text: string; pulse: boolean }> = {
-  "en vivo": { label: "EN VIVO", bg: C.live, text: "#fff", pulse: true },
-  "live": { label: "EN VIVO", bg: C.live, text: "#fff", pulse: true },
+  "en vivo": { label: "EN VIVO", bg: C.brandOrange, text: "#fff", pulse: true },
+  "en curso": { label: "EN VIVO", bg: C.brandOrange, text: "#fff", pulse: true },
+  "live": { label: "EN VIVO", bg: C.brandOrange, text: "#fff", pulse: true },
   "finalizado": { label: "FINAL", bg: C.textMuted, text: "#fff", pulse: false },
   "final": { label: "FINAL", bg: C.textMuted, text: "#fff", pulse: false },
-  "programado": { label: "HOY", bg: C.blue, text: "#fff", pulse: false },
-  "scheduled": { label: "HOY", bg: C.blue, text: "#fff", pulse: false },
+  "terminado": { label: "FINAL", bg: C.textMuted, text: "#fff", pulse: false },
+  "programado": { label: "PRÓXIMO", bg: C.brandBlue, text: "#fff", pulse: false },
+  "scheduled": { label: "PRÓXIMO", bg: C.brandBlue, text: "#fff", pulse: false },
+  "pendiente": { label: "PRÓXIMO", bg: C.brandBlue, text: "#fff", pulse: false },
+  "por jugar": { label: "PRÓXIMO", bg: C.brandBlue, text: "#fff", pulse: false },
 };
 
 export function LiveBadge({ status }: LiveBadgeProps) {

@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { getApiUrl } from "@/lib/query-client";
+import { supabase } from "@/lib/supabase";
 
 export interface Game {
   id: string;
@@ -18,10 +18,12 @@ export interface Game {
 }
 
 async function fetchGames(): Promise<Game[]> {
-  const url = new URL("/api/games", getApiUrl());
-  const res = await fetch(url.toString());
-  if (!res.ok) throw new Error("Failed to fetch games");
-  return res.json();
+  const { data, error } = await supabase
+    .from("games")
+    .select("id, home_team, away_team, home_score, away_score, game_date, game_time, venue, category, status, season, stage, jornada")
+    .order("game_date", { ascending: false });
+  if (error) throw new Error(error.message);
+  return data ?? [];
 }
 
 export function useMatches() {
@@ -32,24 +34,35 @@ export function useMatches() {
   });
 }
 
+const FINISHED = new Set(["finalizado", "final", "terminado"]);
+const LIVE = new Set(["en vivo", "live", "en curso"]);
+const UPCOMING = new Set(["programado", "scheduled", "pendiente", "por jugar"]);
+
+function isFinished(g: Game) {
+  return FINISHED.has(g.status?.toLowerCase() ?? "");
+}
+function isLive(g: Game) {
+  return LIVE.has(g.status?.toLowerCase() ?? "");
+}
+function isUpcoming(g: Game) {
+  const s = g.status?.toLowerCase() ?? "";
+  return UPCOMING.has(s) || (g.home_score === null && g.away_score === null && !isLive(g) && !isFinished(g));
+}
+
 export function useRecentMatches() {
   const { data, ...rest } = useMatches();
-  const recent = data
-    ?.filter((g) => g.status?.toLowerCase() === "finalizado" || g.status?.toLowerCase() === "final" || g.home_score !== null)
-    .slice(0, 10) ?? [];
+  const recent = data?.filter((g) => isFinished(g) || (g.home_score !== null)).slice(0, 10) ?? [];
   return { data: recent, ...rest };
 }
 
 export function useUpcomingMatches() {
   const { data, ...rest } = useMatches();
-  const upcoming = data
-    ?.filter((g) => g.status?.toLowerCase() === "programado" || g.status?.toLowerCase() === "scheduled" || (g.home_score === null && g.away_score === null))
-    .slice(0, 10) ?? [];
+  const upcoming = data?.filter(isUpcoming).slice(0, 10) ?? [];
   return { data: upcoming, ...rest };
 }
 
 export function useLiveMatches() {
   const { data, ...rest } = useMatches();
-  const live = data?.filter((g) => g.status?.toLowerCase() === "en vivo" || g.status?.toLowerCase() === "live") ?? [];
+  const live = data?.filter(isLive) ?? [];
   return { data: live, ...rest };
 }

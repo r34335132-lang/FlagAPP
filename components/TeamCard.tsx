@@ -5,15 +5,15 @@ import { router } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { TeamLogo } from "./TeamLogo";
 import { Team } from "@/hooks/useTeams";
-import C from "@/constants/colors";
+import C, { BRAND_GRADIENT } from "@/constants/colors";
 
 interface TeamCardProps {
   team: Team;
 }
 
 export function TeamCard({ team }: TeamCardProps) {
-  const color1 = team.color1 || C.primary;
-  const color2 = team.color2 || C.blue;
+  const color1 = team.color1 || BRAND_GRADIENT[0];
+  const color2 = team.color2 || BRAND_GRADIENT[2];
 
   return (
     <Pressable

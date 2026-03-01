@@ -3,14 +3,14 @@ import { View, Text, StyleSheet, ScrollView } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { MaterialCommunityIcons, Feather } from "@expo/vector-icons";
 import { TeamStat } from "@/hooks/useStats";
-import C from "@/constants/colors";
+import C, { BRAND_GRADIENT } from "@/constants/colors";
 
 interface StandingsTableProps {
   stats: TeamStat[];
   limit?: number;
 }
 
-const MEDAL_COLORS = ["#F59E0B", "#9CA3AF", "#CD7C2F"];
+const MEDAL_COLORS = [BRAND_GRADIENT[2], "#9CA3AF", BRAND_GRADIENT[0]];
 
 export function StandingsTable({ stats, limit }: StandingsTableProps) {
   const displayed = limit ? stats.slice(0, limit) : stats;
@@ -191,7 +191,7 @@ const styles = StyleSheet.create({
   pointsBadge: {
     width: 38,
     alignItems: "center",
-    backgroundColor: C.primary,
+    backgroundColor: BRAND_GRADIENT[2],
     borderRadius: 12,
     paddingVertical: 3,
     paddingHorizontal: 6,

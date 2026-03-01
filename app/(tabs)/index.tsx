@@ -19,7 +19,7 @@ import { useStats } from "@/hooks/useStats";
 import { MatchCard } from "@/components/MatchCard";
 import { StandingsTable } from "@/components/StandingsTable";
 import { MatchCardSkeleton, StatsRowSkeleton, Skeleton } from "@/components/SkeletonLoader";
-import C from "@/constants/colors";
+import C, { BRAND_GRADIENT } from "@/constants/colors";
 
 function SectionHeader({ title, onPress }: { title: string; onPress?: () => void }) {
   return (
@@ -99,11 +99,18 @@ export default function HomeScreen() {
       >
         <View style={styles.headerBranding}>
           <LinearGradient
-            colors={[C.primary + "22", "transparent"]}
+            colors={[BRAND_GRADIENT[0] + "55", BRAND_GRADIENT[1] + "33", BRAND_GRADIENT[2] + "44"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
             style={styles.headerGradient}
           >
-            <Text style={styles.leagueName}>LIGA DURANGO</Text>
-            <Text style={styles.leagueSubtitle}>Temporada 2024-2025</Text>
+            <View style={styles.headerRow}>
+              <Ionicons name="american-football" size={28} color={C.brandOrange} />
+              <View>
+                <Text style={styles.leagueName}>LIGA DURANGO</Text>
+                <Text style={styles.leagueSubtitle}>Temporada 2024-2025</Text>
+              </View>
+            </View>
           </LinearGradient>
         </View>
 
@@ -205,20 +212,26 @@ const styles = StyleSheet.create({
   },
   headerGradient: {
     padding: 16,
-    paddingBottom: 8,
+    paddingBottom: 12,
+    borderRadius: 16,
+  },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
   },
   leagueName: {
     color: C.text,
-    fontSize: 26,
+    fontSize: 24,
     fontWeight: "900",
     letterSpacing: 2,
   },
   leagueSubtitle: {
     color: C.textSecondary,
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "600",
     letterSpacing: 1,
-    marginTop: 2,
+    marginTop: 1,
   },
   horizontalList: {
     paddingHorizontal: 16,

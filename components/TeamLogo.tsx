@@ -1,7 +1,7 @@
 import React from "react";
 import { View, StyleSheet, ActivityIndicator } from "react-native";
 import { Image } from "expo-image";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import C from "@/constants/colors";
 
 interface TeamLogoProps {
@@ -29,9 +29,9 @@ export function TeamLogo({ logoUrl, size = 48, color }: TeamLogoProps) {
           },
         ]}
       >
-        <MaterialCommunityIcons
-          name="shield-half-full"
-          size={size * 0.55}
+        <Ionicons
+          name="american-football"
+          size={size * 0.52}
           color={C.textSecondary}
         />
       </View>

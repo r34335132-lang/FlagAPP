@@ -6,7 +6,7 @@ import { TeamLogo } from "./TeamLogo";
 import { LiveBadge } from "./LiveBadge";
 import { Game } from "@/hooks/useMatches";
 import { Team } from "@/hooks/useTeams";
-import C from "@/constants/colors";
+import C, { BRAND_GRADIENT } from "@/constants/colors";
 
 interface MatchCardProps {
   game: Game;
@@ -48,8 +48,8 @@ export function MatchCard({ game, teams, compact = false, hero = false }: MatchC
   const homeTeam = getTeam(game.home_team, teams);
   const awayTeam = getTeam(game.away_team, teams);
 
-  const homeColor = homeTeam?.color1 || C.primary;
-  const awayColor = awayTeam?.color1 || C.blue;
+  const homeColor = homeTeam?.color1 || BRAND_GRADIENT[0];
+  const awayColor = awayTeam?.color1 || BRAND_GRADIENT[2];
 
   const showScore = isFinished(game.status) || isLive(game.status) || (game.home_score !== null && game.away_score !== null);
 

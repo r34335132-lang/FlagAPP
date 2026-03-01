@@ -38,7 +38,7 @@ function ClassicTabLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: C.primary,
+        tabBarActiveTintColor: C.brandOrange,
         tabBarInactiveTintColor: C.textMuted,
         tabBarStyle: {
           position: "absolute",
@@ -79,7 +79,7 @@ function ClassicTabLayout() {
         options={{
           title: "Partidos",
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? "football" : "football-outline"} size={24} color={color} />
+            <Ionicons name={focused ? "american-football" : "american-football-outline"} size={24} color={color} />
           ),
         }}
       />

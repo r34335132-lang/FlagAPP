@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { getApiUrl } from "@/lib/query-client";
+import { supabase } from "@/lib/supabase";
 
 export interface Team {
   id: string;
@@ -15,17 +15,22 @@ export interface Team {
 }
 
 async function fetchTeams(): Promise<Team[]> {
-  const url = new URL("/api/teams", getApiUrl());
-  const res = await fetch(url.toString());
-  if (!res.ok) throw new Error("Failed to fetch teams");
-  return res.json();
+  const { data, error } = await supabase
+    .from("teams")
+    .select("id, name, category, logo_url, color1, color2, captain_name, coach_name, season, status")
+    .order("name", { ascending: true });
+  if (error) throw new Error(error.message);
+  return data ?? [];
 }
 
 async function fetchTeam(id: string): Promise<Team> {
-  const url = new URL(`/api/teams/${id}`, getApiUrl());
-  const res = await fetch(url.toString());
-  if (!res.ok) throw new Error("Failed to fetch team");
-  return res.json();
+  const { data, error } = await supabase
+    .from("teams")
+    .select("id, name, category, logo_url, color1, color2, captain_name, coach_name, season, status")
+    .eq("id", id)
+    .single();
+  if (error) throw new Error(error.message);
+  return data;
 }
 
 export function useTeams() {
