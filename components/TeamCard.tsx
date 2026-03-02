@@ -1,8 +1,8 @@
-import React from "react";
-import { View, Text, StyleSheet, Pressable } from "react-native";
+import React, { useRef } from "react";
+import { View, Text, StyleSheet, Pressable, Animated } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
-import { Feather } from "@expo/vector-icons";
+import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { TeamLogo } from "./TeamLogo";
 import { Team } from "@/hooks/useTeams";
 import C, { BRAND_GRADIENT } from "@/constants/colors";
@@ -15,140 +15,174 @@ export function TeamCard({ team }: TeamCardProps) {
   const color1 = team.color1 || BRAND_GRADIENT[0];
   const color2 = team.color2 || BRAND_GRADIENT[2];
 
+  const scale = useRef(new Animated.Value(1)).current;
+  const onPressIn = () =>
+    Animated.spring(scale, { toValue: 0.97, useNativeDriver: true, speed: 50, bounciness: 4 }).start();
+  const onPressOut = () =>
+    Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 6 }).start();
+
   return (
-    <Pressable
-      onPress={() => router.push({ pathname: "/team/[id]", params: { id: team.id } })}
-      style={({ pressed }) => [styles.container, pressed && { opacity: 0.85 }]}
-    >
-      <LinearGradient
-        colors={[color1 + "33", C.card, color2 + "22"]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.gradient}
+    <Animated.View style={[styles.wrapper, { transform: [{ scale }] }]}>
+      <Pressable
+        onPress={() => router.push({ pathname: "/team/[id]", params: { id: team.id } })}
+        onPressIn={onPressIn}
+        onPressOut={onPressOut}
       >
-        <View style={[styles.colorBar, { backgroundColor: color1 }]} />
+        <LinearGradient
+          colors={[color1 + "30", C.card, color2 + "18"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.gradient}
+        >
+          {/* Left accent bar */}
+          <LinearGradient
+            colors={[color1, color2]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 0, y: 1 }}
+            style={styles.accentBar}
+          />
 
-        <View style={styles.content}>
-          <View style={styles.logoWrapper}>
-            <LinearGradient
-              colors={[color1 + "44", color2 + "22"]}
-              style={styles.logoBg}
-            >
-              <TeamLogo logoUrl={team.logo_url} size={56} color={color1 + "44"} />
-            </LinearGradient>
-          </View>
-
-          <View style={styles.info}>
-            <Text style={styles.name} numberOfLines={1}>{team.name}</Text>
-            <View style={styles.metaRow}>
-              {team.category && (
-                <View style={[styles.categoryBadge, { backgroundColor: color1 + "33" }]}>
-                  <Text style={[styles.categoryText, { color: color1 }]}>{team.category}</Text>
-                </View>
-              )}
-              {team.status && (
-                <View style={styles.statusBadge}>
-                  <Text style={styles.statusText}>{team.status}</Text>
-                </View>
-              )}
-            </View>
-            {team.coach_name && (
-              <View style={styles.coachRow}>
-                <Feather name="user" size={11} color={C.textMuted} />
-                <Text style={styles.coachText} numberOfLines={1}>{team.coach_name}</Text>
+          <View style={styles.content}>
+            {/* Logo circle with color1 ring */}
+            <View style={[styles.logoRing, { borderColor: color1 + "88" }]}>
+              <View style={[styles.logoBg, { backgroundColor: color1 + "22" }]}>
+                <TeamLogo logoUrl={team.logo_url} size={72} color={color1 + "44"} />
               </View>
-            )}
-          </View>
+            </View>
 
-          <Feather name="chevron-right" size={18} color={C.textMuted} />
-        </View>
-      </LinearGradient>
-    </Pressable>
+            <View style={styles.info}>
+              <Text style={styles.name} numberOfLines={1}>{team.name}</Text>
+
+              <View style={styles.tagRow}>
+                {team.category && (
+                  <View style={[styles.catPill, { backgroundColor: color1 + "2A", borderColor: color1 + "55" }]}>
+                    <Text style={[styles.catText, { color: color1 }]}>{team.category.toUpperCase()}</Text>
+                  </View>
+                )}
+                {team.season && (
+                  <View style={styles.seasonPill}>
+                    <Text style={styles.seasonText}>{team.season}</Text>
+                  </View>
+                )}
+              </View>
+
+              <View style={styles.staffRow}>
+                {team.coach_name && (
+                  <View style={styles.staffItem}>
+                    <Feather name="user" size={11} color={C.textMuted} />
+                    <Text style={styles.staffText} numberOfLines={1}>{team.coach_name}</Text>
+                  </View>
+                )}
+                {team.captain_name && (
+                  <View style={styles.staffItem}>
+                    <MaterialCommunityIcons name="star" size={11} color={C.brandOrange} />
+                    <Text style={styles.staffText} numberOfLines={1}>{team.captain_name}</Text>
+                  </View>
+                )}
+              </View>
+            </View>
+
+            <View style={styles.chevronWrap}>
+              <Feather name="chevron-right" size={18} color={color1 + "99"} />
+            </View>
+          </View>
+        </LinearGradient>
+      </Pressable>
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    marginBottom: 10,
-    borderRadius: 16,
+  wrapper: {
+    borderRadius: 18,
     overflow: "hidden",
-    elevation: 3,
+    marginBottom: 12,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 5,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.28,
+    shadowRadius: 8,
+    elevation: 5,
   },
   gradient: {
     flexDirection: "row",
-    alignItems: "center",
-    padding: 0,
+    alignItems: "stretch",
   },
-  colorBar: {
-    width: 4,
-    height: "100%",
-    minHeight: 80,
+  accentBar: {
+    width: 5,
+    minHeight: 90,
   },
   content: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    padding: 14,
-    paddingLeft: 12,
-    gap: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    gap: 14,
   },
-  logoWrapper: {
-    borderRadius: 32,
-    overflow: "hidden",
+  logoRing: {
+    borderRadius: 42,
+    borderWidth: 2,
+    padding: 3,
   },
   logoBg: {
-    padding: 4,
-    borderRadius: 32,
+    borderRadius: 38,
+    overflow: "hidden",
   },
   info: {
     flex: 1,
-    gap: 4,
+    gap: 5,
   },
   name: {
     color: C.text,
-    fontSize: 16,
-    fontWeight: "700",
+    fontSize: 17,
+    fontWeight: "800",
+    letterSpacing: -0.3,
   },
-  metaRow: {
+  tagRow: {
     flexDirection: "row",
     gap: 6,
-    flexWrap: "wrap",
     alignItems: "center",
+    flexWrap: "wrap",
   },
-  categoryBadge: {
+  catPill: {
     paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 10,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 1,
   },
-  categoryText: {
-    fontSize: 10,
-    fontWeight: "700",
-    textTransform: "uppercase",
+  catText: {
+    fontSize: 9,
+    fontWeight: "800",
+    letterSpacing: 0.5,
   },
-  statusBadge: {
+  seasonPill: {
     backgroundColor: C.cardLight,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 10,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 8,
   },
-  statusText: {
-    color: C.textSecondary,
+  seasonText: {
+    color: C.textMuted,
     fontSize: 10,
     fontWeight: "600",
-    textTransform: "capitalize",
   },
-  coachRow: {
+  staffRow: {
+    flexDirection: "row",
+    gap: 12,
+    flexWrap: "wrap",
+  },
+  staffItem: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    marginTop: 2,
   },
-  coachText: {
+  staffText: {
     color: C.textMuted,
     fontSize: 11,
+    fontWeight: "500",
+    maxWidth: 120,
+  },
+  chevronWrap: {
+    paddingLeft: 4,
   },
 });

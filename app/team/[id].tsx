@@ -17,13 +17,37 @@ import { useStats } from "@/hooks/useStats";
 import { TeamLogo } from "@/components/TeamLogo";
 import { MatchCard } from "@/components/MatchCard";
 import { Skeleton } from "@/components/SkeletonLoader";
-import C from "@/constants/colors";
+import C, { BRAND_GRADIENT } from "@/constants/colors";
 
-function StatBox({ value, label, color }: { value: string | number; label: string; color?: string }) {
+function StatBox({ value, label, color, accent }: {
+  value: string | number;
+  label: string;
+  color?: string;
+  accent?: boolean;
+}) {
   return (
-    <View style={detailStyles.statBox}>
-      <Text style={[detailStyles.statValue, color ? { color } : {}]}>{value}</Text>
-      <Text style={detailStyles.statLabel}>{label}</Text>
+    <View style={[detailS.statBox, accent && detailS.statBoxAccent]}>
+      <Text style={[detailS.statValue, color ? { color } : {}]}>{value}</Text>
+      <Text style={detailS.statLabel}>{label}</Text>
+    </View>
+  );
+}
+
+function InfoRow({ icon, label, value, iconColor }: {
+  icon: React.ComponentProps<typeof Feather>["name"] | string;
+  label: string;
+  value: string;
+  iconColor?: string;
+}) {
+  return (
+    <View style={detailS.infoRow}>
+      <View style={[detailS.infoIconWrap, { backgroundColor: (iconColor ?? C.primary) + "22" }]}>
+        <Feather name={icon as any} size={15} color={iconColor ?? C.primary} />
+      </View>
+      <View style={detailS.infoText}>
+        <Text style={detailS.infoLabel}>{label}</Text>
+        <Text style={detailS.infoValue}>{value}</Text>
+      </View>
     </View>
   );
 }
@@ -35,8 +59,8 @@ export default function TeamDetailScreen() {
   const { data: games } = useMatches();
   const { data: stats } = useStats();
 
-  const color1 = team?.color1 || C.primary;
-  const color2 = team?.color2 || C.blue;
+  const color1 = team?.color1 || BRAND_GRADIENT[0];
+  const color2 = team?.color2 || BRAND_GRADIENT[2];
 
   const teamGames = games?.filter(
     (g) =>
@@ -54,7 +78,7 @@ export default function TeamDetailScreen() {
     return (
       <View style={[styles.container, { paddingTop: topPad }]}>
         <Skeleton width="60%" height={24} borderRadius={6} style={{ margin: 20 }} />
-        <Skeleton width="100%" height={200} borderRadius={0} />
+        <Skeleton width="100%" height={240} borderRadius={0} />
       </View>
     );
   }
@@ -62,6 +86,7 @@ export default function TeamDetailScreen() {
   if (!team) {
     return (
       <View style={[styles.container, styles.center]}>
+        <Ionicons name="alert-circle-outline" size={40} color={C.textMuted} />
         <Text style={styles.errorText}>Equipo no encontrado</Text>
       </View>
     );
@@ -70,27 +95,34 @@ export default function TeamDetailScreen() {
   return (
     <View style={styles.container}>
       <ScrollView showsVerticalScrollIndicator={false}>
+        {/* ── Gradient Header ──────────────────────────────────────── */}
         <LinearGradient
-          colors={[color1 + "EE", color2 + "AA", C.bgSecondary]}
+          colors={[color1 + "F0", color2 + "C0", C.bg + "00"]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          style={[styles.header, { paddingTop: topPad + 16 }]}
+          style={[styles.header, { paddingTop: topPad + 20 }]}
         >
+          {/* Dark overlay at bottom for smooth fade */}
+          <LinearGradient
+            colors={["transparent", C.bg]}
+            style={styles.headerFade}
+          />
+
           <Pressable
             onPress={() => router.back()}
             style={[styles.backBtn, { top: topPad + 12 }]}
           >
-            <Ionicons name="chevron-back" size={24} color="#fff" />
+            <View style={styles.backBtnInner}>
+              <Ionicons name="chevron-back" size={22} color="#fff" />
+            </View>
           </Pressable>
 
           <View style={styles.headerContent}>
-            <View style={styles.logoContainer}>
-              <LinearGradient
-                colors={["rgba(255,255,255,0.2)", "rgba(255,255,255,0.05)"]}
-                style={styles.logoBg}
-              >
-                <TeamLogo logoUrl={team.logo_url} size={96} color={color1 + "44"} />
-              </LinearGradient>
+            {/* Logo with ring + glow */}
+            <View style={[styles.logoRing, { borderColor: "rgba(255,255,255,0.5)" }]}>
+              <View style={styles.logoInner}>
+                <TeamLogo logoUrl={team.logo_url} size={100} color={color1 + "44"} />
+              </View>
             </View>
 
             <Text style={styles.teamName}>{team.name}</Text>
@@ -110,57 +142,90 @@ export default function TeamDetailScreen() {
           </View>
         </LinearGradient>
 
+        {/* ── Body ─────────────────────────────────────────────────── */}
         <View style={styles.body}>
+
+          {/* Stats Card */}
           {teamStat && (
-            <View style={styles.statsCard}>
-              <Text style={styles.sectionTitle}>Estadísticas</Text>
+            <View style={styles.card}>
+              <View style={styles.cardHeader}>
+                <View style={[styles.cardAccent, { backgroundColor: color1 }]} />
+                <Text style={styles.cardTitle}>Estadísticas</Text>
+              </View>
               <View style={styles.statsGrid}>
-                <StatBox value={teamStat.points} label="Puntos" color={C.primary} />
+                <StatBox
+                  value={teamStat.points}
+                  label="PUNTOS"
+                  color={color1}
+                  accent
+                />
                 <StatBox value={teamStat.games_played} label="PJ" />
-                <StatBox value={teamStat.games_won} label="Ganados" color={C.win} />
-                <StatBox value={teamStat.games_tied} label="Empates" color={C.tie} />
-                <StatBox value={teamStat.games_lost} label="Perdidos" color={C.loss} />
+                <StatBox value={teamStat.games_won} label="GANADOS" color={C.win} />
+                <StatBox value={teamStat.games_tied} label="EMPATES" color={C.tie} />
+                <StatBox value={teamStat.games_lost} label="PERDIDOS" color={C.loss} />
                 {teamStat.points_for != null && (
-                  <StatBox value={teamStat.points_for} label="Pts Favor" />
+                  <StatBox value={teamStat.points_for} label="PTS FAV" />
+                )}
+              </View>
+
+              {/* Win % bar */}
+              {teamStat.games_played > 0 && (
+                <View style={styles.winBar}>
+                  <View style={styles.winBarLabels}>
+                    <Text style={styles.winBarLabel}>Efectividad</Text>
+                    <Text style={styles.winBarPct}>
+                      {Math.round((teamStat.games_won / teamStat.games_played) * 100)}%
+                    </Text>
+                  </View>
+                  <View style={styles.winBarTrack}>
+                    <LinearGradient
+                      colors={[color1, color2]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={[
+                        styles.winBarFill,
+                        { width: `${Math.round((teamStat.games_won / teamStat.games_played) * 100)}%` },
+                      ]}
+                    />
+                  </View>
+                </View>
+              )}
+            </View>
+          )}
+
+          {/* Info Card */}
+          {(team.coach_name || team.captain_name || team.status) && (
+            <View style={styles.card}>
+              <View style={styles.cardHeader}>
+                <View style={[styles.cardAccent, { backgroundColor: color2 }]} />
+                <Text style={styles.cardTitle}>Información</Text>
+              </View>
+              <View style={styles.infoList}>
+                {team.coach_name && (
+                  <InfoRow icon="user" label="Entrenador" value={team.coach_name} iconColor={C.primary} />
+                )}
+                {team.captain_name && (
+                  <InfoRow
+                    icon="star"
+                    label="Capitán"
+                    value={team.captain_name}
+                    iconColor={C.brandOrange}
+                  />
+                )}
+                {team.status && (
+                  <InfoRow icon="activity" label="Estado" value={team.status} iconColor={C.win} />
                 )}
               </View>
             </View>
           )}
 
-          <View style={styles.infoCard}>
-            <Text style={styles.sectionTitle}>Información</Text>
-            {team.coach_name && (
-              <View style={styles.infoRow}>
-                <Feather name="user" size={16} color={C.textMuted} />
-                <View style={styles.infoText}>
-                  <Text style={styles.infoLabel}>Entrenador</Text>
-                  <Text style={styles.infoValue}>{team.coach_name}</Text>
-                </View>
-              </View>
-            )}
-            {team.captain_name && (
-              <View style={styles.infoRow}>
-                <MaterialCommunityIcons name="star" size={16} color={C.gold} />
-                <View style={styles.infoText}>
-                  <Text style={styles.infoLabel}>Capitán</Text>
-                  <Text style={styles.infoValue}>{team.captain_name}</Text>
-                </View>
-              </View>
-            )}
-            {team.status && (
-              <View style={styles.infoRow}>
-                <Feather name="activity" size={16} color={C.textMuted} />
-                <View style={styles.infoText}>
-                  <Text style={styles.infoLabel}>Estado</Text>
-                  <Text style={styles.infoValue}>{team.status}</Text>
-                </View>
-              </View>
-            )}
-          </View>
-
+          {/* Recent Matches */}
           {teamGames.length > 0 && (
-            <View style={styles.gamesSection}>
-              <Text style={styles.sectionTitle}>Partidos</Text>
+            <View style={styles.matchesSection}>
+              <View style={styles.cardHeader}>
+                <View style={[styles.cardAccent, { backgroundColor: BRAND_GRADIENT[1] }]} />
+                <Text style={styles.cardTitle}>Partidos</Text>
+              </View>
               {teamGames.slice(0, 5).map((game) => (
                 <MatchCard key={game.id} game={game} teams={[team]} />
               ))}
@@ -172,27 +237,62 @@ export default function TeamDetailScreen() {
   );
 }
 
-const detailStyles = StyleSheet.create({
+const detailS = StyleSheet.create({
   statBox: {
     flex: 1,
-    minWidth: "30%",
+    minWidth: "28%",
     alignItems: "center",
     backgroundColor: C.bgSecondary,
-    borderRadius: 12,
-    padding: 12,
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 8,
+    gap: 4,
+  },
+  statBoxAccent: {
+    backgroundColor: C.primary + "18",
   },
   statValue: {
     color: C.text,
-    fontSize: 24,
+    fontSize: 26,
     fontWeight: "900",
+    letterSpacing: -0.5,
   },
   statLabel: {
     color: C.textMuted,
-    fontSize: 10,
-    fontWeight: "600",
+    fontSize: 9,
+    fontWeight: "700",
     textTransform: "uppercase",
-    marginTop: 2,
+    letterSpacing: 0.5,
     textAlign: "center",
+  },
+  infoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 8,
+  },
+  infoIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  infoText: {
+    flex: 1,
+  },
+  infoLabel: {
+    color: C.textMuted,
+    fontSize: 10,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  infoValue: {
+    color: C.text,
+    fontSize: 15,
+    fontWeight: "600",
+    marginTop: 2,
   },
 });
 
@@ -204,47 +304,63 @@ const styles = StyleSheet.create({
   center: {
     alignItems: "center",
     justifyContent: "center",
+    gap: 12,
   },
   errorText: {
     color: C.textSecondary,
     fontSize: 16,
   },
+
   header: {
-    paddingBottom: 32,
+    paddingBottom: 0,
     paddingHorizontal: 20,
+    minHeight: 280,
+    position: "relative",
   },
+  headerFade: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 80,
+  },
+
   backBtn: {
     position: "absolute",
     left: 16,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "rgba(0,0,0,0.3)",
-    alignItems: "center",
-    justifyContent: "center",
     zIndex: 10,
   },
+  backBtnInner: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: "rgba(0,0,0,0.35)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
   headerContent: {
     alignItems: "center",
-    gap: 12,
-    paddingTop: 32,
+    gap: 14,
+    paddingTop: 24,
+    paddingBottom: 32,
   },
-  logoContainer: {
+  logoRing: {
+    borderRadius: 60,
+    borderWidth: 3,
+    padding: 4,
+  },
+  logoInner: {
     borderRadius: 56,
     overflow: "hidden",
-  },
-  logoBg: {
-    padding: 8,
-    borderRadius: 56,
+    backgroundColor: "rgba(0,0,0,0.15)",
   },
   teamName: {
     color: "#fff",
-    fontSize: 26,
+    fontSize: 28,
     fontWeight: "900",
     textAlign: "center",
-    textShadowColor: "rgba(0,0,0,0.4)",
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 8,
+    letterSpacing: -0.5,
   },
   badgeRow: {
     flexDirection: "row",
@@ -252,8 +368,8 @@ const styles = StyleSheet.create({
   },
   catBadge: {
     backgroundColor: "rgba(255,255,255,0.25)",
-    paddingHorizontal: 12,
-    paddingVertical: 4,
+    paddingHorizontal: 14,
+    paddingVertical: 5,
     borderRadius: 20,
   },
   catBadgeText: {
@@ -263,8 +379,8 @@ const styles = StyleSheet.create({
   },
   seasonBadge: {
     backgroundColor: "rgba(0,0,0,0.3)",
-    paddingHorizontal: 12,
-    paddingVertical: 4,
+    paddingHorizontal: 14,
+    paddingVertical: 5,
     borderRadius: 20,
   },
   seasonText: {
@@ -272,56 +388,80 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
   },
+
   body: {
     padding: 16,
-    gap: 16,
+    gap: 14,
+    marginTop: -20,
   },
-  statsCard: {
+
+  card: {
     backgroundColor: C.card,
-    borderRadius: 16,
+    borderRadius: 18,
     padding: 16,
-    gap: 12,
+    gap: 14,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
   },
+  cardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  cardAccent: {
+    width: 3,
+    height: 18,
+    borderRadius: 2,
+  },
+  cardTitle: {
+    color: C.text,
+    fontSize: 16,
+    fontWeight: "800",
+    letterSpacing: -0.2,
+  },
+
   statsGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
   },
-  infoCard: {
-    backgroundColor: C.card,
-    borderRadius: 16,
-    padding: 16,
-    gap: 12,
+
+  winBar: {
+    gap: 6,
   },
-  sectionTitle: {
-    color: C.text,
-    fontSize: 16,
-    fontWeight: "800",
-    letterSpacing: -0.2,
-    marginBottom: 4,
-  },
-  infoRow: {
+  winBarLabels: {
     flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    paddingVertical: 4,
+    justifyContent: "space-between",
   },
-  infoText: {
-    flex: 1,
-  },
-  infoLabel: {
+  winBarLabel: {
     color: C.textMuted,
     fontSize: 11,
     fontWeight: "600",
-    textTransform: "uppercase",
   },
-  infoValue: {
+  winBarPct: {
     color: C.text,
-    fontSize: 15,
-    fontWeight: "600",
-    marginTop: 2,
+    fontSize: 11,
+    fontWeight: "700",
   },
-  gamesSection: {
+  winBarTrack: {
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: C.cardLight,
+    overflow: "hidden",
+  },
+  winBarFill: {
+    height: "100%",
+    borderRadius: 3,
+  },
+
+  infoList: {
+    gap: 2,
+  },
+
+  matchesSection: {
     gap: 0,
   },
 });
