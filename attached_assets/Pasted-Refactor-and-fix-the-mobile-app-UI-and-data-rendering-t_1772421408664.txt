@@ -1,0 +1,100 @@
+Refactor and fix the mobile app UI and data rendering to production level.
+
+CRITICAL FIXES:
+
+1. FIX TEAM LOGOS
+
+* Team logos are stored as public HTTPS URLs in logo_url.
+* Do NOT render blobs.
+* Always use React Native Image component with:
+  source={{ uri: logo_url }}
+* Set fixed width and height (e.g. 60x60 or 80x80).
+* Use resizeMode="contain".
+* Add fallback placeholder image if logo_url is null.
+* Create a reusable TeamLogo component and use it everywhere.
+
+2. FIX STATISTICS LAYOUT
+
+The standings screen layout is broken.
+
+* Do NOT render category filters as full height vertical cards.
+* Filters must be horizontal scroll chips at the top.
+* Use compact filter buttons.
+* The standings table must appear immediately below filters.
+
+3. FIX STANDINGS TABLE DESIGN
+
+Create a proper professional StandingsTable component:
+
+* Header row: Pos | Equipo | JJ | G | P | PF | PA | PTS
+* Rows rendered vertically
+* Each row is a horizontal flex container
+* Equal spacing between columns
+* No full height cards
+* No vertical giant blocks
+* Sticky header
+* Alternating row background
+* Highlight top 3 teams visually
+* Add points badge
+* Proper typography hierarchy
+
+Sort standings by points descending.
+Load directly from team_stats table.
+Do not filter by season initially (debug mode).
+
+4. FIX SCREEN LAYOUT STRUCTURE
+
+* Use SafeAreaView properly
+* Remove unnecessary flex: 1 containers
+* Ensure content fits screen without layout overflow
+* Scroll should only apply to table body, not entire screen
+* Filters should not push content off screen
+
+5. HOME DESIGN REFINEMENT
+
+* Add hero featured match with brand gradient:
+  #1E5DBB → #E05AA6 → #FF6B1A
+* Horizontal scroll for latest matches
+* Upcoming matches section
+* Standings preview (top 5)
+* Larger logos
+* Bigger score typography
+* Soft shadows
+* Border radius 18
+* Modern spacing system
+
+6. MATCH CARD IMPROVEMENTS
+
+* Larger score
+* Logos aligned left and right
+* Status badge pill (en vivo / finalizado / programado)
+* Subtle shadow
+* Press animation
+
+7. GLOBAL DESIGN SYSTEM
+
+* Use brand gradient (#1E5DBB → #E05AA6 → #FF6B1A)
+* Orange (#FF6B1A) for primary actions
+* White text on gradients
+* Light clean background
+* Soft shadows
+* Consistent spacing (8px grid system)
+* Border radius 16–20
+
+8. ARCHITECTURE CLEANUP
+
+* Ensure useTeams, useMatches, useStats hooks are clean
+* Ensure standings load even if other data fails
+* Add console logs temporarily to verify Supabase data
+* Keep queries lightweight
+* Cache simple lists
+
+GOAL:
+
+The app must:
+
+* Correctly display team logos from logo_url
+* Show a proper professional standings table
+* Have clean layout without oversized vertical blocks
+* Feel like a premium sports app (ESPN/NFL level)
+* Display real Supabase data reliably
