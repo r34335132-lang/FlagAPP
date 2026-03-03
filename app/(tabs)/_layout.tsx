@@ -1,36 +1,11 @@
-import { isLiquidGlassAvailable } from "expo-glass-effect";
 import { Tabs } from "expo-router";
-import { NativeTabs, Icon, Label } from "expo-router/unstable-native-tabs";
-import { BlurView } from "expo-blur";
 import { Platform, StyleSheet, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { BlurView } from "expo-blur";
 import React from "react";
-import C from "@/constants/colors";
+import { BRAND_GRADIENT } from "@/constants/colors";
 
-function NativeTabLayout() {
-  return (
-    <NativeTabs>
-      <NativeTabs.Trigger name="index">
-        <Icon sf={{ default: "house", selected: "house.fill" }} />
-        <Label>Inicio</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="teams">
-        <Icon sf={{ default: "person.3", selected: "person.3.fill" }} />
-        <Label>Equipos</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="matches">
-        <Icon sf={{ default: "sportscourt", selected: "sportscourt.fill" }} />
-        <Label>Partidos</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="standings">
-        <Icon sf={{ default: "list.number", selected: "list.number" }} />
-        <Label>Tabla</Label>
-      </NativeTabs.Trigger>
-    </NativeTabs>
-  );
-}
-
-function ClassicTabLayout() {
+export default function TabLayout() {
   const isIOS = Platform.OS === "ios";
   const isWeb = Platform.OS === "web";
 
@@ -38,22 +13,32 @@ function ClassicTabLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: C.brandOrange,
-        tabBarInactiveTintColor: C.textMuted,
+        // El color de la pestaña activa tomará tu color principal
+        tabBarActiveTintColor: BRAND_GRADIENT[0], 
+        // Color de las pestañas inactivas (Gris Premium)
+        tabBarInactiveTintColor: "#94A3B8", 
         tabBarStyle: {
           position: "absolute",
-          backgroundColor: isIOS ? "transparent" : C.bgSecondary,
-          borderTopWidth: isWeb ? 1 : 0,
-          borderTopColor: C.border,
-          elevation: 0,
-          ...(isWeb ? { height: 84 } : {}),
+          backgroundColor: isIOS ? "transparent" : "#FFFFFF", // Fondo blanco
+          borderTopWidth: 1,
+          borderTopColor: "#E2E8F0", // Borde sutil
+          elevation: 10,
+          shadowColor: "#0F172A",
+          shadowOffset: { width: 0, height: -4 },
+          shadowOpacity: 0.05,
+          shadowRadius: 10,
+          height: isWeb ? 84 : (isIOS ? 88 : 70),
+          paddingBottom: isIOS ? 28 : 10,
+          paddingTop: 10,
         },
         tabBarBackground: () =>
           isIOS ? (
-            <BlurView intensity={90} tint="dark" style={StyleSheet.absoluteFill} />
-          ) : isWeb ? (
-            <View style={[StyleSheet.absoluteFill, { backgroundColor: C.bgSecondary }]} />
-          ) : null,
+            // Efecto cristalino claro en iOS
+            <BlurView intensity={80} tint="light" style={StyleSheet.absoluteFill} />
+          ) : (
+            // Fondo sólido en Android/Web
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: "#FFFFFF" }]} />
+          ),
       }}
     >
       <Tabs.Screen
@@ -70,7 +55,7 @@ function ClassicTabLayout() {
         options={{
           title: "Equipos",
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? "people" : "people-outline"} size={24} color={color} />
+            <Ionicons name={focused ? "shield" : "shield-outline"} size={24} color={color} />
           ),
         }}
       />
@@ -79,14 +64,15 @@ function ClassicTabLayout() {
         options={{
           title: "Partidos",
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? "american-football" : "american-football-outline"} size={24} color={color} />
+            // Aquí está el balón de americano
+            <Ionicons name={focused ? "american-football" : "american-football-outline"} size={26} color={color} />
           ),
         }}
       />
       <Tabs.Screen
         name="standings"
         options={{
-          title: "Tabla",
+          title: "Estadísticas", // Regresamos el nombre a Estadísticas
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? "bar-chart" : "bar-chart-outline"} size={24} color={color} />
           ),
@@ -94,11 +80,4 @@ function ClassicTabLayout() {
       />
     </Tabs>
   );
-}
-
-export default function TabLayout() {
-  if (isLiquidGlassAvailable()) {
-    return <NativeTabLayout />;
-  }
-  return <ClassicTabLayout />;
 }

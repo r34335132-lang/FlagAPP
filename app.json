@@ -42,6 +42,15 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {
+        "origin": "https://replit.com/"
+      },
+      "eas": {
+        "projectId": "2777fac9-0f8b-402c-bdcf-bd6056609510"
+      }
+    },
+    "owner": "raulbri123"
   }
 }

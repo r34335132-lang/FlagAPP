@@ -1,19 +1,10 @@
 import React, { useState, useMemo } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  Platform,
-  Pressable,
-  RefreshControl,
-} from "react-native";
+import { View, Text, StyleSheet, ScrollView, Platform, Pressable, RefreshControl } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useStats } from "@/hooks/useStats";
 import { StandingsTable } from "@/components/StandingsTable";
-import { StatsRowSkeleton } from "@/components/SkeletonLoader";
-import C from "@/constants/colors";
+import { BRAND_GRADIENT } from "@/constants/colors";
 
 export default function StandingsScreen() {
   const insets = useSafeAreaInsets();
@@ -22,12 +13,10 @@ export default function StandingsScreen() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
   const topPad = insets.top + (Platform.OS === "web" ? 67 : 0);
-  const bottomPad = insets.bottom + (Platform.OS === "web" ? 34 : 0);
 
   const categories = useMemo(() => {
     if (!stats) return [];
-    const cats = Array.from(new Set(stats.map((s) => s.team_category).filter(Boolean))) as string[];
-    return cats;
+    return Array.from(new Set(stats.map((s) => s.team_category).filter(Boolean))) as string[];
   }, [stats]);
 
   const filtered = useMemo(() => {
@@ -42,177 +31,57 @@ export default function StandingsScreen() {
     setRefreshing(false);
   };
 
+  const renderCategoryChip = (keyId: string, label: string, isActive: boolean, onPress: () => void) => (
+    <Pressable key={keyId} onPress={onPress}>
+      <View style={[styles.catChip, isActive && styles.catChipActive]}>
+        <Text style={[styles.catLabel, isActive && styles.catLabelActive]}>{label}</Text>
+      </View>
+    </Pressable>
+  );
+
   return (
     <View style={styles.container}>
       <ScrollView
-        contentContainerStyle={[
-          styles.scrollContent,
-          { paddingTop: topPad + 8, paddingBottom: bottomPad + 80 },
-        ]}
+        contentContainerStyle={[styles.scrollContent, { paddingTop: topPad + 12, paddingBottom: 100 }]}
         showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.primary} />
-        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BRAND_GRADIENT[0]} />}
       >
-        <Text style={styles.screenTitle}>Tabla de Posiciones</Text>
+        <Text style={styles.screenTitle}>Estadísticas</Text>
 
         {categories.length > 1 && (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.categoryRow}
-          >
-            <Pressable
-              onPress={() => setSelectedCategory(null)}
-              style={[styles.catChip, !selectedCategory && styles.catChipActive]}
-            >
-              <Text style={[styles.catLabel, !selectedCategory && styles.catLabelActive]}>Todos</Text>
-            </Pressable>
-            {categories.map((cat) => (
-              <Pressable
-                key={cat}
-                onPress={() => setSelectedCategory(cat)}
-                style={[styles.catChip, selectedCategory === cat && styles.catChipActive]}
-              >
-                <Text style={[styles.catLabel, selectedCategory === cat && styles.catLabelActive]}>
-                  {cat}
-                </Text>
-              </Pressable>
-            ))}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryRow}>
+            {renderCategoryChip("all", "Todos", !selectedCategory, () => setSelectedCategory(null))}
+            {categories.map((cat) => renderCategoryChip(cat, cat, selectedCategory === cat, () => setSelectedCategory(cat)))}
           </ScrollView>
         )}
 
-        <View style={styles.legend}>
-          <View style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: C.win }]} />
-            <Text style={styles.legendText}>Victoria</Text>
-          </View>
-          <View style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: C.tie }]} />
-            <Text style={styles.legendText}>Empate</Text>
-          </View>
-          <View style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: C.loss }]} />
-            <Text style={styles.legendText}>Derrota</Text>
-          </View>
-        </View>
-
-        {isLoading ? (
-          <View style={styles.skeletonContainer}>
-            {[1, 2, 3, 4, 5, 6, 7, 8].map((k) => <StatsRowSkeleton key={k} />)}
-          </View>
-        ) : filtered.length > 0 ? (
+        {filtered.length > 0 ? (
           <View style={styles.tableContainer}>
             <StandingsTable stats={filtered} />
           </View>
-        ) : (
-          <View style={styles.empty}>
-            <Ionicons name="trophy-outline" size={48} color={C.textMuted} />
+        ) : !isLoading ? (
+          <View style={styles.emptyCard}>
+            <Ionicons name="trophy-outline" size={48} color="#94A3B8" />
             <Text style={styles.emptyTitle}>Sin datos</Text>
             <Text style={styles.emptySubtitle}>No hay estadísticas disponibles</Text>
           </View>
-        )}
-
-        {!isLoading && filtered.length > 0 && (
-          <View style={styles.footer}>
-            <Text style={styles.footerText}>PJ: Partidos Jugados · G: Ganados · E: Empatados · P: Perdidos · PTS: Puntos</Text>
-          </View>
-        )}
+        ) : null}
       </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: C.bg,
-  },
-  scrollContent: {
-    paddingHorizontal: 16,
-  },
-  screenTitle: {
-    color: C.text,
-    fontSize: 24,
-    fontWeight: "900",
-    letterSpacing: -0.5,
-    marginBottom: 14,
-  },
-  categoryRow: {
-    gap: 8,
-    paddingBottom: 12,
-  },
-  catChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 20,
-    backgroundColor: C.card,
-    borderWidth: 1,
-    borderColor: C.border,
-  },
-  catChipActive: {
-    backgroundColor: C.primary,
-    borderColor: C.primary,
-  },
-  catLabel: {
-    color: C.textSecondary,
-    fontSize: 13,
-    fontWeight: "600",
-  },
-  catLabelActive: {
-    color: "#fff",
-  },
-  legend: {
-    flexDirection: "row",
-    gap: 16,
-    marginBottom: 12,
-  },
-  legendItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  legendDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  legendText: {
-    color: C.textSecondary,
-    fontSize: 12,
-  },
-  skeletonContainer: {
-    backgroundColor: C.card,
-    borderRadius: 16,
-    overflow: "hidden",
-  },
-  tableContainer: {
-    flex: 1,
-  },
-  empty: {
-    alignItems: "center",
-    paddingVertical: 60,
-    gap: 8,
-  },
-  emptyTitle: {
-    color: C.textSecondary,
-    fontSize: 18,
-    fontWeight: "700",
-    marginTop: 8,
-  },
-  emptySubtitle: {
-    color: C.textMuted,
-    fontSize: 14,
-  },
-  footer: {
-    marginTop: 16,
-    paddingVertical: 12,
-    alignItems: "center",
-  },
-  footerText: {
-    color: C.textMuted,
-    fontSize: 10,
-    textAlign: "center",
-    lineHeight: 16,
-  },
+  container: { flex: 1, backgroundColor: "#F8FAFC" },
+  scrollContent: { paddingHorizontal: 16 },
+  screenTitle: { color: "#0F172A", fontSize: 32, fontWeight: "900", letterSpacing: -1, marginBottom: 20 },
+  categoryRow: { gap: 10, paddingBottom: 20 },
+  catChip: { paddingHorizontal: 18, paddingVertical: 10, borderRadius: 24, backgroundColor: "#FFFFFF", borderWidth: 1, borderColor: "#E2E8F0" },
+  catChipActive: { backgroundColor: "#0F172A", borderColor: "#0F172A" },
+  catLabel: { color: "#64748B", fontSize: 13, fontWeight: "700" },
+  catLabelActive: { color: "#FFFFFF" },
+  tableContainer: { backgroundColor: "#FFFFFF", borderRadius: 22, borderWidth: 1, borderColor: "#E2E8F0", shadowColor: "#0F172A", shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.05, shadowRadius: 12, elevation: 4, overflow: "hidden" },
+  emptyCard: { alignItems: "center", paddingVertical: 50, marginTop: 20, backgroundColor: "#FFFFFF", borderRadius: 24, borderWidth: 1, borderColor: "#E2E8F0", borderStyle: "dashed" },
+  emptyTitle: { color: "#0F172A", fontSize: 20, fontWeight: "800", marginTop: 12 },
+  emptySubtitle: { color: "#64748B", fontSize: 14, fontWeight: "500", marginTop: 4 },
 });

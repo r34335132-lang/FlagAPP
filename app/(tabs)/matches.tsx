@@ -1,214 +1,289 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   View,
   Text,
   StyleSheet,
   FlatList,
-  Platform,
   Pressable,
-  RefreshControl,
+  ScrollView,
+  ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
 import { useMatches } from "@/hooks/useMatches";
 import { useTeams } from "@/hooks/useTeams";
-import { MatchCard } from "@/components/MatchCard";
-import { MatchCardSkeleton } from "@/components/SkeletonLoader";
-import { Ionicons } from "@expo/vector-icons";
-import C from "@/constants/colors";
+import { MatchCardLight } from "@/components/MatchCardLight";
+import { BRAND_GRADIENT } from "@/constants/colors";
 
-type Filter = "all" | "live" | "finished" | "upcoming";
-
-const FILTERS: { key: Filter; label: string }[] = [
-  { key: "all", label: "Todos" },
-  { key: "live", label: "En Vivo" },
-  { key: "finished", label: "Finalizados" },
-  { key: "upcoming", label: "Próximos" },
+// Ramas principales
+const MAIN_CATEGORIES = [
+  { id: "all", label: "TODOS" },
+  { id: "varonil", label: "VARONIL" },
+  { id: "femenil", label: "FEMENIL" },
+  { id: "mixto", label: "MIXTO" },
+  { id: "teens", label: "TEENS" },
 ];
 
 export default function MatchesScreen() {
   const insets = useSafeAreaInsets();
-  const { data: games, isLoading: gamesLoading, refetch: refetchGames } = useMatches();
-  const { data: teams, isLoading: teamsLoading, refetch: refetchTeams } = useTeams();
-  const [activeFilter, setActiveFilter] = useState<Filter>("all");
-  const [refreshing, setRefreshing] = useState(false);
+  const { data: games, isLoading, refetch } = useMatches();
+  const { data: teams } = useTeams();
+  
+  const [selectedMainCat, setSelectedMainCat] = useState("all");
+  const [selectedSubCat, setSelectedSubCat] = useState("all");
 
-  const isLoading = gamesLoading || teamsLoading;
-  const safeTeams = teams ?? [];
+  // 1. Cuando cambias de rama (ej. de Varonil a Femenil), resetear el subfiltro a "Todas"
+  useEffect(() => {
+    setSelectedSubCat("all");
+  }, [selectedMainCat]);
 
-  const topPad = insets.top + (Platform.OS === "web" ? 67 : 0);
-  const bottomPad = insets.bottom + (Platform.OS === "web" ? 34 : 0);
-
-  const filtered = useMemo(() => {
+  // 2. Filtrar por la Rama Principal (Varonil, Femenil, etc.)
+  const filteredByMain = useMemo(() => {
     if (!games) return [];
-    switch (activeFilter) {
-      case "live":
-        return games.filter((g) => {
-          const s = g.status?.toLowerCase() ?? "";
-          return s === "en vivo" || s === "live";
-        });
-      case "finished":
-        return games.filter((g) => {
-          const s = g.status?.toLowerCase() ?? "";
-          return s === "finalizado" || s === "final";
-        });
-      case "upcoming":
-        return games.filter((g) => {
-          const s = g.status?.toLowerCase() ?? "";
-          return s === "programado" || s === "scheduled" || (g.home_score === null && g.away_score === null);
-        });
-      default:
-        return games;
-    }
-  }, [games, activeFilter]);
+    if (selectedMainCat === "all") return games;
+    return games.filter((g) => 
+      g.category?.toLowerCase().startsWith(selectedMainCat.toLowerCase())
+    );
+  }, [games, selectedMainCat]);
 
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await Promise.all([refetchGames(), refetchTeams()]);
-    setRefreshing(false);
-  };
+  // 3. Extraer DINÁMICAMENTE los niveles (Gold, Silver, Libre) según la rama seleccionada
+  const availableSubCats = useMemo(() => {
+    if (selectedMainCat === "all") return [];
+    
+    const subs = new Set<string>();
+    filteredByMain.forEach(g => {
+      const parts = g.category?.split("-"); // Ej: "femenil-gold" -> ["femenil", "gold"]
+      if (parts && parts.length > 1) {
+        subs.add(parts[1].toLowerCase());
+      }
+    });
+    
+    return Array.from(subs).sort(); // Devuelve ['gold', 'silver', etc.]
+  }, [filteredByMain, selectedMainCat]);
+
+  // 4. Aplicar el Filtro Secundario (Nivel)
+  const finalFilteredGames = useMemo(() => {
+    if (selectedSubCat === "all") return filteredByMain;
+    
+    return filteredByMain.filter(g => {
+      const parts = g.category?.split("-");
+      return parts && parts.length > 1 && parts[1].toLowerCase() === selectedSubCat.toLowerCase();
+    });
+  }, [filteredByMain, selectedSubCat]);
+
+  // 5. AGRUPAR POR JORNADA para el diseño final
+  const groupedByJornada = useMemo(() => {
+    const groups: { [key: string]: any[] } = {};
+    
+    finalFilteredGames.forEach((game) => {
+      const jKey = game.jornada ? `JORNADA ${game.jornada}` : "POR DEFINIR";
+      if (!groups[jKey]) groups[jKey] = [];
+      groups[jKey].push(game);
+    });
+
+    // Ordenar numéricamente las jornadas
+    return Object.keys(groups).sort((a, b) => {
+        const numA = parseInt(a.replace(/\D/g, "")) || 0;
+        const numB = parseInt(b.replace(/\D/g, "")) || 0;
+        return numA - numB;
+    }).map(jornada => ({
+      title: jornada,
+      data: groups[jornada]
+    }));
+  }, [finalFilteredGames]);
+
+  if (isLoading) {
+    return (
+      <View style={styles.loading}>
+        <ActivityIndicator size="large" color={BRAND_GRADIENT[0]} />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
-      <FlatList
-        data={isLoading ? [] : filtered}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={[
-          styles.list,
-          { paddingTop: topPad + 8, paddingBottom: bottomPad + 80 },
-        ]}
-        showsVerticalScrollIndicator={false}
-        scrollEnabled={!isLoading || !!filtered.length}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.primary} />
-        }
-        ListHeaderComponent={
-          <View>
-            <Text style={styles.screenTitle}>Partidos</Text>
-            <View style={styles.filterRow}>
-              {FILTERS.map((f) => (
-                <Pressable
-                  key={f.key}
-                  onPress={() => setActiveFilter(f.key)}
-                  style={[
-                    styles.filterChip,
-                    activeFilter === f.key && styles.filterChipActive,
-                  ]}
+      {/* --- HEADER FIJO --- */}
+      <View style={[styles.topBar, { paddingTop: insets.top + 10 }]}>
+        <View style={styles.headerRow}>
+          <Text style={styles.headerTitle}>Partidos</Text>
+          <Pressable onPress={() => refetch()} style={styles.refreshBtn}>
+            <Ionicons name="refresh" size={18} color="#64748B" />
+          </Pressable>
+        </View>
+
+        {/* SELECTOR PRINCIPAL (Ramas) */}
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false} 
+          contentContainerStyle={styles.mainCategoryScroll}
+        >
+          {MAIN_CATEGORIES.map((cat) => {
+            const isActive = selectedMainCat === cat.id;
+            return (
+              <Pressable 
+                key={cat.id} 
+                style={[styles.mainTab, isActive && styles.mainTabActive]}
+                onPress={() => setSelectedMainCat(cat.id)}
+              >
+                <Text style={[styles.mainTabText, isActive && styles.mainTabTextActive]}>
+                  {cat.label}
+                </Text>
+                {isActive && <View style={styles.activeIndicator} />}
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+
+        {/* SELECTOR SECUNDARIO (Niveles - Solo aparece si seleccionas una rama específica) */}
+        {selectedMainCat !== "all" && availableSubCats.length > 0 && (
+          <View style={styles.subCategoryWrapper}>
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false} 
+              contentContainerStyle={styles.subCategoryScroll}
+            >
+              <Pressable 
+                style={[styles.subChip, selectedSubCat === "all" && styles.subChipActive]}
+                onPress={() => setSelectedSubCat("all")}
+              >
+                <Text style={[styles.subChipText, selectedSubCat === "all" && styles.subChipTextActive]}>
+                  Todas
+                </Text>
+              </Pressable>
+              
+              {availableSubCats.map(sub => (
+                <Pressable 
+                  key={sub} 
+                  style={[styles.subChip, selectedSubCat === sub && styles.subChipActive]}
+                  onPress={() => setSelectedSubCat(sub)}
                 >
-                  {f.key === "live" && activeFilter === f.key && (
-                    <View style={styles.liveDot} />
-                  )}
-                  <Text
-                    style={[
-                      styles.filterLabel,
-                      activeFilter === f.key && styles.filterLabelActive,
-                    ]}
-                  >
-                    {f.label}
+                  <Text style={[styles.subChipText, selectedSubCat === sub && styles.subChipTextActive]}>
+                    {sub.toUpperCase()}
                   </Text>
                 </Pressable>
               ))}
+            </ScrollView>
+          </View>
+        )}
+      </View>
+
+      {/* --- LISTA GRUPAL POR JORNADA --- */}
+      <FlatList
+        data={groupedByJornada}
+        keyExtractor={(item) => item.title}
+        contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 80 }]}
+        showsVerticalScrollIndicator={false}
+        renderItem={({ item }) => (
+          <View style={styles.jornadaSection}>
+            <View style={styles.jornadaHeader}>
+              <Text style={styles.jornadaTitle}>{item.title}</Text>
+              <View style={styles.line} />
             </View>
-            {isLoading && (
-              <View style={{ gap: 12 }}>
-                {[1, 2, 3, 4].map((k) => (
-                  <View key={k} style={skeletonWrapStyle}>
-                    <MatchCardSkeleton />
-                  </View>
-                ))}
-              </View>
-            )}
+
+            {item.data.map((game) => (
+              <MatchCardLight key={game.id} game={game} teams={teams || []} />
+            ))}
+          </View>
+        )}
+        ListEmptyComponent={
+          <View style={styles.emptyState}>
+            <Ionicons name="calendar-outline" size={60} color="#CBD5E1" />
+            <Text style={styles.emptyTitle}>Sin partidos</Text>
+            <Text style={styles.emptySub}>No hay juegos programados con estos filtros.</Text>
           </View>
         }
-        ListEmptyComponent={
-          !isLoading ? (
-            <View style={styles.empty}>
-              <Ionicons name="football-outline" size={48} color={C.textMuted} />
-              <Text style={styles.emptyTitle}>Sin partidos</Text>
-              <Text style={styles.emptySubtitle}>
-                {activeFilter !== "all"
-                  ? "No hay partidos en esta categoría"
-                  : "No hay partidos disponibles"}
-              </Text>
-            </View>
-          ) : null
-        }
-        renderItem={({ item }) => (
-          <MatchCard game={item} teams={safeTeams} />
-        )}
       />
     </View>
   );
 }
 
-const skeletonWrapStyle = {
-  width: "100%",
-  marginBottom: 12,
-};
-
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: C.bg,
+  container: { flex: 1, backgroundColor: "#F8FAFC" },
+  loading: { flex: 1, justifyContent: "center", alignItems: "center" },
+  
+  // Barra superior fija
+  topBar: { 
+    backgroundColor: "#FFFFFF", 
+    borderBottomWidth: 1, 
+    borderColor: "#E2E8F0",
+    zIndex: 10,
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
   },
-  list: {
+  headerRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    marginBottom: 10,
+  },
+  headerTitle: { fontSize: 22, fontWeight: "900", color: "#0F172A" },
+  refreshBtn: { padding: 5 },
+
+  // Selector Principal (Texto)
+  mainCategoryScroll: { paddingHorizontal: 20, paddingBottom: 10, gap: 20 },
+  mainTab: { paddingVertical: 8, position: "relative", alignItems: "center" },
+  mainTabActive: {},
+  mainTabText: { fontSize: 13, fontWeight: "700", color: "#94A3B8", letterSpacing: 0.5 },
+  mainTabTextActive: { color: BRAND_GRADIENT[0] },
+  activeIndicator: { 
+    position: "absolute", 
+    bottom: -10, 
+    width: "100%", 
+    height: 3, 
+    backgroundColor: BRAND_GRADIENT[0], 
+    borderRadius: 2 
+  },
+
+  // Selector Secundario (Burbujas / Chips)
+  subCategoryWrapper: {
+    backgroundColor: "#F8FAFC",
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: "#E2E8F0",
+  },
+  subCategoryScroll: { paddingHorizontal: 20, gap: 8 },
+  subChip: {
     paddingHorizontal: 16,
-  },
-  screenTitle: {
-    color: C.text,
-    fontSize: 28,
-    fontWeight: "900",
-    letterSpacing: -0.5,
-    marginBottom: 14,
-  },
-  filterRow: {
-    flexDirection: "row",
-    gap: 8,
-    marginBottom: 16,
-    flexWrap: "wrap",
-  },
-  filterChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 20,
-    backgroundColor: C.card,
+    paddingVertical: 6,
+    borderRadius: 16,
+    backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: C.border,
-    gap: 5,
+    borderColor: "#E2E8F0",
   },
-  filterChipActive: {
-    backgroundColor: C.primary,
-    borderColor: C.primary,
+  subChipActive: {
+    backgroundColor: "#0F172A",
+    borderColor: "#0F172A",
   },
-  filterLabel: {
-    color: C.textSecondary,
-    fontSize: 13,
-    fontWeight: "600",
-  },
-  filterLabelActive: {
-    color: "#fff",
-  },
-  liveDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: "#fff",
-  },
-  empty: {
-    alignItems: "center",
-    paddingVertical: 60,
-    gap: 8,
-  },
-  emptyTitle: {
-    color: C.textSecondary,
-    fontSize: 18,
+  subChipText: {
+    fontSize: 12,
     fontWeight: "700",
-    marginTop: 8,
+    color: "#64748B",
   },
-  emptySubtitle: {
-    color: C.textMuted,
-    fontSize: 14,
-    textAlign: "center",
+  subChipTextActive: {
+    color: "#FFFFFF",
   },
+
+  // Contenido de lista
+  listContent: { paddingHorizontal: 20, paddingTop: 20 },
+  jornadaSection: { marginBottom: 25 },
+  jornadaHeader: { 
+    flexDirection: "row", 
+    alignItems: "center", 
+    marginBottom: 15, 
+    gap: 10 
+  },
+  jornadaTitle: { 
+    fontSize: 14, 
+    fontWeight: "800", 
+    color: "#64748B", 
+    letterSpacing: 1 
+  },
+  line: { flex: 1, height: 1, backgroundColor: "#E2E8F0" },
+
+  emptyState: { alignItems: "center", marginTop: 100 },
+  emptyTitle: { fontSize: 18, fontWeight: "800", color: "#0F172A", marginTop: 12 },
+  emptySub: { fontSize: 14, color: "#64748B", textAlign: "center", marginTop: 6, paddingHorizontal: 40 }
 });

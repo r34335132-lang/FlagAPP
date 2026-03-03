@@ -49,3 +49,37 @@ export function useTeam(id: string) {
     enabled: !!id,
   });
 }
+export interface Player {
+  id: number;
+  name: string;
+  position: string;
+  jersey_number: number;
+  photo_url: string;
+  status: string;
+  game_attendance?: { count: number }[];
+}
+
+export function useTeamRoster(teamId: string) {
+  return useQuery<Player[]>({
+    queryKey: ["/api/teams", teamId, "roster"],
+    queryFn: async () => {
+      // Hacemos un select de los jugadores y opcionalmente contamos sus asistencias
+      const { data, error } = await supabase
+        .from("players")
+        .select(`
+          id, 
+          name, 
+          position, 
+          jersey_number, 
+          photo_url, 
+          status
+        `)
+        .eq("team_id", teamId)
+        .order("jersey_number", { ascending: true });
+        
+      if (error) throw new Error(error.message);
+      return data ?? [];
+    },
+    enabled: !!teamId,
+  });
+}
