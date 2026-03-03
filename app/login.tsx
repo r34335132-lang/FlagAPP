@@ -8,164 +8,170 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Image,
+  ScrollView,
+  Alert
 } from "react-native";
-import { router } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import { BRAND_GRADIENT } from "@/constants/colors";
 
-// 🚨 IMPORTANTE: CAMBIA ESTO POR LA IP LOCAL DE TU COMPUTADORA (ej: 192.168.1.75)
-const API_URL = "https://www.flagdurango.com.mx/api/auth/login"; 
+// 👇 Cambia esto por tu IP local (ej. http://192.168.1.80:3000) si pruebas en tu PC
+const BASE_URL = "https://www.flagdurango.com.mx"; 
 
 export default function LoginScreen() {
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
 
   const handleLogin = async () => {
     if (!email || !password) {
-      setError("Ingresa correo y contraseña");
+      Alert.alert("Aviso", "Por favor ingresa correo/usuario y contraseña.");
       return;
     }
 
     setLoading(true);
-    setError("");
-
     try {
-      const response = await fetch(API_URL, {
+      const response = await fetch(`${BASE_URL}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim(), password }),
+        body: JSON.stringify({ 
+          email: email.trim(), 
+          password 
+        }),
       });
 
       const data = await response.json();
 
-      if (data.success) {
-        await AsyncStorage.setItem("userSession", JSON.stringify(data.user));
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || "Credenciales inválidas");
+      }
 
+      // Guardamos la sesión que nos regresa tu API
+      if (data.user) {
+        await AsyncStorage.setItem("userSession", JSON.stringify(data.user));
+        
+        // Redirigimos según el rol
         if (data.user.role === "coach") {
           router.replace("/(coach)/dashboard");
         } else if (data.user.role === "admin") {
-          alert("Eres Administrador. Usa la versión web.");
-          router.replace("/(tabs)/");
+          Alert.alert("Eres Admin", "Por favor usa la versión web para administrar.");
+          router.replace("/");
         } else {
           router.replace("/(player)/dashboard");
         }
-      } else {
-        setError(data.message || "Error de credenciales");
       }
-    } catch (err) {
-      console.error(err);
-      setError("No se pudo conectar con el servidor.");
+    } catch (error: any) {
+      Alert.alert("Error al iniciar sesión", error.message);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <KeyboardAvoidingView 
-      behavior={Platform.OS === "ios" ? "padding" : "height"} 
-      style={styles.container}
-    >
-      <View style={styles.inner}>
-        <Pressable style={styles.closeBtn} onPress={() => router.replace("/(tabs)/")}>
-          <Ionicons name="close" size={28} color="#64748B" />
-        </Pressable>
+    <View style={styles.container}>
+      <LinearGradient colors={[BRAND_GRADIENT[0], BRAND_GRADIENT[1]]} style={styles.topBackground}>
+        <Image 
+          source={{ uri: "https://www.flagdurango.com.mx/images/logo-flag-durango.png" }} 
+          style={styles.logo} 
+          resizeMode="contain" 
+        />
+      </LinearGradient>
 
-        <View style={styles.header}>
-          <View style={styles.logoWrap}>
-            <Ionicons name="american-football" size={40} color={BRAND_GRADIENT[0]} />
-          </View>
-          <Text style={styles.title}>Inicia Sesión</Text>
-          <Text style={styles.subtitle}>Accede a tu perfil de la Liga Flag Durango.</Text>
-        </View>
-
-        <View style={styles.form}>
-          {error ? (
-            <View style={styles.errorBox}>
-              <Ionicons name="warning" size={20} color="#EF4444" />
-              <Text style={styles.errorText}>{error}</Text>
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.keyboardView}>
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+          <View style={styles.card}>
+            <View style={styles.header}>
+              <Text style={styles.title}>Bienvenido de vuelta</Text>
+              <Text style={styles.subtitle}>Inicia sesión para ver tu gafete y stats</Text>
             </View>
-          ) : null}
 
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Correo Electrónico</Text>
-            <View style={styles.inputBox}>
-              <Ionicons name="mail-outline" size={20} color="#94A3B8" style={styles.inputIcon} />
-              <TextInput
-                style={styles.input}
-                placeholder="ejemplo@correo.com"
-                placeholderTextColor="#94A3B8"
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
-            </View>
-          </View>
+            <View style={styles.form}>
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Usuario o Correo</Text>
+                <View style={styles.inputContainer}>
+                  <Ionicons name="person-outline" size={20} color="#94A3B8" style={styles.inputIcon} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="ejemplo@correo.com"
+                    placeholderTextColor="#94A3B8"
+                    value={email}
+                    onChangeText={setEmail}
+                    autoCapitalize="none"
+                  />
+                </View>
+              </View>
 
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Contraseña</Text>
-            <View style={styles.inputBox}>
-              <Ionicons name="lock-closed-outline" size={20} color="#94A3B8" style={styles.inputIcon} />
-              <TextInput
-                style={styles.input}
-                placeholder="••••••••"
-                placeholderTextColor="#94A3B8"
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry={!showPassword}
-              />
-              <Pressable onPress={() => setShowPassword(!showPassword)} style={{ padding: 5 }}>
-                <Ionicons name={showPassword ? "eye-outline" : "eye-off-outline"} size={20} color="#94A3B8" />
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Contraseña</Text>
+                <View style={styles.inputContainer}>
+                  <Ionicons name="lock-closed-outline" size={20} color="#94A3B8" style={styles.inputIcon} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="••••••••"
+                    placeholderTextColor="#94A3B8"
+                    value={password}
+                    onChangeText={setPassword}
+                    secureTextEntry={!showPassword}
+                  />
+                  <Pressable onPress={() => setShowPassword(!showPassword)} style={styles.eyeIcon}>
+                    <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={20} color="#94A3B8" />
+                  </Pressable>
+                </View>
+              </View>
+
+              <Pressable style={styles.loginBtn} onPress={handleLogin} disabled={loading}>
+                {loading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.loginBtnText}>Iniciar Sesión</Text>}
+              </Pressable>
+
+              <View style={styles.footerLinks}>
+                <Text style={styles.footerText}>¿No tienes cuenta?</Text>
+                <Pressable onPress={() => router.push("/register")}>
+                  <Text style={styles.linkText}>Regístrate aquí</Text>
+                </Pressable>
+              </View>
+              <Pressable onPress={() => router.push("/forgot-password")} style={{ marginTop: 15, alignItems: "center" }}>
+               <Text style={{ color: BRAND_GRADIENT[0], fontWeight: "700" }}>¿Olvidaste tu contraseña?</Text>
+              </Pressable>
+
+              <Pressable style={styles.backBtn} onPress={() => router.back()}>
+                <Ionicons name="arrow-back" size={16} color="#64748B" />
+                <Text style={styles.backBtnText}>Volver al Inicio</Text>
               </Pressable>
             </View>
           </View>
-
-          <Pressable 
-            style={({ pressed }) => [styles.loginBtn, pressed && { opacity: 0.8 }]} 
-            onPress={handleLogin}
-            disabled={loading}
-          >
-            {loading ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.loginBtnText}>Entrar a mi Cuenta</Text>}
-          </Pressable>
-
-          {/* ── BOTÓN PARA IR A REGISTRARSE ── */}
-          <Pressable style={styles.registerLink} onPress={() => router.push("/register")}>
-            <Text style={styles.registerText}>¿No tienes cuenta? <Text style={styles.registerTextBold}>Regístrate aquí</Text></Text>
-          </Pressable>
-        </View>
-      </View>
-    </KeyboardAvoidingView>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#F8FAFC" },
-  inner: { flex: 1, padding: 24, justifyContent: "center" },
-  closeBtn: { position: "absolute", top: 60, right: 20, zIndex: 10, padding: 8, backgroundColor: "#FFFFFF", borderRadius: 20, shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 10, elevation: 2 },
-  
-  header: { alignItems: "center", marginBottom: 40 },
-  logoWrap: { width: 80, height: 80, borderRadius: 24, backgroundColor: "#FFFFFF", alignItems: "center", justifyContent: "center", marginBottom: 20, shadowColor: BRAND_GRADIENT[0], shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.15, shadowRadius: 15, elevation: 5 },
-  title: { fontSize: 32, fontWeight: "900", color: "#0F172A", letterSpacing: -1, marginBottom: 8 },
-  subtitle: { fontSize: 15, color: "#64748B", textAlign: "center", paddingHorizontal: 20, lineHeight: 22 },
-
-  form: { backgroundColor: "#FFFFFF", padding: 24, borderRadius: 24, shadowColor: "#0F172A", shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.04, shadowRadius: 20, elevation: 3, borderWidth: 1, borderColor: "#E2E8F0" },
-  errorBox: { flexDirection: "row", alignItems: "center", backgroundColor: "#FEF2F2", padding: 12, borderRadius: 12, marginBottom: 16, borderWidth: 1, borderColor: "#FECACA" },
-  errorText: { color: "#EF4444", fontWeight: "600", marginLeft: 8, flex: 1 },
-  
-  inputGroup: { marginBottom: 20 },
-  label: { color: "#0F172A", fontSize: 13, fontWeight: "700", marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.5 },
-  inputBox: { flexDirection: "row", alignItems: "center", backgroundColor: "#F8FAFC", borderWidth: 1, borderColor: "#E2E8F0", borderRadius: 16, paddingHorizontal: 16, height: 56 },
+  topBackground: { height: "45%", width: "100%", position: "absolute", top: 0, justifyContent: "center", alignItems: "center", paddingBottom: 50 },
+  logo: { width: 220, height: 80, tintColor: "#FFFFFF" },
+  keyboardView: { flex: 1 },
+  scrollContent: { flexGrow: 1, justifyContent: "flex-end" },
+  card: { backgroundColor: "#FFFFFF", borderTopLeftRadius: 32, borderTopRightRadius: 32, padding: 30, paddingTop: 40, minHeight: "65%", shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 20, elevation: 15 },
+  header: { marginBottom: 30 },
+  title: { fontSize: 26, fontWeight: "900", color: "#0F172A", letterSpacing: -0.5 },
+  subtitle: { fontSize: 14, color: "#64748B", marginTop: 6, fontWeight: "500" },
+  form: { gap: 20 },
+  inputGroup: { gap: 8 },
+  label: { fontSize: 11, fontWeight: "800", color: "#64748B", textTransform: "uppercase", letterSpacing: 0.5 },
+  inputContainer: { flexDirection: "row", alignItems: "center", backgroundColor: "#F8FAFC", borderWidth: 1, borderColor: "#E2E8F0", borderRadius: 14, paddingHorizontal: 16, height: 54 },
   inputIcon: { marginRight: 12 },
-  input: { flex: 1, color: "#0F172A", fontSize: 16, fontWeight: "600" },
-
-  loginBtn: { backgroundColor: BRAND_GRADIENT[0], height: 56, borderRadius: 16, alignItems: "center", justifyContent: "center", marginTop: 10, shadowColor: BRAND_GRADIENT[0], shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.25, shadowRadius: 12, elevation: 4 },
-  loginBtnText: { color: "#FFFFFF", fontSize: 16, fontWeight: "800", letterSpacing: 0.5 },
-
-  registerLink: { marginTop: 24, alignItems: "center", paddingVertical: 10 },
-  registerText: { color: "#64748B", fontSize: 14, fontWeight: "600" },
-  registerTextBold: { color: BRAND_GRADIENT[0], fontWeight: "900" },
+  input: { flex: 1, fontSize: 15, color: "#0F172A", fontWeight: "500" },
+  eyeIcon: { padding: 5 },
+  loginBtn: { backgroundColor: BRAND_GRADIENT[0], height: 54, borderRadius: 14, justifyContent: "center", alignItems: "center", marginTop: 10, shadowColor: BRAND_GRADIENT[0], shadowOpacity: 0.3, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 5 },
+  loginBtnText: { color: "#FFFFFF", fontSize: 16, fontWeight: "800" },
+  footerLinks: { flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 6, marginTop: 10 },
+  footerText: { color: "#64748B", fontSize: 14, fontWeight: "500" },
+  linkText: { color: BRAND_GRADIENT[0], fontSize: 14, fontWeight: "800" },
+  backBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 20 },
+  backBtnText: { color: "#64748B", fontSize: 14, fontWeight: "700" },
 });

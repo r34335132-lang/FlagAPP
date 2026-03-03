@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Platform, Pressable, Image } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Platform, Pressable, Image, ActivityIndicator, Alert } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -17,20 +17,6 @@ function StatBox({ value, label, color, accent }: { value: string | number; labe
     <View style={[detailS.statBox, accent && detailS.statBoxAccent]}>
       <Text style={[detailS.statValue, color ? { color } : {}]}>{value}</Text>
       <Text style={detailS.statLabel}>{label}</Text>
-    </View>
-  );
-}
-
-function InfoRow({ icon, label, value, iconColor }: { icon: any; label: string; value: string; iconColor?: string; }) {
-  return (
-    <View style={detailS.infoRow}>
-      <View style={[detailS.infoIconWrap, { backgroundColor: (iconColor ?? "#3B82F6") + "15" }]}>
-        <Feather name={icon} size={15} color={iconColor ?? "#3B82F6"} />
-      </View>
-      <View style={detailS.infoText}>
-        <Text style={detailS.infoLabel}>{label}</Text>
-        <Text style={detailS.infoValue}>{value}</Text>
-      </View>
     </View>
   );
 }
@@ -73,10 +59,22 @@ export default function TeamDetailScreen() {
     );
   }
 
+  // --- Lógica de clic del Coach ---
+  const handleCoachPress = () => {
+    if (team.coach_id) {
+      router.push(`/coach/${team.coach_id}`);
+    } else {
+      Alert.alert(
+        "Perfil no disponible", 
+        "Este equipo es antiguo o no tiene un Coach vinculado correctamente en la base de datos (Falta coach_id)."
+      );
+    }
+  };
+
   return (
     <View style={styles.container}>
       <ScrollView showsVerticalScrollIndicator={false}>
-        {/* ── Gradient Header ── */}
+        {/* ── Header ── */}
         <LinearGradient
           colors={[color1, color2]}
           start={{ x: 0, y: 0 }}
@@ -95,20 +93,18 @@ export default function TeamDetailScreen() {
                 <TeamLogo logoUrl={team.logo_url} size={90} />
               </View>
             </View>
-
             <Text style={styles.teamName}>{team.name}</Text>
-
             <View style={styles.badgeRow}>
               {team.category && (
                 <View style={styles.catBadge}>
-                  <Text style={styles.catBadgeText}>{team.category}</Text>
+                  <Text style={styles.catBadgeText}>{team.category.replace("-", " ").toUpperCase()}</Text>
                 </View>
               )}
             </View>
           </View>
         </LinearGradient>
 
-        {/* ── Custom Tabs ── */}
+        {/* ── Tabs ── */}
         <View style={styles.tabsContainer}>
           <Pressable style={styles.tab} onPress={() => setActiveTab("resumen")}>
             <Text style={[styles.tabText, activeTab === "resumen" && styles.activeTabText]}>Resumen</Text>
@@ -137,7 +133,6 @@ export default function TeamDetailScreen() {
                     {teamStat.points_for != null && <StatBox value={teamStat.points_for} label="PTS FAV" />}
                   </View>
 
-                  {/* ── BARRA DE EFECTIVIDAD REGRESA AQUÍ ── */}
                   {teamStat.games_played > 0 && (
                     <View style={styles.winBarContainer}>
                       <View style={styles.winBarLabels}>
@@ -162,13 +157,44 @@ export default function TeamDetailScreen() {
                 </View>
               )}
 
+              {/* ── DIRECTIVA (CON FOTO Y ALERTA DE SEGURIDAD) ── */}
               {(team.coach_name || team.captain_name) && (
                 <View style={styles.card}>
                   <Text style={styles.cardTitle}>Directiva</Text>
-                  <View style={styles.infoList}>
-                    {team.coach_name && <InfoRow icon="user" label="Entrenador" value={team.coach_name} iconColor={color1} />}
-                    {team.captain_name && <InfoRow icon="star" label="Capitán" value={team.captain_name} iconColor="#Eab308" />}
-                  </View>
+                  
+                  {/* Tarjeta del Coach */}
+                  {team.coach_name && (
+                    <Pressable 
+                      style={styles.directiveCard} 
+                      onPress={handleCoachPress}
+                    >
+                      <View style={styles.directiveAvatar}>
+                        {team.coach_photo_url ? (
+                          <Image source={{ uri: team.coach_photo_url }} style={styles.directiveImg} resizeMode="cover" />
+                        ) : (
+                          <Ionicons name="person" size={24} color="#94A3B8" />
+                        )}
+                      </View>
+                      <View style={styles.directiveInfo}>
+                        <Text style={styles.directiveLabel}>Head Coach</Text>
+                        <Text style={styles.directiveName}>{team.coach_name}</Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={20} color={team.coach_id ? BRAND_GRADIENT[0] : "#CBD5E1"} />
+                    </Pressable>
+                  )}
+
+                  {/* Tarjeta del Capitán */}
+                  {team.captain_name && (
+                    <View style={styles.directiveCard}>
+                      <View style={[styles.directiveAvatar, { backgroundColor: "#FEF3C7" }]}>
+                        <Ionicons name="star" size={22} color="#F59E0B" />
+                      </View>
+                      <View style={styles.directiveInfo}>
+                        <Text style={styles.directiveLabel}>Capitán del Equipo</Text>
+                        <Text style={styles.directiveName}>{team.captain_name}</Text>
+                      </View>
+                    </View>
+                  )}
                 </View>
               )}
 
@@ -196,33 +222,39 @@ export default function TeamDetailScreen() {
                   <Text style={styles.emptySubtitle}>Aún no hay jugadores registrados.</Text>
                 </View>
               ) : (
-                roster?.map((player) => (
-                  <View key={player.id} style={styles.playerCard}>
-                    <View style={styles.playerAvatarWrap}>
-                      {player.photo_url ? (
-                        <Image source={{ uri: player.photo_url }} style={styles.playerAvatar} />
-                      ) : (
-                        <View style={[styles.playerAvatar, styles.playerAvatarFallback]}>
-                          <Ionicons name="person" size={24} color="#94A3B8" />
+                roster?.map((player) => {
+                   const hasPhoto = player.photo_url && !player.photo_url.startsWith('blob:');
+                   return (
+                    <Pressable 
+                      key={player.id} 
+                      onPress={() => router.push({ pathname: "/player/[id]", params: { id: player.id } })}
+                      style={styles.playerCard}
+                    >
+                      <View style={styles.playerAvatarWrap}>
+                        {hasPhoto ? (
+                          <Image source={{ uri: player.photo_url }} style={styles.playerAvatar} resizeMode="cover" />
+                        ) : (
+                          <View style={[styles.playerAvatar, styles.playerAvatarFallback]}>
+                            <Ionicons name="person" size={24} color="#94A3B8" />
+                          </View>
+                        )}
+                        {player.status === "active" && <View style={styles.playerActiveDot} />}
+                      </View>
+                      <View style={styles.playerInfo}>
+                        <Text style={styles.playerName} numberOfLines={1}>{player.name}</Text>
+                        <Text style={styles.playerPosition}>{player.position || "Jugador"}</Text>
+                      </View>
+                      {player.jersey_number != null && (
+                        <View style={[styles.jerseyWrap, { backgroundColor: color1 + "15", borderColor: color1 + "30" }]}>
+                          <Text style={[styles.jerseyNumber, { color: color1 }]}>{player.jersey_number}</Text>
                         </View>
                       )}
-                      {player.status === "active" && <View style={styles.playerActiveDot} />}
-                    </View>
-                    <View style={styles.playerInfo}>
-                      <Text style={styles.playerName} numberOfLines={1}>{player.name}</Text>
-                      <Text style={styles.playerPosition}>{player.position || "Jugador"}</Text>
-                    </View>
-                    {player.jersey_number != null && (
-                      <View style={[styles.jerseyWrap, { backgroundColor: color1 + "15", borderColor: color1 + "30" }]}>
-                        <Text style={[styles.jerseyNumber, { color: color1 }]}>{player.jersey_number}</Text>
-                      </View>
-                    )}
-                  </View>
-                ))
+                    </Pressable>
+                   )
+                })
               )}
             </View>
           )}
-
         </View>
       </ScrollView>
     </View>
@@ -234,18 +266,12 @@ const detailS = StyleSheet.create({
   statBoxAccent: { backgroundColor: "#EFF6FF", borderColor: "#BFDBFE" },
   statValue: { color: "#0F172A", fontSize: 24, fontWeight: "900", letterSpacing: -0.5 },
   statLabel: { color: "#64748B", fontSize: 9, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.5, textAlign: "center" },
-  infoRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 8 },
-  infoIconWrap: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  infoText: { flex: 1 },
-  infoLabel: { color: "#64748B", fontSize: 11, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5 },
-  infoValue: { color: "#0F172A", fontSize: 15, fontWeight: "700", marginTop: 2 },
 });
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#F8FAFC" },
-  center: { alignItems: "center", justifyContent: "center", gap: 12 },
+  center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12 },
   errorText: { color: "#0F172A", fontSize: 18, fontWeight: "700" },
-
   header: { paddingBottom: 30, paddingHorizontal: 20, minHeight: 250, position: "relative", borderBottomLeftRadius: 30, borderBottomRightRadius: 30 },
   backBtn: { position: "absolute", left: 16, zIndex: 10 },
   backBtnInner: { width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(255,255,255,0.25)", alignItems: "center", justifyContent: "center" },
@@ -256,19 +282,15 @@ const styles = StyleSheet.create({
   badgeRow: { flexDirection: "row", gap: 8 },
   catBadge: { backgroundColor: "rgba(255,255,255,0.2)", paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20 },
   catBadgeText: { color: "#FFFFFF", fontSize: 12, fontWeight: "800" },
-
   tabsContainer: { flexDirection: "row", paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: "#E2E8F0", marginTop: 10 },
   tab: { flex: 1, paddingVertical: 16, alignItems: "center", position: "relative" },
   tabText: { color: "#64748B", fontSize: 15, fontWeight: "700" },
   activeTabText: { color: "#0F172A", fontWeight: "800" },
   activeIndicator: { position: "absolute", bottom: -1, width: "50%", height: 3, borderRadius: 3 },
-
   body: { paddingVertical: 20, gap: 20 },
   card: { backgroundColor: "#FFFFFF", marginHorizontal: 16, borderRadius: 24, padding: 20, borderWidth: 1, borderColor: "#E2E8F0", shadowColor: "#0F172A", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.03, shadowRadius: 8, elevation: 2 },
   cardTitle: { color: "#0F172A", fontSize: 18, fontWeight: "900", marginBottom: 16 },
   statsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  
-  // Estilos de la Barra de Efectividad
   winBarContainer: { marginTop: 24, paddingTop: 16, borderTopWidth: 1, borderTopColor: "#F1F5F9" },
   winBarLabels: { flexDirection: "row", justifyContent: "space-between", marginBottom: 8, alignItems: "flex-end" },
   winBarLabel: { color: "#64748B", fontSize: 13, fontWeight: "700" },
@@ -276,13 +298,18 @@ const styles = StyleSheet.create({
   winBarTrack: { height: 8, backgroundColor: "#F1F5F9", borderRadius: 4, overflow: "hidden" },
   winBarFill: { height: "100%", borderRadius: 4 },
 
-  infoList: { gap: 6 },
-  matchesSection: { gap: 0 },
+  directiveCard: { flexDirection: "row", alignItems: "center", backgroundColor: "#F8FAFC", padding: 12, borderRadius: 16, marginBottom: 10, borderWidth: 1, borderColor: "#E2E8F0" },
+  directiveAvatar: { width: 46, height: 46, borderRadius: 23, backgroundColor: "#E2E8F0", justifyContent: "center", alignItems: "center", marginRight: 15, overflow: "hidden" },
+  directiveImg: { width: "100%", height: "100%" },
+  directiveInfo: { flex: 1 },
+  directiveLabel: { fontSize: 11, fontWeight: "800", color: "#94A3B8", textTransform: "uppercase", marginBottom: 2 },
+  directiveName: { fontSize: 16, fontWeight: "800", color: "#0F172A" },
 
+  matchesSection: { gap: 0 },
   rosterContainer: { paddingHorizontal: 16, gap: 12 },
   playerCard: { flexDirection: "row", alignItems: "center", backgroundColor: "#FFFFFF", padding: 12, borderRadius: 20, borderWidth: 1, borderColor: "#E2E8F0", shadowColor: "#0F172A", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.02, shadowRadius: 4, elevation: 1 },
   playerAvatarWrap: { position: "relative", marginRight: 14 },
-  playerAvatar: { width: 54, height: 54, borderRadius: 27, backgroundColor: "#F1F5F9" },
+  playerAvatar: { width: 54, height: 54, borderRadius: 27, backgroundColor: "#F1F5F9", overflow: 'hidden' },
   playerAvatarFallback: { alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "#E2E8F0" },
   playerActiveDot: { position: "absolute", bottom: 0, right: 0, width: 14, height: 14, backgroundColor: "#10B981", borderRadius: 7, borderWidth: 2, borderColor: "#FFFFFF" },
   playerInfo: { flex: 1, justifyContent: "center" },
@@ -290,7 +317,6 @@ const styles = StyleSheet.create({
   playerPosition: { color: "#64748B", fontSize: 12, fontWeight: "700" },
   jerseyWrap: { width: 44, height: 44, borderRadius: 14, alignItems: "center", justifyContent: "center", borderWidth: 1 },
   jerseyNumber: { fontSize: 18, fontWeight: "900" },
-
   emptyRoster: { alignItems: "center", paddingVertical: 50, backgroundColor: "#FFFFFF", borderRadius: 24, borderWidth: 2, borderStyle: "dashed", borderColor: "#E2E8F0" },
   emptyTitle: { color: "#0F172A", fontSize: 18, fontWeight: "800", marginTop: 12 },
   emptySubtitle: { color: "#64748B", fontSize: 14, marginTop: 4 },
