@@ -5,6 +5,7 @@ import React, { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { queryClient } from "@/lib/query-client";
 import {
   useFonts,
@@ -29,6 +30,7 @@ function RootLayoutNav() {
 }
 
 export default function RootLayout() {
+  usePushNotifications();
   const [fontsLoaded] = useFonts({
     Inter_400Regular,
     Inter_600SemiBold,
