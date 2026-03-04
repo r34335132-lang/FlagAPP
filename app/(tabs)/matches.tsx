@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   Pressable,
   ScrollView,
   ActivityIndicator,
+  RefreshControl,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -15,9 +16,10 @@ import { useTeams } from "@/hooks/useTeams";
 import { MatchCardLight } from "@/components/MatchCardLight";
 import { BRAND_GRADIENT } from "@/constants/colors";
 
-// Ramas principales
+// Ramas principales (Agregamos EN VIVO)
 const MAIN_CATEGORIES = [
   { id: "all", label: "TODOS" },
+  { id: "en_vivo", label: "🔴 EN VIVO" }, // <-- NUEVO FILTRO
   { id: "varonil", label: "VARONIL" },
   { id: "femenil", label: "FEMENIL" },
   { id: "mixto", label: "MIXTO" },
@@ -31,16 +33,35 @@ export default function MatchesScreen() {
   
   const [selectedMainCat, setSelectedMainCat] = useState("all");
   const [selectedSubCat, setSelectedSubCat] = useState("all");
+  
+  // --- LÓGICA DEL PULL-TO-REFRESH ---
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    refetch().finally(() => setRefreshing(false));
+  }, [refetch]);
+  // ------------------------------------
 
   // 1. Cuando cambias de rama (ej. de Varonil a Femenil), resetear el subfiltro a "Todas"
   useEffect(() => {
     setSelectedSubCat("all");
   }, [selectedMainCat]);
 
-  // 2. Filtrar por la Rama Principal (Varonil, Femenil, etc.)
+  // 2. Filtrar por la Rama Principal (Varonil, Femenil, o EN VIVO)
   const filteredByMain = useMemo(() => {
     if (!games) return [];
     if (selectedMainCat === "all") return games;
+
+    // Lógica especial para el filtro "EN VIVO"
+    if (selectedMainCat === "en_vivo") {
+      return games.filter((g) => {
+        const s = g.status?.toLowerCase() || "";
+        return s === "en vivo" || s === "en_vivo" || s === "live";
+      });
+    }
+
+    // Lógica normal para las categorías (Varonil, Femenil, etc)
     return games.filter((g) => 
       g.category?.toLowerCase().startsWith(selectedMainCat.toLowerCase())
     );
@@ -48,17 +69,18 @@ export default function MatchesScreen() {
 
   // 3. Extraer DINÁMICAMENTE los niveles (Gold, Silver, Libre) según la rama seleccionada
   const availableSubCats = useMemo(() => {
-    if (selectedMainCat === "all") return [];
+    // Si elegimos "En Vivo" o "Todos", no mostramos subcategorías
+    if (selectedMainCat === "all" || selectedMainCat === "en_vivo") return [];
     
     const subs = new Set<string>();
     filteredByMain.forEach(g => {
-      const parts = g.category?.split("-"); // Ej: "femenil-gold" -> ["femenil", "gold"]
+      const parts = g.category?.split("-"); 
       if (parts && parts.length > 1) {
         subs.add(parts[1].toLowerCase());
       }
     });
     
-    return Array.from(subs).sort(); // Devuelve ['gold', 'silver', etc.]
+    return Array.from(subs).sort(); 
   }, [filteredByMain, selectedMainCat]);
 
   // 4. Aplicar el Filtro Secundario (Nivel)
@@ -76,13 +98,18 @@ export default function MatchesScreen() {
     const groups: { [key: string]: any[] } = {};
     
     finalFilteredGames.forEach((game) => {
-      const jKey = game.jornada ? `JORNADA ${game.jornada}` : "POR DEFINIR";
+      // Si estamos en la pestaña "EN VIVO", agrupamos todo bajo un solo título para que se vea más limpio
+      const jKey = selectedMainCat === "en_vivo" 
+        ? "JUGANDO AHORA" 
+        : (game.jornada ? `JORNADA ${game.jornada}` : "POR DEFINIR");
+
       if (!groups[jKey]) groups[jKey] = [];
       groups[jKey].push(game);
     });
 
     // Ordenar numéricamente las jornadas
     return Object.keys(groups).sort((a, b) => {
+        if (a === "JUGANDO AHORA") return -1; // "Jugando Ahora" siempre va primero
         const numA = parseInt(a.replace(/\D/g, "")) || 0;
         const numB = parseInt(b.replace(/\D/g, "")) || 0;
         return numA - numB;
@@ -90,9 +117,10 @@ export default function MatchesScreen() {
       title: jornada,
       data: groups[jornada]
     }));
-  }, [finalFilteredGames]);
+  }, [finalFilteredGames, selectedMainCat]);
 
-  if (isLoading) {
+  // Ocultamos el ActivityIndicator inicial si estamos haciendo pull-to-refresh
+  if (isLoading && !refreshing) {
     return (
       <View style={styles.loading}>
         <ActivityIndicator size="large" color={BRAND_GRADIENT[0]} />
@@ -125,17 +153,17 @@ export default function MatchesScreen() {
                 style={[styles.mainTab, isActive && styles.mainTabActive]}
                 onPress={() => setSelectedMainCat(cat.id)}
               >
-                <Text style={[styles.mainTabText, isActive && styles.mainTabTextActive]}>
+                <Text style={[styles.mainTabText, isActive && styles.mainTabTextActive, cat.id === "en_vivo" && {color: isActive ? "#EF4444" : "#FCA5A5"}]}>
                   {cat.label}
                 </Text>
-                {isActive && <View style={styles.activeIndicator} />}
+                {isActive && <View style={[styles.activeIndicator, cat.id === "en_vivo" && {backgroundColor: "#EF4444"}]} />}
               </Pressable>
             );
           })}
         </ScrollView>
 
-        {/* SELECTOR SECUNDARIO (Niveles - Solo aparece si seleccionas una rama específica) */}
-        {selectedMainCat !== "all" && availableSubCats.length > 0 && (
+        {/* SELECTOR SECUNDARIO (Niveles) */}
+        {selectedMainCat !== "all" && selectedMainCat !== "en_vivo" && availableSubCats.length > 0 && (
           <View style={styles.subCategoryWrapper}>
             <ScrollView 
               horizontal 
@@ -173,10 +201,18 @@ export default function MatchesScreen() {
         keyExtractor={(item) => item.title}
         contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 80 }]}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl 
+            refreshing={refreshing} 
+            onRefresh={onRefresh}
+            tintColor={BRAND_GRADIENT[0]} 
+            colors={[BRAND_GRADIENT[0]]} 
+          />
+        }
         renderItem={({ item }) => (
           <View style={styles.jornadaSection}>
             <View style={styles.jornadaHeader}>
-              <Text style={styles.jornadaTitle}>{item.title}</Text>
+              <Text style={[styles.jornadaTitle, item.title === "JUGANDO AHORA" && {color: "#EF4444"}]}>{item.title}</Text>
               <View style={styles.line} />
             </View>
 
@@ -187,9 +223,13 @@ export default function MatchesScreen() {
         )}
         ListEmptyComponent={
           <View style={styles.emptyState}>
-            <Ionicons name="calendar-outline" size={60} color="#CBD5E1" />
-            <Text style={styles.emptyTitle}>Sin partidos</Text>
-            <Text style={styles.emptySub}>No hay juegos programados con estos filtros.</Text>
+            <Ionicons name={selectedMainCat === "en_vivo" ? "american-football" : "calendar-outline"} size={60} color="#CBD5E1" />
+            <Text style={styles.emptyTitle}>
+              {selectedMainCat === "en_vivo" ? "No hay juegos en vivo" : "Sin partidos"}
+            </Text>
+            <Text style={styles.emptySub}>
+              {selectedMainCat === "en_vivo" ? "No hay ningún partido jugándose en este momento." : "No hay juegos programados con estos filtros."}
+            </Text>
           </View>
         }
       />

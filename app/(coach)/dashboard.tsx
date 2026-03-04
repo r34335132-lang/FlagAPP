@@ -1,7 +1,8 @@
 import React, { useState, useCallback } from "react";
 import {
   View, Text, StyleSheet, ScrollView, Pressable,
-  Platform, Alert, ActivityIndicator, TextInput, Image
+  Platform, Alert, ActivityIndicator, TextInput, Image,
+  RefreshControl // <-- 1. Importamos RefreshControl
 } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -18,11 +19,13 @@ const CATEGORIES = [
   { id: "varonil-libre", label: "Varonil Libre" },
   { id: "varonil-gold", label: "Varonil Gold" },
   { id: "varonil-silver", label: "Varonil Silver" },
+  { id: "varonil-cooper", label: "Varonil Cooper" }, // <-- NUEVA CATEGORÍA
   { id: "femenil-gold", label: "Femenil Gold" },
   { id: "femenil-silver", label: "Femenil Silver" },
-  { id: "femenil-cooper", label: "Femenil Cooper" },
+  { id: "femenil-copper", label: "Femenil Cooper" }, // <-- (Corregí "cooper" a "copper" para que esté bien escrito)
   { id: "mixto-gold", label: "Mixto Gold" },
   { id: "mixto-silver", label: "Mixto Silver" },
+  { id: "mixto-cooper", label: "Mixto Cooper" },     // <-- NUEVA CATEGORÍA
   { id: "mixto-recreativo", label: "Mixto Recreativo" },
   { id: "teens", label: "Teens" },
 ];
@@ -39,6 +42,10 @@ export default function CoachDashboard() {
   const [championships, setChampionships] = useState<any[]>([]);
   
   const [loading, setLoading] = useState(true);
+  
+  // --- 2. Nuevo estado para el Refresh ---
+  const [refreshing, setRefreshing] = useState(false);
+  
   const [uploading, setUploading] = useState(false);
   const [activeTab, setActiveTab] = useState<"equipos" | "crear" | "solicitudes" | "perfil">("equipos");
 
@@ -116,6 +123,14 @@ export default function CoachDashboard() {
       setLoading(false);
     }
   };
+
+  // --- 3. Función que se dispara al deslizar hacia abajo ---
+  const onRefresh = useCallback(async () => {
+    if (!user) return;
+    setRefreshing(true);
+    await loadCoachData(user);
+    setRefreshing(false);
+  }, [user]);
 
   const uploadImageToServer = async (uri: string, folder: string) => {
     const formData = new FormData();
@@ -280,7 +295,6 @@ export default function CoachDashboard() {
     } catch (error) {}
   };
 
-  // --- NUEVO: Función para Eliminar Cuenta de Coach ---
   const handleDeleteAccount = () => {
     Alert.alert(
       "⚠️ Eliminar Cuenta de Coach",
@@ -352,8 +366,22 @@ export default function CoachDashboard() {
         <TabButton title="Perfil" icon="trophy" active={activeTab === "perfil"} onPress={() => setActiveTab("perfil")} />
       </View>
 
-      <ScrollView style={styles.body} contentContainerStyle={{ paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
-        {loading && !teams.length && !championships.length ? (
+      <ScrollView 
+        style={styles.body} 
+        contentContainerStyle={{ paddingBottom: 60 }} 
+        showsVerticalScrollIndicator={false}
+        // --- 4. Conectamos el RefreshControl ---
+        refreshControl={
+          <RefreshControl 
+            refreshing={refreshing} 
+            onRefresh={onRefresh} 
+            tintColor={BRAND_GRADIENT[0]} 
+            colors={[BRAND_GRADIENT[0]]} 
+          />
+        }
+      >
+        {/* Aquí cambiamos la condición para que no muestre el loader gigante si solo estamos haciendo pull-to-refresh */}
+        {loading && !refreshing && !teams.length && !championships.length ? (
           <ActivityIndicator size="large" color={BRAND_GRADIENT[0]} style={{ marginTop: 40 }} />
         ) : (
           <>

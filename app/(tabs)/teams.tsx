@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   TextInput,
   ActivityIndicator,
   ScrollView,
+  RefreshControl,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -34,6 +35,15 @@ export default function TeamsScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedMainCat, setSelectedMainCat] = useState("all");
   const [selectedSubCat, setSelectedSubCat] = useState("all");
+
+  // --- LÓGICA DEL PULL-TO-REFRESH ---
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    refetch().finally(() => setRefreshing(false));
+  }, [refetch]);
+  // ------------------------------------
 
   // 1. Al cambiar de rama principal, resetear subcategoría
   useEffect(() => {
@@ -82,7 +92,8 @@ export default function TeamsScreen() {
     return filtered.sort((a, b) => a.name.localeCompare(b.name));
   }, [filteredByMain, selectedSubCat]);
 
-  if (isLoading) {
+  // Ocultamos el ActivityIndicator inicial si estamos haciendo pull-to-refresh
+  if (isLoading && !refreshing) {
     return (
       <View style={styles.loading}>
         <ActivityIndicator size="large" color={BRAND_GRADIENT[0]} />
@@ -220,6 +231,15 @@ export default function TeamsScreen() {
         contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 80 }]}
         columnWrapperStyle={styles.columnWrapper}
         showsVerticalScrollIndicator={false}
+        // 👇 AQUÍ ESTÁ EL PULL TO REFRESH 👇
+        refreshControl={
+          <RefreshControl 
+            refreshing={refreshing} 
+            onRefresh={onRefresh}
+            tintColor={BRAND_GRADIENT[0]}
+            colors={[BRAND_GRADIENT[0]]}
+          />
+        }
         renderItem={renderTeamCard}
         ListEmptyComponent={
           <View style={styles.emptyState}>

@@ -7,7 +7,9 @@ import {
   Image,
   RefreshControl,
   Pressable,
-  SectionList
+  SectionList,
+  ScrollView,
+  Linking
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -90,10 +92,102 @@ const HeaderHome = ({ user, topPad, dateStr, onProfilePress }: any) => (
       </Pressable>
     </View>
     <View style={styles.greetingContainer}>
-      <Text style={styles.greetingText}>¡Hola, {user ? user.username : "Invitado"}!</Text>
-      <Text style={styles.dateText}>{dateStr} • Jornada Actual</Text>
+      <Text style={styles.greetingText}>¡Hola, {user ? user.username : "Jugador"}!</Text>
+      <Text style={styles.dateText}>{dateStr} • Temporada 2026</Text>
     </View>
   </LinearGradient>
+);
+
+// 👇 BANNER DE TEMPORADA REDISEÑADO (BLANCO Y LIMPIO) 👇
+const AnnouncementBanner = () => (
+  <View style={styles.bannerWrapper}>
+    <View style={styles.bannerContainerLight}>
+      <View style={styles.bannerHeaderLight}>
+        <View style={styles.bannerTitleRow}>
+          <Ionicons name="american-football" size={24} color={BRAND_GRADIENT[0]} />
+          <Text style={styles.bannerTitleLight}>Temporada 2026</Text>
+        </View>
+        <View style={styles.badgeNew}>
+          <Text style={styles.badgeNewText}>PRÓXIMO</Text>
+        </View>
+      </View>
+      
+      <Text style={styles.bannerSubLight}>Asegura el lugar de tu equipo en la mejor liga de Flag Football de Durango.</Text>
+      
+      <View style={styles.bannerGrid}>
+        <View style={styles.bannerGridItem}>
+          <Text style={styles.bannerGridLabel}>KICKOFF</Text>
+          <Text style={styles.bannerGridValue}>22 Marzo</Text>
+        </View>
+        <View style={styles.bannerGridItem}>
+          <Text style={styles.bannerGridLabel}>CIERRE INSC.</Text>
+          <Text style={styles.bannerGridValue}>17 Marzo</Text>
+        </View>
+        <View style={styles.bannerGridItem}>
+          <Text style={styles.bannerGridLabel}>INSCRIPCIÓN</Text>
+          <Text style={styles.bannerGridValue}>$1,900</Text>
+        </View>
+        <View style={styles.bannerGridItem}>
+          <Text style={styles.bannerGridLabel}>ARBITRAJE</Text>
+          <Text style={styles.bannerGridValue}>$320 / jgo</Text>
+        </View>
+      </View>
+    </View>
+  </View>
+);
+
+// 👇 NUEVO CONTENIDO: AVISOS DE PRETEMPORADA 👇
+const LeagueNews = () => (
+  <View style={styles.newsWrapper}>
+    <Text style={styles.sectionTitleLabel}>Avisos de Pretemporada</Text>
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.newsScroll}>
+      
+      <View style={styles.newsCard}>
+        <View style={[styles.newsIconWrap, { backgroundColor: '#EFF6FF' }]}>
+          <Ionicons name="people" size={22} color="#3B82F6" />
+        </View>
+        <Text style={styles.newsTitle}>Junta de Capitanes</Text>
+        <Text style={styles.newsSub}>Afinando últimos detalles del reglamento y horarios.</Text>
+      </View>
+
+      <View style={styles.newsCard}>
+        <View style={[styles.newsIconWrap, { backgroundColor: '#F0FDF4' }]}>
+          <Ionicons name="document-text" size={22} color="#10B981" />
+        </View>
+        <Text style={styles.newsTitle}>Registro de Roster</Text>
+        <Text style={styles.newsSub}>Recuerda subir las fotos y números de tus jugadores a la app.</Text>
+      </View>
+
+    </ScrollView>
+  </View>
+);
+
+const CommunityCard = () => (
+  <View style={styles.communityWrapper}>
+    <View style={styles.communityCard}>
+      <View style={styles.communityContent}>
+        <Text style={styles.communityTitle}>Únete a la Acción 📸</Text>
+        <Text style={styles.communitySub}>Síguenos para no perderte las mejores fotos de cada jornada y noticias exclusivas.</Text>
+      </View>
+      <View style={styles.socialButtonsCol}>
+        <Pressable 
+          style={[styles.socialBtn, { backgroundColor: '#E1306C' }]} 
+          onPress={() => Linking.openURL('https://www.instagram.com/flagdurango/')}
+        >
+          <Ionicons name="logo-instagram" size={18} color="#FFF" />
+          <Text style={styles.socialBtnText}>Instagram</Text>
+        </Pressable>
+
+        <Pressable 
+          style={[styles.socialBtn, { backgroundColor: '#1877F2' }]} 
+          onPress={() => Linking.openURL('https://www.facebook.com/flagdurango')}
+        >
+          <Ionicons name="logo-facebook" size={18} color="#FFF" />
+          <Text style={styles.socialBtnText}>Facebook</Text>
+        </Pressable>
+      </View>
+    </View>
+  </View>
 );
 
 const MatchCard = ({ game, teams, isFeatured = false }: { game: any, teams: any[], isFeatured?: boolean }) => {
@@ -243,23 +337,29 @@ export default function HomeScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BRAND_GRADIENT[0]} />}
         
         ListHeaderComponent={
-          <View style={styles.featuredContainer}>
-            {isLoading ? (
-              <View style={{ gap: 16 }}>{[1, 2].map((k) => <MatchCardSkeleton key={k} />)}</View>
-            ) : (
-              featuredGame && (
-                <>
-                  <Text style={styles.featuredLabel}>PARTIDO DESTACADO</Text>
-                  <MatchCard game={featuredGame} teams={safeTeams} isFeatured={true} />
-                </>
-              )
-            )}
-          </View>
+          <>
+            <AnnouncementBanner />
+            <LeagueNews />
+            
+            {/* PARTIDO DESTACADO (Solo si existe) */}
+            <View style={styles.featuredContainer}>
+              {isLoading ? (
+                <View style={{ gap: 16 }}>{[1].map((k) => <MatchCardSkeleton key={k} />)}</View>
+              ) : (
+                featuredGame && (
+                  <>
+                    <Text style={styles.sectionTitleLabel}>PARTIDO DESTACADO</Text>
+                    <MatchCard game={featuredGame} teams={safeTeams} isFeatured={true} />
+                  </>
+                )
+              )}
+            </View>
+          </>
         }
 
         renderSectionHeader={({ section: { title, type } }) => (
           <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, type === 'live' && styles.sectionTitleLive]}>
+            <Text style={[styles.sectionTitleLabel, type === 'live' && styles.sectionTitleLive]}>
               {title}
             </Text>
           </View>
@@ -273,12 +373,16 @@ export default function HomeScreen() {
           !isLoading && !featuredGame ? (
             <View style={styles.emptyCard}>
               <View style={styles.emptyIconWrap}>
-                <Ionicons name="american-football-outline" size={40} color="#94A3B8" />
+                <Ionicons name="barbell" size={40} color="#94A3B8" />
               </View>
-              <Text style={styles.emptyTitle}>Sin actividad hoy</Text>
-              <Text style={styles.emptySubtitle}>El calendario está libre por ahora.</Text>
+              <Text style={styles.emptyTitle}>¡Pretemporada en curso!</Text>
+              <Text style={styles.emptySubtitle}>Los equipos se están preparando. Arma tus jugadas, la temporada inicia pronto.</Text>
             </View>
           ) : null
+        }
+
+        ListFooterComponent={
+          <CommunityCard />
         }
       />
     </View>
@@ -292,7 +396,7 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F1F5F9", 
+    backgroundColor: "#F8FAFC", 
   },
   
   headerGradient: {
@@ -339,34 +443,202 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
 
+  // ESTILOS DEL BANNER BLANCO/CLEAN
+  bannerWrapper: {
+    paddingHorizontal: 16,
+    marginTop: 20,
+    marginBottom: 5,
+  },
+  bannerContainerLight: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderLeftWidth: 4,
+    borderLeftColor: BRAND_GRADIENT[0], // Detalle de color en el borde izquierdo
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  bannerHeaderLight: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  bannerTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  bannerTitleLight: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: '#0F172A',
+    letterSpacing: -0.5,
+  },
+  badgeNew: {
+    backgroundColor: '#FEF2F2',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  badgeNewText: {
+    color: '#EF4444',
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+  bannerSubLight: {
+    color: '#64748B',
+    fontSize: 13,
+    marginBottom: 16,
+    lineHeight: 18,
+  },
+  bannerGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 15,
+    backgroundColor: '#F8FAFC',
+    padding: 12,
+    borderRadius: 12,
+  },
+  bannerGridItem: {
+    width: '45%', // Para que queden 2 en cada fila
+  },
+  bannerGridLabel: {
+    color: '#94A3B8',
+    fontSize: 10,
+    fontWeight: '800',
+    marginBottom: 2,
+  },
+  bannerGridValue: {
+    color: '#0F172A',
+    fontSize: 13,
+    fontWeight: '900',
+  },
+
+  // AVISOS DE PRETEMPORADA (Noticias)
+  newsWrapper: {
+    marginTop: 20,
+    marginBottom: 10,
+  },
+  newsScroll: {
+    paddingHorizontal: 16,
+    gap: 12,
+  },
+  newsCard: {
+    backgroundColor: "#FFFFFF",
+    width: 260,
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 5,
+    elevation: 1,
+  },
+  newsIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  newsTitle: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#0F172A",
+    marginBottom: 4,
+  },
+  newsSub: {
+    fontSize: 12,
+    color: "#64748B",
+    lineHeight: 18,
+  },
+
+  // COMUNIDAD Y REDES (Mantenido y adaptado)
+  communityWrapper: {
+    paddingHorizontal: 16,
+    marginTop: 20,
+    marginBottom: 40,
+  },
+  communityCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 20,
+    flexDirection: 'row',
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.03,
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  communityContent: {
+    flex: 1,
+    paddingRight: 15,
+  },
+  communityTitle: {
+    color: "#0F172A",
+    fontSize: 16,
+    fontWeight: "900",
+    marginBottom: 4,
+  },
+  communitySub: {
+    color: "#64748B",
+    fontSize: 11,
+    lineHeight: 16,
+  },
+  socialButtonsCol: {
+    gap: 10,
+  },
+  socialBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 10,
+    width: 110,
+  },
+  socialBtnText: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "800",
+    marginLeft: 6,
+  },
+
+  // LISTAS Y TARJETAS
   listContent: {
-    paddingBottom: 100,
+    paddingBottom: 40,
   },
   featuredContainer: {
-    marginTop: 16, 
+    marginTop: 25, 
     paddingHorizontal: 16,
     marginBottom: 8,
   },
-  featuredLabel: {
-    color: "#64748B", 
-    fontSize: 13,
+  
+  sectionTitleLabel: {
+    color: "#94A3B8", 
+    fontSize: 12,
     fontWeight: "800",
-    letterSpacing: 0.5,
+    letterSpacing: 1,
     marginBottom: 12,
-    paddingLeft: 8,
+    paddingLeft: 20,
     textTransform: "uppercase",
   },
   
   sectionHeader: {
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    marginTop: 8,
-  },
-  sectionTitle: {
-    color: "#0F172A",
-    fontSize: 15,
-    fontWeight: "800",
-    letterSpacing: 0.5,
+    marginTop: 15,
   },
   sectionTitleLive: {
     color: "#EF4444", 
@@ -388,9 +660,12 @@ const styles = StyleSheet.create({
   },
   featuredCard: {
     padding: 20, 
+    marginHorizontal: 0,
     shadowOpacity: 0.08,
     shadowRadius: 16,
     elevation: 4,
+    borderColor: BRAND_GRADIENT[0],
+    borderWidth: 1.5,
   },
   
   cardHeader: {
@@ -512,7 +787,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingVertical: 48,
     marginHorizontal: 16,
-    marginTop: 24,
+    marginTop: 10,
     backgroundColor: "#FFFFFF",
     borderRadius: 24,
     borderWidth: 1,
@@ -530,12 +805,15 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     color: "#0F172A",
-    fontSize: 16,
-    fontWeight: "800",
-    marginBottom: 4,
+    fontSize: 18,
+    fontWeight: "900",
+    marginBottom: 6,
   },
   emptySubtitle: {
     color: "#64748B",
     fontSize: 13,
+    textAlign: "center",
+    paddingHorizontal: 30,
+    lineHeight: 20,
   },
 });

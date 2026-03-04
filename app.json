@@ -1,29 +1,39 @@
 {
   "expo": {
-    "name": "Liga Durango",
-    "slug": "liga-durango",
+    "name": "FlagDurango",
+    "slug": "flagdurango",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "ligadurango",
+    "scheme": "flagdurango",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
-  "splash": {
+    "splash": {
       "image": "./assets/images/icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#0A0E1A"
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.myapp"
+      "bundleIdentifier": "com.flagdurango.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Esta app requiere acceso a la cámara para que puedas tomar una foto para tu gafete oficial o logo de equipo.",
+        "NSPhotoLibraryUsageDescription": "Esta app requiere acceso a tu galería de fotos para que puedas seleccionar una foto para tu gafete oficial o logo de equipo."
+      }
     },
-"android": {
+    "android": {
       "package": "com.flagdurango.app",
       "googleServicesFile": "./google-services.json", 
       "adaptiveIcon": {
         "backgroundColor": "#0A0E1A",
         "foregroundImage": "./assets/images/icon.png"
-      }
+      },
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "READ_MEDIA_IMAGES"
+      ]
     },
     "web": {
       "favicon": "./assets/images/favicon.png"
@@ -37,7 +47,14 @@
       ],
       "expo-font",
       "expo-web-browser",
-      "expo-notifications"
+      "expo-notifications",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Esta app requiere acceso a tu galería de fotos para que puedas seleccionar una foto para tu gafete oficial o logo de equipo.",
+          "cameraPermission": "Esta app requiere acceso a la cámara para que puedas tomar una foto para tu gafete oficial o logo de equipo."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

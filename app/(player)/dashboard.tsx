@@ -1,7 +1,8 @@
 import React, { useState, useCallback } from "react";
 import {
   View, Text, StyleSheet, ScrollView, Pressable,
-  ActivityIndicator, Image, Modal, TextInput, Alert
+  ActivityIndicator, Image, Modal, TextInput, Alert,
+  RefreshControl // <-- 1. Importamos RefreshControl
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useFocusEffect } from "expo-router";
@@ -24,6 +25,10 @@ export default function PlayerDashboard() {
   const [playerTeams, setPlayerTeams] = useState<any[]>([]);
   const [joinRequests, setJoinRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // --- 2. Nuevo estado para el Refresh ---
+  const [refreshing, setRefreshing] = useState(false);
+  
   const [uploadingImage, setUploadingImage] = useState(false);
 
   // --- Modales ---
@@ -92,6 +97,13 @@ export default function PlayerDashboard() {
       setLoading(false);
     }
   };
+
+  // --- 3. Función que se dispara al deslizar hacia abajo ---
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadDashboardData();
+    setRefreshing(false);
+  }, []);
 
   const handlePickImage = async () => {
     try {
@@ -219,7 +231,6 @@ export default function PlayerDashboard() {
     }
   };
 
-  // --- NUEVO: Función para Eliminar Cuenta ---
   const handleDeleteAccount = () => {
     Alert.alert(
       "⚠️ Eliminar Cuenta",
@@ -254,7 +265,8 @@ export default function PlayerDashboard() {
     router.replace("/login");
   };
 
-  if (loading && !playerInfo) {
+  // Prevenimos que se vea el Loader gigante si el usuario solo está arrastrando para recargar
+  if (loading && !refreshing && !playerInfo) {
     return <View style={styles.loading}><ActivityIndicator size="large" color={BRAND_GRADIENT[0]} /></View>;
   }
 
@@ -272,7 +284,19 @@ export default function PlayerDashboard() {
         </Pressable>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        contentContainerStyle={styles.scrollContent} 
+        showsVerticalScrollIndicator={false}
+        // --- 4. Conectamos el RefreshControl ---
+        refreshControl={
+          <RefreshControl 
+            refreshing={refreshing} 
+            onRefresh={onRefresh} 
+            tintColor={BRAND_GRADIENT[0]} 
+            colors={[BRAND_GRADIENT[0]]} 
+          />
+        }
+      >
         
         {/* --- GAFETE DIGITAL (MASTER QR) --- */}
         {playerInfo && (
@@ -376,7 +400,6 @@ export default function PlayerDashboard() {
           </>
         )}
 
-        {/* --- BOTÓN DE ELIMINAR CUENTA (NUEVO) --- */}
         <Pressable 
           style={styles.deleteAccountBtn} 
           onPress={handleDeleteAccount}

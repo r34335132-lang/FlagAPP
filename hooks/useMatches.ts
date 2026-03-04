@@ -1,4 +1,5 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 
 export interface Game {
@@ -58,11 +59,39 @@ async function fetchGames(): Promise<Game[]> {
   return (data as any) ?? [];
 }
 
+// --------------------------------------------------------
+// HOOK PRINCIPAL CON MAGIA REALTIME
+// --------------------------------------------------------
 export function useMatches() {
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    // 1. Nos suscribimos al canal de Supabase escuchando la tabla 'games'
+    const gamesSubscription = supabase
+      .channel('realtime-games')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'games' },
+        (payload) => {
+          console.log('¡Cambio detectado en la DB en tiempo real!', payload);
+          
+          // 2. Le decimos a React Query: "Los datos ya están viejos, descárgalos de nuevo en silencio"
+          // Esto hará que la pantalla se actualice sola sin que el usuario haga nada.
+          queryClient.invalidateQueries({ queryKey: ["matches"] });
+        }
+      )
+      .subscribe();
+
+    // Limpiamos la suscripción cuando la app se cierra o se desmonta
+    return () => {
+      supabase.removeChannel(gamesSubscription);
+    };
+  }, [queryClient]);
+
   return useQuery<Game[]>({
     queryKey: ["matches"],
     queryFn: fetchGames,
-    staleTime: 30 * 1000, // Datos frescos por 30 segundos
+    staleTime: 60 * 1000, // Lo subimos a 1 min porque ahora el Realtime nos avisará si hay cambios antes
   });
 }
 

@@ -10,7 +10,8 @@ import {
   Platform,
   Image,
   ScrollView,
-  Alert
+  Alert,
+  Linking
 } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -185,6 +186,20 @@ export default function RegisterScreen() {
                 {loading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.registerBtnText}>Registrarme</Text>}
               </Pressable>
 
+              {/* 👇 NUEVO: AVISO DE PRIVACIDAD 👇 */}
+              <View style={styles.privacyContainer}>
+                <Text style={styles.privacyText}>
+                  Al registrarte, aceptas nuestra{" "}
+                  <Text 
+                    style={styles.privacyLink} 
+                    onPress={() => Linking.openURL('https://www.flagdurango.com.mx/privacidad')}
+                  >
+                    Política de Privacidad
+                  </Text>
+                  {" "}y el uso de tus datos para la gestión de la liga.
+                </Text>
+              </View>
+
               <View style={styles.footerLinks}>
                 <Text style={styles.footerText}>¿Ya tienes cuenta?</Text>
                 <Pressable onPress={() => router.back()}>
@@ -230,6 +245,12 @@ const styles = StyleSheet.create({
   
   registerBtn: { backgroundColor: "#0F172A", height: 54, borderRadius: 14, justifyContent: "center", alignItems: "center", marginTop: 15, shadowColor: "#0F172A", shadowOpacity: 0.3, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 5 },
   registerBtnText: { color: "#FFFFFF", fontSize: 16, fontWeight: "800" },
+  
+  // Estilos de Privacidad
+  privacyContainer: { marginTop: 5, paddingHorizontal: 10 },
+  privacyText: { fontSize: 11, color: "#94A3B8", textAlign: "center", lineHeight: 16 },
+  privacyLink: { color: BRAND_GRADIENT[0], fontWeight: "800", textDecorationLine: "underline" },
+
   footerLinks: { flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 6, marginTop: 10, marginBottom: 10 },
   footerText: { color: "#64748B", fontSize: 14, fontWeight: "500" },
   linkText: { color: BRAND_GRADIENT[0], fontSize: 14, fontWeight: "800" },
