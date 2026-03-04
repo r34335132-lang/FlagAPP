@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "59302978617",
+    "project_id": "liga-durango",
+    "storage_bucket": "liga-durango.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:59302978617:android:28db0ae85affed2e8ad9e8",
+        "android_client_info": {
+          "package_name": "com.flagdurango.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCzzkreAA6lqUKYzWjZyKJAUR2LqsevxYA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

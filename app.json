@@ -8,8 +8,8 @@
     "scheme": "ligadurango",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
-    "splash": {
-      "image": "./assets/images/splash-icon.png",
+  "splash": {
+      "image": "./assets/images/icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#0A0E1A"
     },
@@ -17,13 +17,12 @@
       "supportsTablet": false,
       "bundleIdentifier": "com.myapp"
     },
-    "android": {
-      "package": "com.myapp",
+"android": {
+      "package": "com.flagdurango.app",
+      "googleServicesFile": "./google-services.json", 
       "adaptiveIcon": {
         "backgroundColor": "#0A0E1A",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "foregroundImage": "./assets/images/icon.png"
       }
     },
     "web": {
@@ -37,7 +36,8 @@
         }
       ],
       "expo-font",
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-notifications"
     ],
     "experiments": {
       "typedRoutes": true,
