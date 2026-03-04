@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Platform, Alert } from 'react-native';
+import { Platform } from 'react-native';
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
@@ -7,6 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const API_BASE = "https://www.flagdurango.com.mx/api";
 
+// Configuración para que las notificaciones suenen y aparezcan arriba
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
@@ -25,25 +26,25 @@ export function usePushNotifications() {
     registerForPushNotificationsAsync().then(async (token) => {
       if (token) {
         setExpoPushToken(token);
-        Alert.alert("¡Token Generado!", "Ya tenemos el token. Intentando guardar en la base de datos...");
         
-        // Si hay un usuario logueado, guardamos este token
+        // Guardado silencioso de fondo en la base de datos
         const sessionData = await AsyncStorage.getItem("userSession");
         if (sessionData) {
           const user = JSON.parse(sessionData);
           await saveTokenToDatabase(user.id, token);
-        } else {
-          Alert.alert("Aviso", "No hay sesión iniciada, el token se guardará cuando inicies sesión.");
         }
       }
     });
 
+    // Escucha cuando llega una notificación mientras la app está abierta
     notificationListener.current = Notifications.addNotificationReceivedListener(notification => {
       setNotification(notification);
     });
 
+    // Escucha cuando el usuario toca la notificación
     responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
-      console.log(response);
+      console.log("Notificación tocada:", response);
+      // Aquí en el futuro puedes hacer que al tocarla, los mande a la pantalla del partido
     });
 
     return () => {
@@ -55,31 +56,24 @@ export function usePushNotifications() {
   return { expoPushToken, notification };
 }
 
+// Función silenciosa para guardar en tu web
 async function saveTokenToDatabase(userId: number, token: string) {
   try {
-    const response = await fetch(`${API_BASE}/auth/save-push-token`, {
+    await fetch(`${API_BASE}/auth/save-push-token`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ user_id: userId, token: token }),
     });
-    const data = await response.json();
-    if (data.success) {
-      Alert.alert("¡Todo Listo!", "El token se guardó en Supabase exitosamente.");
-    } else {
-      Alert.alert("Error de API", data.message || "No se pudo guardar el token en la BD.");
-    }
   } catch (error) {
-    Alert.alert("Error de Conexión", "No se pudo conectar a tu web para guardar el token.");
+    console.log("Error guardando token en BD", error); // Solo se ve en consola de desarrollo
   }
 }
 
+// Función que pide el permiso nativo
 async function registerForPushNotificationsAsync() {
   let token;
 
-  if (!Device.isDevice) {
-    Alert.alert("Aviso", "Las notificaciones Push no funcionan en simuladores. Usa un teléfono físico.");
-    return undefined;
-  }
+  if (!Device.isDevice) return undefined;
 
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync('default', {
@@ -90,6 +84,7 @@ async function registerForPushNotificationsAsync() {
     });
   }
 
+  // AQUÍ ES DONDE SALE LA VENTANITA NATIVA PIDIENDO PERMISO
   const { status: existingStatus } = await Notifications.getPermissionsAsync();
   let finalStatus = existingStatus;
   
@@ -98,22 +93,16 @@ async function registerForPushNotificationsAsync() {
     finalStatus = status;
   }
   
-  if (finalStatus !== 'granted') {
-    Alert.alert("Permiso Denegado", "Debes activar las notificaciones en los ajustes de tu celular.");
-    return undefined;
-  }
+  // Si dijo que no, nos salimos en silencio
+  if (finalStatus !== 'granted') return undefined;
 
   try {
     const projectId = Constants?.expoConfig?.extra?.eas?.projectId ?? Constants?.easConfig?.projectId;
-    
-    if (!projectId) {
-      Alert.alert("Falta Project ID", "No se detectó un ID de proyecto (EAS). Ejecuta 'eas init' en tu terminal.");
-      return undefined;
+    if (projectId) {
+      token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
     }
-
-    token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
   } catch (e) {
-    Alert.alert("Error generando token", String(e));
+    console.log("Error de Expo Token", e);
   }
 
   return token;
