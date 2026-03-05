@@ -21,7 +21,11 @@ export function usePlayerStats() {
           ),
           player_game_stats (
             touchdowns_totales,
-            intercepciones
+            pases_completos,
+            puntos_extra,
+            sacks,
+            intercepciones,
+            banderas_jaladas
           ),
           mvps (
             id
@@ -36,30 +40,50 @@ export function usePlayerStats() {
       // 2. Procesamos la información para sumar todo automáticamente
       const processedPlayers = data?.map((player: any) => {
         
-        // Sumamos todos los TDs de todos los partidos que ha jugado
+        // --- SUMATORIAS DE ATAQUE ---
         const totalTDs = player.player_game_stats?.reduce((sum: number, game: any) => 
           sum + (game.touchdowns_totales || 0), 0
         ) || 0;
+
+        const totalPasesComp = player.player_game_stats?.reduce((sum: number, game: any) => 
+          sum + (game.pases_completos || 0), 0
+        ) || 0;
+
+        const totalPtsExtra = player.player_game_stats?.reduce((sum: number, game: any) => 
+          sum + (game.puntos_extra || 0), 0
+        ) || 0;
         
-        // Sumamos todas las intercepciones de sus partidos
+        // --- SUMATORIAS DE DEFENSA ---
+        const totalSacks = player.player_game_stats?.reduce((sum: number, game: any) => 
+          sum + (game.sacks || 0), 0
+        ) || 0;
+
         const totalINTs = player.player_game_stats?.reduce((sum: number, game: any) => 
           sum + (game.intercepciones || 0), 0
         ) || 0;
+
+        const totalBanderas = player.player_game_stats?.reduce((sum: number, game: any) => 
+          sum + (game.banderas_jaladas || 0), 0
+        ) || 0;
         
-        // Contamos cuántos registros tiene en la tabla de MVPs
+        // --- PREMIOS ---
         const totalMVPs = player.mvps?.length || 0;
 
-        // Devolvemos al jugador ya con sus totales calculados
+        // 3. Devolvemos al jugador con las llaves exactas que espera nuestra UI en standings.tsx
         return {
           ...player,
-          touchdowns: totalTDs,
-          interceptions: totalINTs,
+          touchdowns_totales: totalTDs,
+          pases_completos: totalPasesComp,
+          puntos_extra: totalPtsExtra,
+          sacks: totalSacks,
+          intercepciones: totalINTs,
+          banderas_jaladas: totalBanderas,
           mvps: totalMVPs
         };
       });
 
       return processedPlayers || [];
     },
-    staleTime: 60 * 1000,
+    staleTime: 60 * 1000, // La info se cachea por 1 minuto para no saturar Supabase
   });
 }

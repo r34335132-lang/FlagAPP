@@ -17,7 +17,7 @@ import { useStats } from "@/hooks/useStats";
 import { useTeams } from "@/hooks/useTeams";
 import { usePlayerStats } from "@/hooks/usePlayerStats";
 import { StandingsTable } from "@/components/StandingsTable";
-import { BRAND_GRADIENT, Colors } from "@/constants/colors"; // <-- Importamos paleta dinámica
+import { BRAND_GRADIENT, Colors } from "@/constants/colors"; 
 
 const MAIN_CATEGORIES = [
   { id: "all", label: "TODOS" },
@@ -27,19 +27,24 @@ const MAIN_CATEGORIES = [
   { id: "teens", label: "TEENS" },
 ];
 
+type StatType = "touchdowns_totales" | "pases_completos" | "puntos_extra" | "sacks" | "intercepciones" | "banderas_jaladas" | "mvps";
+type StatCategory = "ataque" | "defensa" | "premios";
+
 export default function StandingsScreen() {
   const insets = useSafeAreaInsets();
   
-  // Hooks de datos
   const { data: stats, isLoading: statsLoading, refetch: refetchStats } = useStats();
   const { data: teams, isLoading: teamsLoading, refetch: refetchTeams } = useTeams();
   const { data: playerStats, isLoading: playersLoading, refetch: refetchPlayers } = usePlayerStats();
   
   const [refreshing, setRefreshing] = useState(false);
   
-  // Estados de UI
   const [viewMode, setViewMode] = useState<"teams" | "players">("teams");
-  const [statType, setStatType] = useState<"touchdowns" | "interceptions" | "mvps">("touchdowns");
+  
+  // NUEVO: Estado para saber qué grupo está abierto
+  const [activeStatCategory, setActiveStatCategory] = useState<StatCategory>("ataque");
+  const [statType, setStatType] = useState<StatType>("touchdowns_totales");
+  
   const [selectedMainCat, setSelectedMainCat] = useState("varonil"); 
   const [selectedSubCat, setSelectedSubCat] = useState("all");
 
@@ -54,36 +59,15 @@ export default function StandingsScreen() {
   }, [selectedMainCat]);
 
   // ------------------------------------------------------------------
-  // LÓGICA PARA EQUIPOS (Inyectando 0s a los que no han jugado)
+  // LÓGICA DE DATOS
   // ------------------------------------------------------------------
   const statsWithZeros = useMemo(() => {
     if (!teams) return stats || [];
-    
-    // Mapeamos los que sí tienen estadísticas
     const statsMap = new Map((stats || []).map((s: any) => [s.team_name || s.name, s]));
-    
-    // Recorremos TODOS los equipos
     const allStats = teams.map((team: any) => {
-      if (statsMap.has(team.name)) {
-        return statsMap.get(team.name);
-      }
-      // Si el equipo no ha jugado, le inyectamos estadísticas en cero
-      return {
-        team_id: team.id,
-        team_name: team.name,
-        team_category: team.category,
-        games_played: 0,
-        wins: 0,
-        losses: 0,
-        draws: 0,
-        points_for: 0,
-        points_against: 0,
-        points_difference: 0,
-        points: 0
-      };
+      if (statsMap.has(team.name)) return statsMap.get(team.name);
+      return { team_id: team.id, team_name: team.name, team_category: team.category, games_played: 0, wins: 0, losses: 0, draws: 0, points_for: 0, points_against: 0, points_difference: 0, points: 0 };
     });
-
-    // Ordenamos la tabla (Puntos -> Diferencia -> Puntos a favor)
     return allStats.sort((a, b) => {
       if (b.points !== a.points) return (b.points || 0) - (a.points || 0);
       if (b.points_difference !== a.points_difference) return (b.points_difference || 0) - (a.points_difference || 0);
@@ -100,13 +84,10 @@ export default function StandingsScreen() {
   const availableSubCats = useMemo(() => {
     if (selectedMainCat === "all") return [];
     const subs = new Set<string>();
-    
-    const extractSubs = (category?: string) => {
-      const parts = category?.split("-");
+    statsByMainCat.forEach((s: any) => {
+      const parts = s.team_category?.split("-");
       if (parts && parts.length > 1) subs.add(parts[1].toLowerCase());
-    };
-
-    statsByMainCat.forEach((s: any) => extractSubs(s.team_category));
+    });
     return Array.from(subs).sort();
   }, [statsByMainCat, selectedMainCat]);
 
@@ -118,28 +99,19 @@ export default function StandingsScreen() {
     });
   }, [statsByMainCat, selectedSubCat]);
 
-  // ------------------------------------------------------------------
-  // LÓGICA PARA JUGADORES (Mostrar aunque tengan 0)
-  // ------------------------------------------------------------------
   const topPlayers = useMemo(() => {
     if (!playerStats) return [];
     let filtered = playerStats;
-
     if (selectedMainCat !== "all") {
       filtered = filtered.filter(p => p.teams?.category?.toLowerCase().startsWith(selectedMainCat.toLowerCase()));
     }
-    
     if (selectedSubCat !== "all") {
       filtered = filtered.filter(p => {
         const parts = p.teams?.category?.split("-");
         return parts && parts.length > 1 && parts[1].toLowerCase() === selectedSubCat.toLowerCase();
       });
     }
-
-    return filtered
-      .sort((a, b) => (b[statType] || 0) - (a[statType] || 0))
-      // Muestra hasta 50 jugadores (incluso si tienen 0)
-      .slice(0, 50); 
+    return filtered.sort((a, b) => (b[statType] || 0) - (a[statType] || 0)).slice(0, 50); 
   }, [playerStats, selectedMainCat, selectedSubCat, statType]);
 
   const onRefresh = async () => {
@@ -149,30 +121,36 @@ export default function StandingsScreen() {
   };
 
   // ------------------------------------------------------------------
-  // MEDALLAS ADAPTATIVAS (Oscuro vs Claro)
+  // UI HELPERS
   // ------------------------------------------------------------------
   const getRankStyle = (index: number) => {
     const isDark = theme === 'dark';
-    if (index === 0) return { 
-      bg: isDark ? '#78350F' : '#FEF3C7', 
-      color: isDark ? '#FDE68A' : '#D97706', 
-      border: isDark ? '#92400E' : '#FDE68A' 
-    }; // Oro
-    if (index === 1) return { 
-      bg: isDark ? '#334155' : '#F1F5F9', 
-      color: isDark ? '#E2E8F0' : '#64748B', 
-      border: isDark ? '#475569' : '#E2E8F0' 
-    }; // Plata
-    if (index === 2) return { 
-      bg: isDark ? '#7C2D12' : '#FFEDD5', 
-      color: isDark ? '#FED7AA' : '#C2410C', 
-      border: isDark ? '#9A3412' : '#FED7AA' 
-    }; // Bronce
-    return { 
-      bg: isDark ? currentColors.bgSecondary : '#F8FAFC', 
-      color: currentColors.textMuted, 
-      border: isDark ? currentColors.borderLight : 'transparent' 
-    };
+    if (index === 0) return { bg: isDark ? '#78350F' : '#FEF3C7', color: isDark ? '#FDE68A' : '#D97706', border: isDark ? '#92400E' : '#FDE68A' }; 
+    if (index === 1) return { bg: isDark ? '#334155' : '#F1F5F9', color: isDark ? '#E2E8F0' : '#64748B', border: isDark ? '#475569' : '#E2E8F0' }; 
+    if (index === 2) return { bg: isDark ? '#7C2D12' : '#FFEDD5', color: isDark ? '#FED7AA' : '#C2410C', border: isDark ? '#9A3412' : '#FED7AA' }; 
+    return { bg: isDark ? currentColors.bgSecondary : '#F8FAFC', color: currentColors.textMuted, border: isDark ? currentColors.borderLight : 'transparent' };
+  };
+
+  const getStatLabel = (type: StatType) => {
+    switch(type) {
+      case 'touchdowns_totales': return 'TDs';
+      case 'pases_completos': return 'COMP';
+      case 'puntos_extra': return 'PTS EX';
+      case 'sacks': return 'SACKS';
+      case 'intercepciones': return 'INTs';
+      case 'banderas_jaladas': return 'SAF';
+      case 'mvps': return 'MVPs';
+      default: return '';
+    }
+  };
+
+  // Manejador del filtro principal
+  const handleCategoryPress = (category: StatCategory) => {
+    setActiveStatCategory(category);
+    // Auto-seleccionar el primer stat de la categoría elegida
+    if (category === "ataque") setStatType("touchdowns_totales");
+    if (category === "defensa") setStatType("sacks");
+    if (category === "premios") setStatType("mvps");
   };
 
   return (
@@ -190,32 +168,18 @@ export default function StandingsScreen() {
         <View style={styles.toggleWrapper}>
           <View style={[styles.toggleContainer, { backgroundColor: currentColors.bgSecondary }]}>
             <Pressable 
-              style={[
-                styles.toggleBtn, 
-                viewMode === "teams" && [styles.toggleBtnActive, { backgroundColor: currentColors.text }]
-              ]}
+              style={[styles.toggleBtn, viewMode === "teams" && [styles.toggleBtnActive, { backgroundColor: currentColors.text }]]}
               onPress={() => setViewMode("teams")}
             >
               <Ionicons name="shield" size={16} color={viewMode === "teams" ? currentColors.bg : currentColors.textSecondary} />
-              <Text style={[
-                styles.toggleText, 
-                { color: currentColors.textSecondary },
-                viewMode === "teams" && [styles.toggleTextActive, { color: currentColors.bg }]
-              ]}>Equipos</Text>
+              <Text style={[styles.toggleText, { color: currentColors.textSecondary }, viewMode === "teams" && [styles.toggleTextActive, { color: currentColors.bg }]]}>Equipos</Text>
             </Pressable>
             <Pressable 
-              style={[
-                styles.toggleBtn, 
-                viewMode === "players" && [styles.toggleBtnActive, { backgroundColor: currentColors.text }]
-              ]}
+              style={[styles.toggleBtn, viewMode === "players" && [styles.toggleBtnActive, { backgroundColor: currentColors.text }]]}
               onPress={() => setViewMode("players")}
             >
               <Ionicons name="people" size={18} color={viewMode === "players" ? currentColors.bg : currentColors.textSecondary} />
-              <Text style={[
-                styles.toggleText, 
-                { color: currentColors.textSecondary },
-                viewMode === "players" && [styles.toggleTextActive, { color: currentColors.bg }]
-              ]}>Líderes</Text>
+              <Text style={[styles.toggleText, { color: currentColors.textSecondary }, viewMode === "players" && [styles.toggleTextActive, { color: currentColors.bg }]]}>Líderes</Text>
             </Pressable>
           </View>
         </View>
@@ -236,86 +200,77 @@ export default function StandingsScreen() {
           <View style={[styles.subCategoryWrapper, { backgroundColor: currentColors.bgSecondary, borderTopColor: currentColors.border }]}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.subCategoryScroll}>
               <Pressable 
-                style={[
-                  styles.subChip, 
-                  { backgroundColor: currentColors.card, borderColor: currentColors.border },
-                  selectedSubCat === "all" && { backgroundColor: currentColors.text, borderColor: currentColors.text }
-                ]} 
+                style={[styles.subChip, { backgroundColor: currentColors.card, borderColor: currentColors.border }, selectedSubCat === "all" && { backgroundColor: currentColors.text, borderColor: currentColors.text }]} 
                 onPress={() => setSelectedSubCat("all")}
               >
-                <Text style={[
-                  styles.subChipText, 
-                  { color: currentColors.textSecondary },
-                  selectedSubCat === "all" && { color: currentColors.bg }
-                ]}>Todas</Text>
+                <Text style={[styles.subChipText, { color: currentColors.textSecondary }, selectedSubCat === "all" && { color: currentColors.bg }]}>Todas</Text>
               </Pressable>
               {availableSubCats.map(sub => (
                 <Pressable 
                   key={sub} 
-                  style={[
-                    styles.subChip, 
-                    { backgroundColor: currentColors.card, borderColor: currentColors.border },
-                    selectedSubCat === sub && { backgroundColor: currentColors.text, borderColor: currentColors.text }
-                  ]} 
+                  style={[styles.subChip, { backgroundColor: currentColors.card, borderColor: currentColors.border }, selectedSubCat === sub && { backgroundColor: currentColors.text, borderColor: currentColors.text }]} 
                   onPress={() => setSelectedSubCat(sub)}
                 >
-                  <Text style={[
-                    styles.subChipText, 
-                    { color: currentColors.textSecondary },
-                    selectedSubCat === sub && { color: currentColors.bg }
-                  ]}>{sub.toUpperCase()}</Text>
+                  <Text style={[styles.subChipText, { color: currentColors.textSecondary }, selectedSubCat === sub && { color: currentColors.bg }]}>{sub.toUpperCase()}</Text>
                 </Pressable>
               ))}
             </ScrollView>
           </View>
         )}
 
+        {/* --- NUEVO FILTRO ACORDEÓN PARA ESTADÍSTICAS --- */}
         {viewMode === "players" && (
-          <View style={[styles.statsSelectorWrapper, { backgroundColor: currentColors.card, borderTopColor: currentColors.border }]}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.statsScroll}>
+          <View style={[styles.filterContainer, { backgroundColor: currentColors.card, borderTopColor: currentColors.border }]}>
+            
+            {/* 1. Botones Principales (Ataque, Defensa, Premios) */}
+            <View style={styles.filterMainRow}>
               <Pressable 
-                style={[
-                  styles.statChip, 
-                  { backgroundColor: currentColors.bg, borderColor: currentColors.border },
-                  statType === "touchdowns" && styles.statChipActive
-                ]} 
-                onPress={() => setStatType("touchdowns")}
+                style={[styles.filterMainBtn, activeStatCategory === "ataque" && [styles.filterMainBtnActive, { backgroundColor: theme === 'dark' ? '#1E3A8A' : '#EFF6FF', borderColor: '#3B82F6' }]]} 
+                onPress={() => handleCategoryPress("ataque")}
               >
-                <Text style={[
-                  styles.statChipText, 
-                  { color: currentColors.textSecondary },
-                  statType === "touchdowns" && styles.statChipTextActive
-                ]}>🏈 Anotaciones</Text>
+                <Text style={[styles.filterMainText, { color: currentColors.textSecondary }, activeStatCategory === "ataque" && { color: '#3B82F6' }]}>⚔️ ATAQUE</Text>
               </Pressable>
+              
               <Pressable 
-                style={[
-                  styles.statChip, 
-                  { backgroundColor: currentColors.bg, borderColor: currentColors.border },
-                  statType === "interceptions" && styles.statChipActive
-                ]} 
-                onPress={() => setStatType("interceptions")}
+                style={[styles.filterMainBtn, activeStatCategory === "defensa" && [styles.filterMainBtnActive, { backgroundColor: theme === 'dark' ? '#7F1D1D' : '#FEF2F2', borderColor: '#EF4444' }]]} 
+                onPress={() => handleCategoryPress("defensa")}
               >
-                <Text style={[
-                  styles.statChipText, 
-                  { color: currentColors.textSecondary },
-                  statType === "interceptions" && styles.statChipTextActive
-                ]}>🤲 Intercepciones</Text>
+                <Text style={[styles.filterMainText, { color: currentColors.textSecondary }, activeStatCategory === "defensa" && { color: '#EF4444' }]}>🛡️ DEFENSA</Text>
               </Pressable>
+
               <Pressable 
-                style={[
-                  styles.statChip, 
-                  { backgroundColor: currentColors.bg, borderColor: currentColors.border },
-                  statType === "mvps" && styles.statChipActive
-                ]} 
-                onPress={() => setStatType("mvps")}
+                style={[styles.filterMainBtn, activeStatCategory === "premios" && [styles.filterMainBtnActive, { backgroundColor: theme === 'dark' ? '#78350F' : '#FFFBEB', borderColor: '#F59E0B' }]]} 
+                onPress={() => handleCategoryPress("premios")}
               >
-                <Text style={[
-                  styles.statChipText, 
-                  { color: currentColors.textSecondary },
-                  statType === "mvps" && styles.statChipTextActive
-                ]}>⭐ MVPs</Text>
+                <Text style={[styles.filterMainText, { color: currentColors.textSecondary }, activeStatCategory === "premios" && { color: '#F59E0B' }]}>🏆 PREMIOS</Text>
               </Pressable>
+            </View>
+
+            {/* 2. Sub-opciones basadas en la categoría seleccionada */}
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterSubScroll}>
+              {activeStatCategory === "ataque" && (
+                <>
+                  <StatChip type="touchdowns_totales" label="🏈 Anotaciones" active={statType} onPress={setStatType} colors={currentColors} />
+                  <StatChip type="pases_completos" label="🎯 Pases Comp" active={statType} onPress={setStatType} colors={currentColors} />
+                  <StatChip type="puntos_extra" label="➕ Puntos Extra" active={statType} onPress={setStatType} colors={currentColors} />
+                </>
+              )}
+              
+              {activeStatCategory === "defensa" && (
+                <>
+                  <StatChip type="sacks" label="🛑 Sacks" active={statType} onPress={setStatType} colors={currentColors} />
+                  <StatChip type="intercepciones" label="🤲 Intercepciones" active={statType} onPress={setStatType} colors={currentColors} />
+                  <StatChip type="banderas_jaladas" label="🚩 Safety" active={statType} onPress={setStatType} colors={currentColors} />
+                </>
+              )}
+
+              {activeStatCategory === "premios" && (
+                <>
+                  <StatChip type="mvps" label="⭐ MVPs del Partido" active={statType} onPress={setStatType} colors={currentColors} />
+                </>
+              )}
             </ScrollView>
+
           </View>
         )}
       </View>
@@ -331,7 +286,6 @@ export default function StandingsScreen() {
           
           finalFilteredStats.length > 0 ? (
             <View style={[styles.tableContainer, { backgroundColor: currentColors.card, borderColor: currentColors.border, shadowColor: theme === 'dark' ? '#000' : '#0F172A' }]}>
-              {/* COMPONENTE EXTERNO: Posiblemente requiera adaptación también */}
               <StandingsTable stats={finalFilteredStats} teams={teams || []} />
             </View>
           ) : (
@@ -364,8 +318,11 @@ export default function StandingsScreen() {
                           <Ionicons name="person" size={20} color={currentColors.textMuted} />
                         </View>
                       )}
+                      
                       {player.teams?.logo_url && (
-                        <Image source={{ uri: player.teams.logo_url }} style={[styles.tinyTeamLogo, { borderColor: currentColors.border, backgroundColor: currentColors.card }]} />
+                        <View style={[styles.tinyTeamLogoWrapper, { borderColor: currentColors.card }]}>
+                          <Image source={{ uri: player.teams.logo_url }} style={styles.tinyTeamLogo} />
+                        </View>
                       )}
                     </View>
 
@@ -379,7 +336,7 @@ export default function StandingsScreen() {
                     <View style={styles.statValueBox}>
                       <Text style={[styles.statValueNumber, { color: currentColors.text }]}>{player[statType] || 0}</Text>
                       <Text style={[styles.statValueLabel, { color: currentColors.textMuted }]}>
-                        {statType === 'touchdowns' ? 'TDs' : statType === 'interceptions' ? 'INTs' : 'MVPs'}
+                        {getStatLabel(statType)}
                       </Text>
                     </View>
                   </View>
@@ -400,7 +357,26 @@ export default function StandingsScreen() {
   );
 }
 
-// Retiramos colores fijos del StyleSheet
+const StatChip = ({ type, label, active, onPress, colors }: any) => {
+  const isActive = active === type;
+  return (
+    <Pressable 
+      style={[
+        styles.statChip, 
+        { backgroundColor: colors.bgSecondary, borderColor: 'transparent' },
+        isActive && styles.statChipActive
+      ]} 
+      onPress={() => onPress(type)}
+    >
+      <Text style={[
+        styles.statChipText, 
+        { color: colors.textSecondary },
+        isActive && styles.statChipTextActive
+      ]}>{label}</Text>
+    </Pressable>
+  );
+};
+
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: { borderBottomWidth: 1, paddingBottom: 10, zIndex: 10, elevation: 4, shadowOpacity: 0.05, shadowRadius: 10 },
@@ -410,7 +386,7 @@ const styles = StyleSheet.create({
   toggleWrapper: { paddingHorizontal: 20, marginVertical: 15 },
   toggleContainer: { flexDirection: "row", borderRadius: 12, padding: 4 },
   toggleBtn: { flex: 1, flexDirection: "row", justifyContent: "center", alignItems: "center", paddingVertical: 8, borderRadius: 8, gap: 6 },
-  toggleBtnActive: { elevation: 2, shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 4 },
+  toggleBtnActive: { elevation: 2, shadowOpacity: 0.1, shadowRadius: 4 },
   toggleText: { fontSize: 13, fontWeight: "700" },
   toggleTextActive: {},
 
@@ -424,13 +400,18 @@ const styles = StyleSheet.create({
   subCategoryWrapper: { paddingVertical: 12, borderTopWidth: 1, marginTop: 10 },
   subCategoryScroll: { paddingHorizontal: 20, gap: 8 },
   subChip: { paddingHorizontal: 16, paddingVertical: 6, borderRadius: 16, borderWidth: 1 },
-  subChipActive: {},
   subChipText: { fontSize: 12, fontWeight: "700" },
-  subChipTextActive: {},
 
-  statsSelectorWrapper: { paddingVertical: 10, borderTopWidth: 1 },
-  statsScroll: { paddingHorizontal: 20, gap: 10 },
-  statChip: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 8, borderWidth: 1 },
+  // ESTILOS NUEVOS PARA EL FILTRO ACORDEÓN
+  filterContainer: { paddingTop: 15, paddingBottom: 5, borderTopWidth: 1 },
+  filterMainRow: { flexDirection: "row", paddingHorizontal: 20, gap: 10, marginBottom: 12 },
+  filterMainBtn: { flex: 1, alignItems: "center", paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: "transparent" },
+  filterMainBtnActive: {},
+  filterMainText: { fontSize: 11, fontWeight: "900", letterSpacing: 0.5 },
+  
+  filterSubScroll: { paddingHorizontal: 20, gap: 8, paddingBottom: 10 },
+  
+  statChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, borderWidth: 1 },
   statChipActive: { backgroundColor: BRAND_GRADIENT[0], borderColor: BRAND_GRADIENT[0] },
   statChipText: { fontSize: 12, fontWeight: "800" },
   statChipTextActive: { color: "#FFFFFF" },
@@ -445,7 +426,22 @@ const styles = StyleSheet.create({
   
   playerAvatarWrapper: { position: "relative", marginRight: 15 },
   playerAvatar: { width: 46, height: 46, borderRadius: 23, borderWidth: 2 },
-  tinyTeamLogo: { position: "absolute", bottom: -2, right: -4, width: 18, height: 18, borderRadius: 9, borderWidth: 1 },
+  
+  tinyTeamLogoWrapper: { 
+    position: "absolute", 
+    bottom: -2, 
+    right: -4, 
+    width: 22, 
+    height: 22, 
+    borderRadius: 11, 
+    backgroundColor: '#FFFFFF',
+    borderWidth: 2, 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    overflow: 'hidden',
+    padding: 2 
+  },
+  tinyTeamLogo: { width: '100%', height: '100%', resizeMode: 'contain' },
   
   playerInfo: { flex: 1, justifyContent: "center" },
   playerName: { fontSize: 15, fontWeight: "800", marginBottom: 2 },

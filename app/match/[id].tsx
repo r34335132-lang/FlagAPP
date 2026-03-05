@@ -185,10 +185,15 @@ export default function MatchDetailScreen() {
               <Text style={styles.categoryHeader}>{game.category?.toUpperCase()} • {game.match_type?.toUpperCase()}</Text>
             </View>
 
+            {/* --- SECCIÓN DE LOGOS Y MARCADOR CORREGIDA --- */}
             <View style={styles.teamsMainRow}>
               <View style={styles.teamBrand}>
-                <View style={[styles.logoCircle, { backgroundColor: currentColors.card }]}>
-                  <Image source={{ uri: homeTeam?.logo_url || "https://via.placeholder.com/100" }} style={styles.mainLogo} />
+                <View style={styles.logoCircleFixed}>
+                  <Image 
+                    source={{ uri: homeTeam?.logo_url || "https://via.placeholder.com/100" }} 
+                    style={styles.mainLogo} 
+                    resizeMode="contain" 
+                  />
                 </View>
                 <Text style={styles.teamNameMain}>{game.home_team}</Text>
               </View>
@@ -200,8 +205,12 @@ export default function MatchDetailScreen() {
               </View>
 
               <View style={styles.teamBrand}>
-                <View style={[styles.logoCircle, { backgroundColor: currentColors.card }]}>
-                  <Image source={{ uri: awayTeam?.logo_url || "https://via.placeholder.com/100" }} style={styles.mainLogo} />
+                <View style={styles.logoCircleFixed}>
+                  <Image 
+                    source={{ uri: awayTeam?.logo_url || "https://via.placeholder.com/100" }} 
+                    style={styles.mainLogo} 
+                    resizeMode="contain" 
+                  />
                 </View>
                 <Text style={styles.teamNameMain}>{game.away_team}</Text>
               </View>
@@ -318,7 +327,7 @@ export default function MatchDetailScreen() {
 
       </ScrollView>
 
-      {/* BOTONES FLOTANTES (Se mantienen oscuros translúcidos para garantizar lectura sobre cualquier fondo) */}
+      {/* BOTONES FLOTANTES */}
       <Pressable onPress={() => router.back()} style={[styles.floatingBackBtn, { top: insets.top + 10 }]}>
         <Ionicons name="chevron-back" size={26} color="#FFF" />
       </Pressable>
@@ -370,9 +379,35 @@ const styles = StyleSheet.create({
 
   teamsMainRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20 },
   teamBrand: { flex: 1, alignItems: 'center' },
-  logoCircle: { width: 75, height: 75, borderRadius: 37.5, padding: 10, elevation: 8 },
-  mainLogo: { width: '100%', height: '100%', resizeMode: 'contain' },
-  teamNameMain: { color: '#FFF', fontWeight: '900', fontSize: 15, marginTop: 12, textAlign: 'center' },
+  
+  // ESTILO CORREGIDO PARA LOS LOGOS
+  logoCircleFixed: { 
+    width: 80, 
+    height: 80, 
+    borderRadius: 40, 
+    backgroundColor: '#FFFFFF', // Siempre blanco puro
+    padding: 8, // Margen interno
+    elevation: 10, 
+    shadowColor: '#000', 
+    shadowOffset: { width: 0, height: 5 }, 
+    shadowOpacity: 0.2, 
+    shadowRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden'
+  },
+  mainLogo: { 
+    width: '100%', 
+    height: '100%',
+  },
+  teamNameMain: { 
+    color: '#FFF', 
+    fontWeight: '900', 
+    fontSize: 14, 
+    marginTop: 12, 
+    textAlign: 'center',
+    paddingHorizontal: 5
+  },
   
   scoreContainer: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 10 },
   scoreNumber: { color: '#FFF', fontSize: 44, fontWeight: '900' },
