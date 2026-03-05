@@ -23,16 +23,17 @@
     },
     "android": {
       "package": "com.flagdurango.app",
-      "googleServicesFile": "./google-services.json", 
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#0A0E1A",
         "foregroundImage": "./assets/images/icon.png"
       },
       "permissions": [
-        "CAMERA",
-        "READ_EXTERNAL_STORAGE",
-        "WRITE_EXTERNAL_STORAGE",
-        "READ_MEDIA_IMAGES"
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "web": {
@@ -65,7 +66,7 @@
         "origin": "https://replit.com/"
       },
       "eas": {
-        "projectId": "2777fac9-0f8b-402c-bdcf-bd6056609510"
+        "projectId": "4c04db27-74d0-42bc-a22a-39459fe0a67c"
       }
     },
     "owner": "raulbri123"

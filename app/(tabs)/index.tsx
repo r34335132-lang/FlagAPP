@@ -172,7 +172,7 @@ const CommunityCard = () => (
       <View style={styles.socialButtonsCol}>
         <Pressable 
           style={[styles.socialBtn, { backgroundColor: '#E1306C' }]} 
-          onPress={() => Linking.openURL('https://www.instagram.com/flagdurango/')}
+          onPress={() => Linking.openURL('https://www.instagram.com/flag.durango/')}
         >
           <Ionicons name="logo-instagram" size={18} color="#FFF" />
           <Text style={styles.socialBtnText}>Instagram</Text>
@@ -180,7 +180,7 @@ const CommunityCard = () => (
 
         <Pressable 
           style={[styles.socialBtn, { backgroundColor: '#1877F2' }]} 
-          onPress={() => Linking.openURL('https://www.facebook.com/flagdurango')}
+          onPress={() => Linking.openURL('https://www.facebook.com/TBFDurango')}
         >
           <Ionicons name="logo-facebook" size={18} color="#FFF" />
           <Text style={styles.socialBtnText}>Facebook</Text>
