@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   View,
   Text,
@@ -10,7 +10,9 @@ import {
   SectionList,
   ScrollView,
   Linking,
-  useColorScheme
+  useColorScheme,
+  Animated,
+  Easing
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -20,10 +22,45 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useMatches } from "@/hooks/useMatches";
 import { useTeams } from "@/hooks/useTeams";
 import { MatchCardSkeleton } from "@/components/SkeletonLoader";
-import { BRAND_GRADIENT, Colors } from "@/constants/colors"; // <-- Importamos nuestra paleta dinámica
+import { BRAND_GRADIENT, Colors } from "@/constants/colors";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 1. HOOKS Y COMPONENTES DE UTILIDAD
+// 1. ANIMACIONES BASE
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Componente que hace aparecer los elementos suavemente de abajo hacia arriba
+const FadeInView = ({ children, delay = 0, style }: { children: any, delay?: number, style?: any }) => {
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(20)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 600,
+        delay: delay,
+        useNativeDriver: true,
+        easing: Easing.out(Easing.cubic)
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 600,
+        delay: delay,
+        useNativeDriver: true,
+        easing: Easing.out(Easing.cubic)
+      })
+    ]).start();
+  }, []);
+
+  return (
+    <Animated.View style={[{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }, style]}>
+      {children}
+    </Animated.View>
+  );
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 2. HOOKS Y COMPONENTES DE UTILIDAD
 // ─────────────────────────────────────────────────────────────────────────────
 
 function useLiveTimer(game: any) {
@@ -64,16 +101,28 @@ const LiveBadge = ({ game }: { game: any }) => {
   const timeString = useLiveTimer(game);
   const theme = useColorScheme() ?? "light";
   
+  // Animación de latido (Pulse) para el punto rojo
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 1.4, duration: 600, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1, duration: 600, useNativeDriver: true }),
+      ])
+    ).start();
+  }, []);
+  
   return (
     <View style={[styles.liveBadge, { backgroundColor: theme === 'dark' ? 'rgba(239, 68, 68, 0.2)' : '#FEF2F2' }]}>
-      <View style={styles.liveDot} />
+      <Animated.View style={[styles.liveDot, { transform: [{ scale: pulseAnim }] }]} />
       <Text style={styles.liveBadgeText}>{timeString}</Text>
     </View>
   );
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 2. COMPONENTES DE UI 
+// 3. COMPONENTES DE UI 
 // ─────────────────────────────────────────────────────────────────────────────
 
 const HeaderHome = ({ user, topPad, dateStr, onProfilePress }: any) => (
@@ -94,10 +143,10 @@ const HeaderHome = ({ user, topPad, dateStr, onProfilePress }: any) => (
         <Ionicons name={user ? "person" : "enter-outline"} size={20} color="#FFFFFF" />
       </Pressable>
     </View>
-    <View style={styles.greetingContainer}>
+    <FadeInView delay={100} style={styles.greetingContainer}>
       <Text style={styles.greetingText}>¡Hola, {user ? user.username : "Jugador"}!</Text>
       <Text style={styles.dateText}>{dateStr} • Temporada 2026</Text>
-    </View>
+    </FadeInView>
   </LinearGradient>
 );
 
@@ -178,7 +227,7 @@ const CommunityCard = () => {
   const currentColors = Colors[theme];
 
   return (
-    <View style={styles.communityWrapper}>
+    <FadeInView delay={400} style={styles.communityWrapper}>
       <View style={[styles.communityCard, { backgroundColor: currentColors.card, borderColor: currentColors.border }]}>
         <View style={styles.communityContent}>
           <Text style={[styles.communityTitle, { color: currentColors.text }]}>Únete a la Acción 📸</Text>
@@ -186,7 +235,7 @@ const CommunityCard = () => {
         </View>
         <View style={styles.socialButtonsCol}>
           <Pressable 
-            style={[styles.socialBtn, { backgroundColor: '#E1306C' }]} 
+            style={({ pressed }) => [styles.socialBtn, { backgroundColor: '#E1306C', opacity: pressed ? 0.8 : 1 }]} 
             onPress={() => Linking.openURL('https://www.instagram.com/flag.durango/')}
           >
             <Ionicons name="logo-instagram" size={18} color="#FFF" />
@@ -194,7 +243,7 @@ const CommunityCard = () => {
           </Pressable>
 
           <Pressable 
-            style={[styles.socialBtn, { backgroundColor: '#1877F2' }]} 
+            style={({ pressed }) => [styles.socialBtn, { backgroundColor: '#1877F2', opacity: pressed ? 0.8 : 1 }]} 
             onPress={() => Linking.openURL('https://www.facebook.com/TBFDurango')}
           >
             <Ionicons name="logo-facebook" size={18} color="#FFF" />
@@ -202,13 +251,16 @@ const CommunityCard = () => {
           </Pressable>
         </View>
       </View>
-    </View>
+    </FadeInView>
   );
 };
 
-const MatchCard = ({ game, teams, isFeatured = false }: { game: any, teams: any[], isFeatured?: boolean }) => {
+const MatchCard = ({ game, teams, isFeatured = false, index = 0 }: { game: any, teams: any[], isFeatured?: boolean, index?: number }) => {
   const theme = useColorScheme() ?? "light";
   const currentColors = Colors[theme];
+  
+  // Animación de escala (bounce) al presionar la tarjeta
+  const scaleAnim = useRef(new Animated.Value(1)).current;
 
   if (!game) return null;
 
@@ -216,6 +268,14 @@ const MatchCard = ({ game, teams, isFeatured = false }: { game: any, teams: any[
   const awayTeam = teams.find((t) => t.name === game.away_team);
   const isLive = ["en vivo", "en_vivo", "en curso"].includes(game.status?.toLowerCase() ?? "");
   const isFinished = ["finalizado", "final"].includes(game.status?.toLowerCase() ?? "");
+
+  const handlePressIn = () => {
+    Animated.spring(scaleAnim, { toValue: 0.96, useNativeDriver: true }).start();
+  };
+
+  const handlePressOut = () => {
+    Animated.spring(scaleAnim, { toValue: 1, friction: 4, tension: 40, useNativeDriver: true }).start();
+  };
 
   const TeamRow = ({ team, name, score, isWinner }: any) => (
     <View style={styles.teamRow}>
@@ -238,48 +298,54 @@ const MatchCard = ({ game, teams, isFeatured = false }: { game: any, teams: any[
   );
 
   return (
-    <Pressable 
-      style={[
-        styles.matchCard, 
-        { backgroundColor: currentColors.card, borderColor: currentColors.border, shadowColor: theme === 'dark' ? '#000' : '#0F172A' },
-        isFeatured && styles.featuredCard
-      ]}
-      onPress={() => router.push({ pathname: "/match/[id]", params: { id: game.id } })}
-    >
-      <View style={styles.cardHeader}>
-        {isLive ? (
-          <LiveBadge game={game} />
-        ) : (
-          <Text style={[styles.statusText, { color: currentColors.text }]}>
-            {isFinished ? "FINALIZADO" : game.game_time?.substring(0, 5) || "POR DEFINIR"}
-          </Text>
-        )}
-        <Text style={[styles.categoryText, { color: currentColors.textSecondary }]}>{game.category?.replace("-", " ").toUpperCase()}</Text>
-      </View>
+    <FadeInView delay={index * 150}>
+      <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+        <Pressable 
+          onPressIn={handlePressIn}
+          onPressOut={handlePressOut}
+          onPress={() => router.push({ pathname: "/match/[id]", params: { id: game.id } })}
+          style={[
+            styles.matchCard, 
+            { backgroundColor: currentColors.card, borderColor: currentColors.border, shadowColor: theme === 'dark' ? '#000' : '#0F172A' },
+            isFeatured && styles.featuredCard
+          ]}
+        >
+          <View style={styles.cardHeader}>
+            {isLive ? (
+              <LiveBadge game={game} />
+            ) : (
+              <Text style={[styles.statusText, { color: currentColors.text }]}>
+                {isFinished ? "FINALIZADO" : game.game_time?.substring(0, 5) || "POR DEFINIR"}
+              </Text>
+            )}
+            <Text style={[styles.categoryText, { color: currentColors.textSecondary }]}>{game.category?.replace("-", " ").toUpperCase()}</Text>
+          </View>
 
-      <View style={styles.cardBody}>
-        <TeamRow team={homeTeam} name={game.home_team} score={game.home_score} isWinner={isFinished && game.home_score > game.away_score} />
-        <View style={[styles.teamDivider, { backgroundColor: currentColors.borderLight }]} />
-        <TeamRow team={awayTeam} name={game.away_team} score={game.away_score} isWinner={isFinished && game.away_score > game.home_score} />
-      </View>
+          <View style={styles.cardBody}>
+            <TeamRow team={homeTeam} name={game.home_team} score={game.home_score} isWinner={isFinished && game.home_score > game.away_score} />
+            <View style={[styles.teamDivider, { backgroundColor: currentColors.borderLight }]} />
+            <TeamRow team={awayTeam} name={game.away_team} score={game.away_score} isWinner={isFinished && game.away_score > game.home_score} />
+          </View>
 
-      <View style={[styles.cardFooter, { borderTopColor: currentColors.borderLight }]}>
-        <Text style={[styles.footerText, { color: currentColors.textMuted }]}>
-          {(game.venue !== null && game.venue !== undefined && String(game.venue).trim() !== "" && String(game.venue) !== "null") 
-            ? game.venue 
-            : "Sede por definir"} 
-          {" "}• Campo{" "} 
-          {(game.field !== null && game.field !== undefined && String(game.field).trim() !== "" && String(game.field) !== "null") 
-            ? game.field 
-            : "TBD"}
-        </Text>
-      </View>
-    </Pressable>
+          <View style={[styles.cardFooter, { borderTopColor: currentColors.borderLight }]}>
+            <Text style={[styles.footerText, { color: currentColors.textMuted }]}>
+              {(game.venue !== null && game.venue !== undefined && String(game.venue).trim() !== "" && String(game.venue) !== "null") 
+                ? game.venue 
+                : "Sede por definir"} 
+              {" "}• Campo{" "} 
+              {(game.field !== null && game.field !== undefined && String(game.field).trim() !== "" && String(game.field) !== "null") 
+                ? game.field 
+                : "TBD"}
+            </Text>
+          </View>
+        </Pressable>
+      </Animated.View>
+    </FadeInView>
   );
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 3. PANTALLA PRINCIPAL
+// 4. PANTALLA PRINCIPAL
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function HomeScreen() {
@@ -364,18 +430,20 @@ export default function HomeScreen() {
         
         ListHeaderComponent={
           <>
-            <AnnouncementBanner />
-            <LeagueNews />
+            <FadeInView delay={200}>
+              <AnnouncementBanner />
+              <LeagueNews />
+            </FadeInView>
             
             <View style={styles.featuredContainer}>
               {isLoading ? (
                 <View style={{ gap: 16 }}>{[1].map((k) => <MatchCardSkeleton key={k} />)}</View>
               ) : (
                 featuredGame && (
-                  <>
+                  <FadeInView delay={300}>
                     <Text style={[styles.sectionTitleLabel, { color: currentColors.textMuted }]}>PARTIDO DESTACADO</Text>
                     <MatchCard game={featuredGame} teams={safeTeams} isFeatured={true} />
-                  </>
+                  </FadeInView>
                 )
               )}
             </View>
@@ -390,19 +458,21 @@ export default function HomeScreen() {
           </View>
         )}
 
-        renderItem={({ item }) => (
-          <MatchCard game={item} teams={safeTeams} />
+        renderItem={({ item, index }) => (
+          <MatchCard game={item} teams={safeTeams} index={index} />
         )}
 
         ListEmptyComponent={
           !isLoading && !featuredGame ? (
-            <View style={[styles.emptyCard, { backgroundColor: currentColors.card, borderColor: currentColors.border }]}>
-              <View style={[styles.emptyIconWrap, { backgroundColor: currentColors.bgSecondary }]}>
-                <Ionicons name="barbell" size={40} color={currentColors.textMuted} />
+            <FadeInView delay={300}>
+              <View style={[styles.emptyCard, { backgroundColor: currentColors.card, borderColor: currentColors.border }]}>
+                <View style={[styles.emptyIconWrap, { backgroundColor: currentColors.bgSecondary }]}>
+                  <Ionicons name="barbell" size={40} color={currentColors.textMuted} />
+                </View>
+                <Text style={[styles.emptyTitle, { color: currentColors.text }]}>¡Pretemporada en curso!</Text>
+                <Text style={[styles.emptySubtitle, { color: currentColors.textSecondary }]}>Los equipos se están preparando. Arma tus jugadas, la temporada inicia pronto.</Text>
               </View>
-              <Text style={[styles.emptyTitle, { color: currentColors.text }]}>¡Pretemporada en curso!</Text>
-              <Text style={[styles.emptySubtitle, { color: currentColors.textSecondary }]}>Los equipos se están preparando. Arma tus jugadas, la temporada inicia pronto.</Text>
-            </View>
+            </FadeInView>
           ) : null
         }
 
@@ -415,7 +485,7 @@ export default function HomeScreen() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 4. ESTILOS (Los colores se sobrescriben dinámicamente arriba)
+// 5. ESTILOS
 // ─────────────────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
@@ -622,7 +692,7 @@ const styles = StyleSheet.create({
   },
 
   listContent: {
-    paddingBottom: 100, // Le di un poco más de padding inferior para que no estorbe la barra nueva
+    paddingBottom: 100, 
   },
   featuredContainer: {
     marginTop: 25, 
@@ -796,5 +866,5 @@ const styles = StyleSheet.create({
     textAlign: "center",
     paddingHorizontal: 30,
     lineHeight: 20,
-  },
+  }
 });

@@ -251,8 +251,7 @@ export default function StandingsScreen() {
               {activeStatCategory === "ataque" && (
                 <>
                   <StatChip type="touchdowns_totales" label="🏈 Anotaciones" active={statType} onPress={setStatType} colors={currentColors} />
-                  <StatChip type="pases_completos" label="🎯 Pases Comp" active={statType} onPress={setStatType} colors={currentColors} />
-                  <StatChip type="puntos_extra" label="➕ Puntos Extra" active={statType} onPress={setStatType} colors={currentColors} />
+                  <StatChip type="pases_completos" label="🎯 QB Pass" active={statType} onPress={setStatType} colors={currentColors} />
                 </>
               )}
               
@@ -260,7 +259,6 @@ export default function StandingsScreen() {
                 <>
                   <StatChip type="sacks" label="🛑 Sacks" active={statType} onPress={setStatType} colors={currentColors} />
                   <StatChip type="intercepciones" label="🤲 Intercepciones" active={statType} onPress={setStatType} colors={currentColors} />
-                  <StatChip type="banderas_jaladas" label="🚩 Safety" active={statType} onPress={setStatType} colors={currentColors} />
                 </>
               )}
 

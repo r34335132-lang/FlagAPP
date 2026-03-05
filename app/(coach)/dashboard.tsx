@@ -1,9 +1,13 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useRef, useEffect } from "react";
 import {
   View, Text, StyleSheet, ScrollView, Pressable,
   Platform, Alert, ActivityIndicator, TextInput, Image,
   RefreshControl,
-  useColorScheme
+  useColorScheme,
+  Animated,
+  Easing,
+  Modal,
+  Linking
 } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -12,7 +16,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LinearGradient } from "expo-linear-gradient";
 import * as ImagePicker from "expo-image-picker"; 
 import { supabase } from "@/lib/supabase"; 
-import { BRAND_GRADIENT, Colors } from "@/constants/colors"; // <-- Paleta dinámica
+import { BRAND_GRADIENT, Colors } from "@/constants/colors"; 
 
 const API_BASE = "https://www.flagdurango.com.mx/api";
 
@@ -30,6 +34,27 @@ const CATEGORIES = [
   { id: "mixto-recreativo", label: "Mixto Recreativo" },
   { id: "teens", label: "Teens" },
 ];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// COMPONENTE ANIMADO
+// ─────────────────────────────────────────────────────────────────────────────
+const FadeInView = ({ children, delay = 0 }: { children: any, delay?: number }) => {
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(15)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, { toValue: 1, duration: 500, delay, useNativeDriver: true, easing: Easing.out(Easing.cubic) }),
+      Animated.timing(slideAnim, { toValue: 0, duration: 500, delay, useNativeDriver: true, easing: Easing.out(Easing.cubic) })
+    ]).start();
+  }, [children]);
+
+  return (
+    <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
+      {children}
+    </Animated.View>
+  );
+};
 
 export default function CoachDashboard() {
   const insets = useSafeAreaInsets();
@@ -63,6 +88,8 @@ export default function CoachDashboard() {
     position: "1er Lugar"
   });
   const [savingChamp, setSavingChamp] = useState(false);
+  
+  const [paymentTeam, setPaymentTeam] = useState<any>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -77,6 +104,38 @@ export default function CoachDashboard() {
       });
     }, [])
   );
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // NUEVO: ESCUCHAR SOLICITUDES EN TIEMPO REAL
+  // ─────────────────────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!user) return;
+
+    const subscription = supabase
+      .channel('coach-new-requests')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'team_join_requests',
+          filter: `coach_user_id=eq.${user.id}`
+        },
+        (payload) => {
+          Alert.alert(
+            "🔔 ¡Nueva Solicitud!", 
+            `El jugador ${payload.new.player_name} ha enviado una solicitud para unirse a tu equipo.`
+          );
+          // Recargamos silenciosamente los datos para actualizar la bandeja
+          loadCoachData(user);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(subscription);
+    };
+  }, [user]);
 
   const safeJsonParse = async (response: Response) => {
     const contentType = response.headers.get("content-type");
@@ -328,12 +387,19 @@ export default function CoachDashboard() {
     router.replace("/login");
   };
 
+  const sendWhatsAppProof = () => {
+    if (!paymentTeam) return;
+    const message = `Hola, acabo de pagar la inscripción de mi equipo: *${paymentTeam.name}* (${paymentTeam.category.replace("-", " ").toUpperCase()}). Aquí está mi comprobante:`;
+    const url = `https://wa.me/526182614228?text=${encodeURIComponent(message)}`;
+    Linking.openURL(url);
+  };
+
   const topPad = insets.top + 10;
 
   return (
     <View style={[styles.container, { backgroundColor: currentColors.bg }]}>
       
-      {/* HEADER DEL COACH (Siempre oscuro/gradiente para mantener identidad) */}
+      {/* HEADER DEL COACH */}
       <LinearGradient colors={[BRAND_GRADIENT[0], BRAND_GRADIENT[1]]} style={[styles.header, { paddingTop: topPad }]}>
         <View style={styles.headerRow}>
           <Pressable onPress={() => router.replace("/(tabs)/")}><Ionicons name="home" size={24} color="#FFF" /></Pressable>
@@ -360,7 +426,7 @@ export default function CoachDashboard() {
         </View>
       </LinearGradient>
 
-      {/* MENÚ DE TABS (Se adapta al modo oscuro) */}
+      {/* MENÚ DE TABS */}
       <View style={[styles.tabsRow, { backgroundColor: currentColors.card, shadowColor: theme === 'dark' ? '#000' : '#0F172A' }]}>
         <TabButton title="Mis Equipos" icon="shield" active={activeTab === "equipos"} onPress={() => setActiveTab("equipos")} currentColors={currentColors} />
         <TabButton title="Nuevo" icon="add-circle" active={activeTab === "crear"} onPress={() => setActiveTab("crear")} currentColors={currentColors} />
@@ -372,19 +438,12 @@ export default function CoachDashboard() {
         style={styles.body} 
         contentContainerStyle={{ paddingBottom: 60 }} 
         showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl 
-            refreshing={refreshing} 
-            onRefresh={onRefresh} 
-            tintColor={BRAND_GRADIENT[0]} 
-            colors={[BRAND_GRADIENT[0]]} 
-          />
-        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BRAND_GRADIENT[0]} colors={[BRAND_GRADIENT[0]]} />}
       >
         {loading && !refreshing && !teams.length && !championships.length ? (
           <ActivityIndicator size="large" color={BRAND_GRADIENT[0]} style={{ marginTop: 40 }} />
         ) : (
-          <>
+          <FadeInView>
             {/* PESTAÑA: MIS EQUIPOS */}
             {activeTab === "equipos" && (
               <View>
@@ -394,33 +453,52 @@ export default function CoachDashboard() {
                     <Text style={[styles.emptyTitle, { color: currentColors.textMuted }]}>Sin Equipos</Text>
                   </View>
                 ) : (
-                  teams.map((team) => (
-                    <View key={team.id} style={[styles.teamCard, { backgroundColor: currentColors.card, borderColor: currentColors.border, shadowColor: theme === 'dark' ? '#000' : '#0F172A' }]}>
-                      <View style={[styles.teamHeader, { borderBottomColor: currentColors.borderLight }]}>
-                        <Pressable onPress={() => handleUpdateExistingTeamLogo(team.id)} style={styles.teamLogoWrapper}>
-                          {team.logo_url ? (
-                            <Image source={{ uri: team.logo_url }} style={styles.teamMiniLogo} />
-                          ) : (
-                            <View style={[styles.teamLogoPlaceholder, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border }]}><Ionicons name="camera" size={16} color={currentColors.textMuted} /></View>
-                          )}
-                          <View style={styles.editIconBadge}><Ionicons name="pencil" size={8} color="#FFF" /></View>
-                        </Pressable>
-                        <View style={{ flex: 1 }}>
-                          <Text style={[styles.teamName, { color: currentColors.text }]}>{team.name}</Text>
-                          <Text style={[styles.teamCat, { color: currentColors.textSecondary }]}>{team.category.replace("-", " ").toUpperCase()}</Text>
+                  teams.map((team, index) => (
+                    <FadeInView key={team.id} delay={index * 100}>
+                      <View style={[styles.teamCard, { backgroundColor: currentColors.card, borderColor: currentColors.border, shadowColor: theme === 'dark' ? '#000' : '#0F172A' }]}>
+                        
+                        <View style={[styles.teamHeader, { borderBottomColor: currentColors.borderLight }]}>
+                          <Pressable onPress={() => handleUpdateExistingTeamLogo(team.id)} style={styles.teamLogoWrapper}>
+                            {team.logo_url ? (
+                              <Image source={{ uri: team.logo_url }} style={styles.teamMiniLogo} />
+                            ) : (
+                              <View style={[styles.teamLogoPlaceholder, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border }]}>
+                                <Ionicons name="camera" size={16} color={currentColors.textMuted} />
+                              </View>
+                            )}
+                            <View style={styles.editIconBadge}><Ionicons name="pencil" size={8} color="#FFF" /></View>
+                          </Pressable>
+
+                          <View style={{ flex: 1 }}>
+                            <Text style={[styles.teamName, { color: currentColors.text }]}>{team.name}</Text>
+                            <Text style={[styles.teamCat, { color: currentColors.textSecondary }]}>{team.category.replace("-", " ").toUpperCase()}</Text>
+                          </View>
+
+                          <View style={[styles.statusBadge, team.paid ? (theme === 'dark' ? {backgroundColor: '#064E3B'} : styles.bgGreen) : (theme === 'dark' ? {backgroundColor: '#78350F'} : styles.bgYellow)]}>
+                            <Text style={[styles.statusText, { color: team.paid ? (theme === 'dark' ? '#34D399' : '#0F172A') : (theme === 'dark' ? '#FDE68A' : '#0F172A') }]}>{team.paid ? "PAGADO" : "DEUDA"}</Text>
+                          </View>
                         </View>
-                        <View style={[styles.statusBadge, team.paid ? (theme === 'dark' ? {backgroundColor: '#064E3B'} : styles.bgGreen) : (theme === 'dark' ? {backgroundColor: '#78350F'} : styles.bgYellow)]}>
-                          <Text style={[styles.statusText, { color: team.paid ? (theme === 'dark' ? '#34D399' : '#0F172A') : (theme === 'dark' ? '#FDE68A' : '#0F172A') }]}>{team.paid ? "PAGADO" : "DEUDA"}</Text>
-                        </View>
+
+                        {/* BOTÓN DE PAGO */}
+                        {!team.paid && (
+                          <Pressable 
+                            style={[styles.payBtn, { backgroundColor: theme === 'dark' ? 'rgba(245, 158, 11, 0.1)' : '#FFFBEB', borderColor: '#F59E0B' }]}
+                            onPress={() => setPaymentTeam(team)}
+                          >
+                            <Ionicons name="card" size={18} color="#F59E0B" />
+                            <Text style={styles.payBtnText}>Pagar Inscripción </Text>
+                          </Pressable>
+                        )}
+
+                        <Text style={[styles.rosterTitle, { color: currentColors.text }]}>Roster ({players.filter(p => p.team_id === team.id).length})</Text>
+                        {players.filter(p => p.team_id === team.id).map(player => (
+                          <View key={player.id} style={[styles.playerRow, { borderBottomColor: currentColors.bgSecondary }]}>
+                            <Text style={[styles.playerName, { color: currentColors.textSecondary }]}>{player.name}</Text>
+                            <Text style={[styles.playerPos, { color: currentColors.textMuted }]}>#{player.jersey_number} {player.position}</Text>
+                          </View>
+                        ))}
                       </View>
-                      <Text style={[styles.rosterTitle, { color: currentColors.text }]}>Roster ({players.filter(p => p.team_id === team.id).length})</Text>
-                      {players.filter(p => p.team_id === team.id).map(player => (
-                        <View key={player.id} style={[styles.playerRow, { borderBottomColor: currentColors.bgSecondary }]}>
-                          <Text style={[styles.playerName, { color: currentColors.textSecondary }]}>{player.name}</Text>
-                          <Text style={[styles.playerPos, { color: currentColors.textMuted }]}>#{player.jersey_number} {player.position}</Text>
-                        </View>
-                      ))}
-                    </View>
+                    </FadeInView>
                   ))
                 )}
               </View>
@@ -549,7 +627,7 @@ export default function CoachDashboard() {
                   </Pressable>
                 </View>
 
-                {/* --- BOTÓN DE ELIMINAR CUENTA --- */}
+                {/* BOTÓN ELIMINAR CUENTA */}
                 <Pressable style={[styles.deleteAccountBtn, { backgroundColor: theme === 'dark' ? 'rgba(239,68,68,0.1)' : "#FEF2F2", borderColor: theme === 'dark' ? 'rgba(239,68,68,0.3)' : "#FECACA" }]} onPress={handleDeleteAccount}>
                   <Ionicons name="warning-outline" size={18} color="#EF4444" />
                   <Text style={styles.deleteAccountText}>Eliminar Mi Cuenta</Text>
@@ -557,14 +635,71 @@ export default function CoachDashboard() {
 
               </View>
             )}
-          </>
+          </FadeInView>
         )}
       </ScrollView>
+
+      {/* ─────────────────────────────────────────────────────────────────────────────
+          MODAL DE PAGO
+      ───────────────────────────────────────────────────────────────────────────── */}
+      {paymentTeam && (
+        <Modal transparent visible={!!paymentTeam} animationType="fade">
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContent, { backgroundColor: currentColors.card, borderColor: currentColors.border }]}>
+              <View style={styles.modalHeader}>
+                <Text style={[styles.modalTitle, { color: currentColors.text }]}>Instrucciones de Pago</Text>
+                <Pressable onPress={() => setPaymentTeam(null)} style={styles.modalCloseBtn}>
+                  <Ionicons name="close" size={24} color={currentColors.textMuted} />
+                </Pressable>
+              </View>
+
+              <Text style={[styles.modalText, { color: currentColors.textSecondary }]}>
+                Para liberar a tu equipo y permitirles jugar, realiza una transferencia a la siguiente cuenta:
+              </Text>
+
+              <View style={[styles.bankBox, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border }]}>
+                <View style={styles.bankRow}>
+                  <Ionicons name="business" size={20} color={currentColors.textMuted} />
+                  <Text style={[styles.bankLabel, { color: currentColors.textMuted }]}>Banco:</Text>
+                  <Text style={[styles.bankValue, { color: currentColors.text }]}>BBVA Bancomer</Text>
+                </View>
+                <View style={styles.bankRow}>
+                  <Ionicons name="card" size={20} color={currentColors.textMuted} />
+                  <Text style={[styles.bankLabel, { color: currentColors.textMuted }]}>CLABE:</Text>
+                  <Text style={[styles.bankValueClabe, { color: BRAND_GRADIENT[0] }]}>012 345 6789 0123 4567</Text>
+                </View>
+                <View style={styles.bankRow}>
+                  <Ionicons name="person" size={20} color={currentColors.textMuted} />
+                  <Text style={[styles.bankLabel, { color: currentColors.textMuted }]}>Nombre:</Text>
+                  <Text style={[styles.bankValue, { color: currentColors.text }]}>Liga Flag Durango</Text>
+                </View>
+              </View>
+
+              <View style={[styles.referenceBox, { backgroundColor: theme === 'dark' ? 'rgba(59, 130, 246, 0.1)' : '#EFF6FF', borderColor: '#3B82F6' }]}>
+                <View style={{flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 5}}>
+                  <Ionicons name="information-circle" size={18} color="#3B82F6" />
+                  <Text style={[styles.refLabel, { color: '#3B82F6' }]}>CONCEPTO DE PAGO OBLIGATORIO:</Text>
+                </View>
+                <Text style={[styles.refValue, { color: currentColors.text }]}>
+                  {paymentTeam.name} - {paymentTeam.category.replace("-", " ").toUpperCase()}
+                </Text>
+              </View>
+
+              <Pressable 
+                style={styles.whatsappBtn} 
+                onPress={sendWhatsAppProof}
+              >
+                <Ionicons name="logo-whatsapp" size={20} color="#FFF" />
+                <Text style={styles.whatsappBtnText}>Enviar Comprobante al Admin</Text>
+              </Pressable>
+            </View>
+          </View>
+        </Modal>
+      )}
     </View>
   );
 }
 
-// Botón de las pestañas adaptado
 function TabButton({ title, icon, active, onPress, badge, currentColors }: any) {
   return (
     <Pressable style={[styles.tabBtn, active && styles.tabBtnActive]} onPress={onPress}>
@@ -575,7 +710,6 @@ function TabButton({ title, icon, active, onPress, badge, currentColors }: any) 
   );
 }
 
-// Retiramos colores fijos del StyleSheet
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: { paddingBottom: 25, paddingHorizontal: 20 },
@@ -610,6 +744,10 @@ const styles = StyleSheet.create({
   bgGreen: { backgroundColor: "#D1FAE5" },
   bgYellow: { backgroundColor: "#FEF3C7" },
   statusText: { fontSize: 10, fontWeight: "800" },
+  
+  payBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 12, borderRadius: 12, borderWidth: 1, marginBottom: 15, gap: 8 },
+  payBtnText: { fontSize: 13, fontWeight: '800', textTransform: 'uppercase' },
+
   rosterTitle: { fontSize: 13, fontWeight: "800", marginBottom: 10 },
   playerRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 8, borderBottomWidth: 1 },
   playerName: { fontSize: 14, fontWeight: "700" },
@@ -649,4 +787,24 @@ const styles = StyleSheet.create({
   
   deleteAccountBtn: { marginTop: 10, padding: 16, borderRadius: 16, borderWidth: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
   deleteAccountText: { color: "#EF4444", fontSize: 14, fontWeight: "800" },
+
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 20 },
+  modalContent: { width: '100%', borderRadius: 24, padding: 25, borderWidth: 1, elevation: 10, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 20 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 },
+  modalTitle: { fontSize: 20, fontWeight: '900' },
+  modalCloseBtn: { padding: 5 },
+  modalText: { fontSize: 14, lineHeight: 20, marginBottom: 20 },
+  
+  bankBox: { padding: 15, borderRadius: 16, borderWidth: 1, marginBottom: 20 },
+  bankRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
+  bankLabel: { fontSize: 12, fontWeight: '700', width: 65, marginLeft: 8 },
+  bankValue: { fontSize: 14, fontWeight: '800', flex: 1 },
+  bankValueClabe: { fontSize: 16, fontWeight: '900', flex: 1, letterSpacing: 1 },
+
+  referenceBox: { padding: 15, borderRadius: 16, borderWidth: 1, marginBottom: 25 },
+  refLabel: { fontSize: 11, fontWeight: '800', textTransform: 'uppercase' },
+  refValue: { fontSize: 16, fontWeight: '900', marginTop: 5, textAlign: 'center' },
+
+  whatsappBtn: { backgroundColor: '#25D366', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 16, borderRadius: 14, gap: 8 },
+  whatsappBtnText: { color: '#FFF', fontSize: 15, fontWeight: '800' }
 });
