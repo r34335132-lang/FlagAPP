@@ -1,5 +1,16 @@
 import React, { useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Platform, Pressable, Image, ActivityIndicator, Alert } from "react-native";
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  ScrollView, 
+  Platform, 
+  Pressable, 
+  Image, 
+  ActivityIndicator, 
+  Alert,
+  useColorScheme 
+} from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -10,13 +21,18 @@ import { useStats } from "@/hooks/useStats";
 import { TeamLogo } from "@/components/TeamLogo";
 import { MatchCardLight } from "@/components/MatchCardLight";
 import { Skeleton } from "@/components/SkeletonLoader";
-import { BRAND_GRADIENT } from "@/constants/colors";
+import { BRAND_GRADIENT, Colors } from "@/constants/colors"; // <-- Paleta dinámica
 
-function StatBox({ value, label, color, accent }: { value: string | number; label: string; color?: string; accent?: boolean; }) {
+// Componente hijo adaptado al modo oscuro
+function StatBox({ value, label, color, accent, currentColors }: any) {
   return (
-    <View style={[detailS.statBox, accent && detailS.statBoxAccent]}>
-      <Text style={[detailS.statValue, color ? { color } : {}]}>{value}</Text>
-      <Text style={detailS.statLabel}>{label}</Text>
+    <View style={[
+      detailS.statBox, 
+      { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border },
+      accent && { backgroundColor: color + "15", borderColor: color + "30" }
+    ]}>
+      <Text style={[detailS.statValue, { color: color || currentColors.text }]}>{value}</Text>
+      <Text style={[detailS.statLabel, { color: currentColors.textMuted }]}>{label}</Text>
     </View>
   );
 }
@@ -26,11 +42,15 @@ export default function TeamDetailScreen() {
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<"resumen" | "roster">("resumen");
 
+  const theme = useColorScheme() ?? "light";
+  const currentColors = Colors[theme];
+
   const { data: team, isLoading: teamLoading } = useTeam(id);
   const { data: roster, isLoading: rosterLoading } = useTeamRoster(id);
   const { data: games } = useMatches();
   const { data: stats } = useStats();
 
+  // Mantenemos los colores del equipo para el gradiente
   const color1 = team?.color1 || BRAND_GRADIENT[0];
   const color2 = team?.color2 || BRAND_GRADIENT[1];
 
@@ -43,7 +63,7 @@ export default function TeamDetailScreen() {
 
   if (teamLoading) {
     return (
-      <View style={[styles.container, { paddingTop: topPad }]}>
+      <View style={[styles.container, { paddingTop: topPad, backgroundColor: currentColors.bg }]}>
         <Skeleton width="60%" height={24} borderRadius={6} style={{ margin: 20 }} />
         <Skeleton width="100%" height={240} borderRadius={0} />
       </View>
@@ -52,27 +72,26 @@ export default function TeamDetailScreen() {
 
   if (!team) {
     return (
-      <View style={[styles.container, styles.center]}>
-        <Ionicons name="alert-circle-outline" size={48} color="#94A3B8" />
-        <Text style={styles.errorText}>Equipo no encontrado</Text>
+      <View style={[styles.container, styles.center, { backgroundColor: currentColors.bg }]}>
+        <Ionicons name="alert-circle-outline" size={48} color={currentColors.textMuted} />
+        <Text style={[styles.errorText, { color: currentColors.text }]}>Equipo no encontrado</Text>
       </View>
     );
   }
 
-  // --- Lógica de clic del Coach ---
   const handleCoachPress = () => {
     if (team.coach_id) {
       router.push(`/coach/${team.coach_id}`);
     } else {
       Alert.alert(
         "Perfil no disponible", 
-        "Este equipo es antiguo o no tiene un Coach vinculado correctamente en la base de datos (Falta coach_id)."
+        "Este equipo no tiene un Coach vinculado correctamente en la base de datos."
       );
     }
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: currentColors.bg }]}>
       <ScrollView showsVerticalScrollIndicator={false}>
         {/* ── Header ── */}
         <LinearGradient
@@ -89,7 +108,7 @@ export default function TeamDetailScreen() {
 
           <View style={styles.headerContent}>
             <View style={styles.logoRing}>
-              <View style={styles.logoInner}>
+              <View style={[styles.logoInner, { backgroundColor: currentColors.card }]}>
                 <TeamLogo logoUrl={team.logo_url} size={90} />
               </View>
             </View>
@@ -105,13 +124,13 @@ export default function TeamDetailScreen() {
         </LinearGradient>
 
         {/* ── Tabs ── */}
-        <View style={styles.tabsContainer}>
+        <View style={[styles.tabsContainer, { borderBottomColor: currentColors.border }]}>
           <Pressable style={styles.tab} onPress={() => setActiveTab("resumen")}>
-            <Text style={[styles.tabText, activeTab === "resumen" && styles.activeTabText]}>Resumen</Text>
+            <Text style={[styles.tabText, { color: currentColors.textSecondary }, activeTab === "resumen" && [styles.activeTabText, { color: currentColors.text }]]}>Resumen</Text>
             {activeTab === "resumen" && <View style={[styles.activeIndicator, { backgroundColor: color1 }]} />}
           </Pressable>
           <Pressable style={styles.tab} onPress={() => setActiveTab("roster")}>
-            <Text style={[styles.tabText, activeTab === "roster" && styles.activeTabText]}>Plantilla</Text>
+            <Text style={[styles.tabText, { color: currentColors.textSecondary }, activeTab === "roster" && [styles.activeTabText, { color: currentColors.text }]]}>Plantilla</Text>
             {activeTab === "roster" && <View style={[styles.activeIndicator, { backgroundColor: color1 }]} />}
           </Pressable>
         </View>
@@ -122,26 +141,26 @@ export default function TeamDetailScreen() {
           {activeTab === "resumen" && (
             <>
               {teamStat && (
-                <View style={styles.card}>
-                  <Text style={styles.cardTitle}>Estadísticas Temporada</Text>
+                <View style={[styles.card, { backgroundColor: currentColors.card, borderColor: currentColors.border }]}>
+                  <Text style={[styles.cardTitle, { color: currentColors.text }]}>Estadísticas Temporada</Text>
                   <View style={styles.statsGrid}>
-                    <StatBox value={teamStat.points} label="PUNTOS" color={color1} accent />
-                    <StatBox value={teamStat.games_played} label="JUGADOS" />
-                    <StatBox value={teamStat.games_won} label="GANADOS" color="#10B981" />
-                    <StatBox value={teamStat.games_tied} label="EMPATES" color="#F59E0B" />
-                    <StatBox value={teamStat.games_lost} label="PERDIDOS" color="#EF4444" />
-                    {teamStat.points_for != null && <StatBox value={teamStat.points_for} label="PTS FAV" />}
+                    <StatBox currentColors={currentColors} value={teamStat.points} label="PUNTOS" color={color1} accent />
+                    <StatBox currentColors={currentColors} value={teamStat.games_played} label="JUGADOS" />
+                    <StatBox currentColors={currentColors} value={teamStat.games_won} label="GANADOS" color="#10B981" />
+                    <StatBox currentColors={currentColors} value={teamStat.games_tied} label="EMPATES" color="#F59E0B" />
+                    <StatBox currentColors={currentColors} value={teamStat.games_lost} label="PERDIDOS" color="#EF4444" />
+                    {teamStat.points_for != null && <StatBox currentColors={currentColors} value={teamStat.points_for} label="PTS FAV" />}
                   </View>
 
                   {teamStat.games_played > 0 && (
-                    <View style={styles.winBarContainer}>
+                    <View style={[styles.winBarContainer, { borderTopColor: currentColors.borderLight }]}>
                       <View style={styles.winBarLabels}>
-                        <Text style={styles.winBarLabel}>Efectividad de Victorias</Text>
-                        <Text style={styles.winBarPct}>
+                        <Text style={[styles.winBarLabel, { color: currentColors.textSecondary }]}>Efectividad de Victorias</Text>
+                        <Text style={[styles.winBarPct, { color: currentColors.text }]}>
                           {Math.round((teamStat.games_won / teamStat.games_played) * 100)}%
                         </Text>
                       </View>
-                      <View style={styles.winBarTrack}>
+                      <View style={[styles.winBarTrack, { backgroundColor: currentColors.bgSecondary }]}>
                         <LinearGradient
                           colors={[color1, color2]}
                           start={{ x: 0, y: 0 }}
@@ -157,41 +176,39 @@ export default function TeamDetailScreen() {
                 </View>
               )}
 
-              {/* ── DIRECTIVA (CON FOTO Y ALERTA DE SEGURIDAD) ── */}
+              {/* ── DIRECTIVA ── */}
               {(team.coach_name || team.captain_name) && (
-                <View style={styles.card}>
-                  <Text style={styles.cardTitle}>Directiva</Text>
+                <View style={[styles.card, { backgroundColor: currentColors.card, borderColor: currentColors.border }]}>
+                  <Text style={[styles.cardTitle, { color: currentColors.text }]}>Directiva</Text>
                   
-                  {/* Tarjeta del Coach */}
                   {team.coach_name && (
                     <Pressable 
-                      style={styles.directiveCard} 
+                      style={[styles.directiveCard, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.borderLight }]} 
                       onPress={handleCoachPress}
                     >
-                      <View style={styles.directiveAvatar}>
+                      <View style={[styles.directiveAvatar, { backgroundColor: currentColors.border }]}>
                         {team.coach_photo_url ? (
                           <Image source={{ uri: team.coach_photo_url }} style={styles.directiveImg} resizeMode="cover" />
                         ) : (
-                          <Ionicons name="person" size={24} color="#94A3B8" />
+                          <Ionicons name="person" size={24} color={currentColors.textMuted} />
                         )}
                       </View>
                       <View style={styles.directiveInfo}>
-                        <Text style={styles.directiveLabel}>Head Coach</Text>
-                        <Text style={styles.directiveName}>{team.coach_name}</Text>
+                        <Text style={[styles.directiveLabel, { color: currentColors.textMuted }]}>Head Coach</Text>
+                        <Text style={[styles.directiveName, { color: currentColors.text }]}>{team.coach_name}</Text>
                       </View>
-                      <Ionicons name="chevron-forward" size={20} color={team.coach_id ? BRAND_GRADIENT[0] : "#CBD5E1"} />
+                      <Ionicons name="chevron-forward" size={20} color={team.coach_id ? color1 : currentColors.textMuted} />
                     </Pressable>
                   )}
 
-                  {/* Tarjeta del Capitán */}
                   {team.captain_name && (
-                    <View style={styles.directiveCard}>
-                      <View style={[styles.directiveAvatar, { backgroundColor: "#FEF3C7" }]}>
-                        <Ionicons name="star" size={22} color="#F59E0B" />
+                    <View style={[styles.directiveCard, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.borderLight }]}>
+                      <View style={[styles.directiveAvatar, { backgroundColor: theme === 'dark' ? '#78350F' : "#FEF3C7" }]}>
+                        <Ionicons name="star" size={22} color={theme === 'dark' ? '#FDE68A' : "#F59E0B"} />
                       </View>
                       <View style={styles.directiveInfo}>
-                        <Text style={styles.directiveLabel}>Capitán del Equipo</Text>
-                        <Text style={styles.directiveName}>{team.captain_name}</Text>
+                        <Text style={[styles.directiveLabel, { color: currentColors.textMuted }]}>Capitán del Equipo</Text>
+                        <Text style={[styles.directiveName, { color: currentColors.text }]}>{team.captain_name}</Text>
                       </View>
                     </View>
                   )}
@@ -200,7 +217,7 @@ export default function TeamDetailScreen() {
 
               {teamGames.length > 0 && (
                 <View style={styles.matchesSection}>
-                  <Text style={[styles.cardTitle, { paddingHorizontal: 16 }]}>Partidos Recientes</Text>
+                  <Text style={[styles.cardTitle, { paddingHorizontal: 16, color: currentColors.text }]}>Partidos Recientes</Text>
                   {teamGames.slice(0, 5).map((game) => (
                     <MatchCardLight key={game.id} game={game} teams={[team]} />
                   ))}
@@ -216,10 +233,10 @@ export default function TeamDetailScreen() {
                   <Skeleton key={i} width="100%" height={80} borderRadius={18} style={{ marginBottom: 10 }} />
                 ))
               ) : roster?.length === 0 ? (
-                <View style={styles.emptyRoster}>
-                  <Ionicons name="people-outline" size={48} color="#94A3B8" />
-                  <Text style={styles.emptyTitle}>Plantilla Vacía</Text>
-                  <Text style={styles.emptySubtitle}>Aún no hay jugadores registrados.</Text>
+                <View style={[styles.emptyRoster, { backgroundColor: currentColors.card, borderColor: currentColors.border }]}>
+                  <Ionicons name="people-outline" size={48} color={currentColors.textMuted} />
+                  <Text style={[styles.emptyTitle, { color: currentColors.text }]}>Plantilla Vacía</Text>
+                  <Text style={[styles.emptySubtitle, { color: currentColors.textSecondary }]}>Aún no hay jugadores registrados.</Text>
                 </View>
               ) : (
                 roster?.map((player) => {
@@ -228,21 +245,21 @@ export default function TeamDetailScreen() {
                     <Pressable 
                       key={player.id} 
                       onPress={() => router.push({ pathname: "/player/[id]", params: { id: player.id } })}
-                      style={styles.playerCard}
+                      style={[styles.playerCard, { backgroundColor: currentColors.card, borderColor: currentColors.border }]}
                     >
                       <View style={styles.playerAvatarWrap}>
                         {hasPhoto ? (
                           <Image source={{ uri: player.photo_url }} style={styles.playerAvatar} resizeMode="cover" />
                         ) : (
-                          <View style={[styles.playerAvatar, styles.playerAvatarFallback]}>
-                            <Ionicons name="person" size={24} color="#94A3B8" />
+                          <View style={[styles.playerAvatar, styles.playerAvatarFallback, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.borderLight }]}>
+                            <Ionicons name="person" size={24} color={currentColors.textMuted} />
                           </View>
                         )}
-                        {player.status === "active" && <View style={styles.playerActiveDot} />}
+                        {player.status === "active" && <View style={[styles.playerActiveDot, { borderColor: currentColors.card }]} />}
                       </View>
                       <View style={styles.playerInfo}>
-                        <Text style={styles.playerName} numberOfLines={1}>{player.name}</Text>
-                        <Text style={styles.playerPosition}>{player.position || "Jugador"}</Text>
+                        <Text style={[styles.playerName, { color: currentColors.text }]} numberOfLines={1}>{player.name}</Text>
+                        <Text style={[styles.playerPosition, { color: currentColors.textSecondary }]}>{player.position || "Jugador"}</Text>
                       </View>
                       {player.jersey_number != null && (
                         <View style={[styles.jerseyWrap, { backgroundColor: color1 + "15", borderColor: color1 + "30" }]}>
@@ -261,63 +278,63 @@ export default function TeamDetailScreen() {
   );
 }
 
+// Retiramos colores fijos
 const detailS = StyleSheet.create({
-  statBox: { flex: 1, minWidth: "28%", alignItems: "center", backgroundColor: "#F8FAFC", borderRadius: 16, paddingVertical: 14, paddingHorizontal: 8, gap: 4, borderWidth: 1, borderColor: "#E2E8F0" },
-  statBoxAccent: { backgroundColor: "#EFF6FF", borderColor: "#BFDBFE" },
-  statValue: { color: "#0F172A", fontSize: 24, fontWeight: "900", letterSpacing: -0.5 },
-  statLabel: { color: "#64748B", fontSize: 9, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.5, textAlign: "center" },
+  statBox: { flex: 1, minWidth: "28%", alignItems: "center", borderRadius: 16, paddingVertical: 14, paddingHorizontal: 8, gap: 4, borderWidth: 1 },
+  statValue: { fontSize: 24, fontWeight: "900", letterSpacing: -0.5 },
+  statLabel: { fontSize: 9, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.5, textAlign: "center" },
 });
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F8FAFC" },
+  container: { flex: 1 },
   center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12 },
-  errorText: { color: "#0F172A", fontSize: 18, fontWeight: "700" },
+  errorText: { fontSize: 18, fontWeight: "700" },
   header: { paddingBottom: 30, paddingHorizontal: 20, minHeight: 250, position: "relative", borderBottomLeftRadius: 30, borderBottomRightRadius: 30 },
   backBtn: { position: "absolute", left: 16, zIndex: 10 },
   backBtnInner: { width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(255,255,255,0.25)", alignItems: "center", justifyContent: "center" },
   headerContent: { alignItems: "center", gap: 14, paddingTop: 10 },
   logoRing: { borderRadius: 60, padding: 4, backgroundColor: "rgba(255,255,255,0.2)" },
-  logoInner: { borderRadius: 56, overflow: "hidden", backgroundColor: "#FFFFFF", padding: 5 },
+  logoInner: { borderRadius: 56, overflow: "hidden", padding: 5 },
   teamName: { color: "#FFFFFF", fontSize: 28, fontWeight: "900", textAlign: "center", letterSpacing: -0.5 },
   badgeRow: { flexDirection: "row", gap: 8 },
   catBadge: { backgroundColor: "rgba(255,255,255,0.2)", paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20 },
   catBadgeText: { color: "#FFFFFF", fontSize: 12, fontWeight: "800" },
-  tabsContainer: { flexDirection: "row", paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: "#E2E8F0", marginTop: 10 },
+  tabsContainer: { flexDirection: "row", paddingHorizontal: 20, borderBottomWidth: 1, marginTop: 10 },
   tab: { flex: 1, paddingVertical: 16, alignItems: "center", position: "relative" },
-  tabText: { color: "#64748B", fontSize: 15, fontWeight: "700" },
-  activeTabText: { color: "#0F172A", fontWeight: "800" },
+  tabText: { fontSize: 15, fontWeight: "700" },
+  activeTabText: { fontWeight: "800" },
   activeIndicator: { position: "absolute", bottom: -1, width: "50%", height: 3, borderRadius: 3 },
   body: { paddingVertical: 20, gap: 20 },
-  card: { backgroundColor: "#FFFFFF", marginHorizontal: 16, borderRadius: 24, padding: 20, borderWidth: 1, borderColor: "#E2E8F0", shadowColor: "#0F172A", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.03, shadowRadius: 8, elevation: 2 },
-  cardTitle: { color: "#0F172A", fontSize: 18, fontWeight: "900", marginBottom: 16 },
+  card: { marginHorizontal: 16, borderRadius: 24, padding: 20, borderWidth: 1, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.03, shadowRadius: 8, elevation: 2 },
+  cardTitle: { fontSize: 18, fontWeight: "900", marginBottom: 16 },
   statsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  winBarContainer: { marginTop: 24, paddingTop: 16, borderTopWidth: 1, borderTopColor: "#F1F5F9" },
+  winBarContainer: { marginTop: 24, paddingTop: 16, borderTopWidth: 1 },
   winBarLabels: { flexDirection: "row", justifyContent: "space-between", marginBottom: 8, alignItems: "flex-end" },
-  winBarLabel: { color: "#64748B", fontSize: 13, fontWeight: "700" },
-  winBarPct: { color: "#0F172A", fontSize: 16, fontWeight: "900" },
-  winBarTrack: { height: 8, backgroundColor: "#F1F5F9", borderRadius: 4, overflow: "hidden" },
+  winBarLabel: { fontSize: 13, fontWeight: "700" },
+  winBarPct: { fontSize: 16, fontWeight: "900" },
+  winBarTrack: { height: 8, borderRadius: 4, overflow: "hidden" },
   winBarFill: { height: "100%", borderRadius: 4 },
 
-  directiveCard: { flexDirection: "row", alignItems: "center", backgroundColor: "#F8FAFC", padding: 12, borderRadius: 16, marginBottom: 10, borderWidth: 1, borderColor: "#E2E8F0" },
-  directiveAvatar: { width: 46, height: 46, borderRadius: 23, backgroundColor: "#E2E8F0", justifyContent: "center", alignItems: "center", marginRight: 15, overflow: "hidden" },
+  directiveCard: { flexDirection: "row", alignItems: "center", padding: 12, borderRadius: 16, marginBottom: 10, borderWidth: 1 },
+  directiveAvatar: { width: 46, height: 46, borderRadius: 23, justifyContent: "center", alignItems: "center", marginRight: 15, overflow: "hidden" },
   directiveImg: { width: "100%", height: "100%" },
   directiveInfo: { flex: 1 },
-  directiveLabel: { fontSize: 11, fontWeight: "800", color: "#94A3B8", textTransform: "uppercase", marginBottom: 2 },
-  directiveName: { fontSize: 16, fontWeight: "800", color: "#0F172A" },
+  directiveLabel: { fontSize: 11, fontWeight: "800", textTransform: "uppercase", marginBottom: 2 },
+  directiveName: { fontSize: 16, fontWeight: "800" },
 
   matchesSection: { gap: 0 },
   rosterContainer: { paddingHorizontal: 16, gap: 12 },
-  playerCard: { flexDirection: "row", alignItems: "center", backgroundColor: "#FFFFFF", padding: 12, borderRadius: 20, borderWidth: 1, borderColor: "#E2E8F0", shadowColor: "#0F172A", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.02, shadowRadius: 4, elevation: 1 },
+  playerCard: { flexDirection: "row", alignItems: "center", padding: 12, borderRadius: 20, borderWidth: 1, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.02, shadowRadius: 4, elevation: 1 },
   playerAvatarWrap: { position: "relative", marginRight: 14 },
-  playerAvatar: { width: 54, height: 54, borderRadius: 27, backgroundColor: "#F1F5F9", overflow: 'hidden' },
-  playerAvatarFallback: { alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "#E2E8F0" },
-  playerActiveDot: { position: "absolute", bottom: 0, right: 0, width: 14, height: 14, backgroundColor: "#10B981", borderRadius: 7, borderWidth: 2, borderColor: "#FFFFFF" },
+  playerAvatar: { width: 54, height: 54, borderRadius: 27, overflow: 'hidden' },
+  playerAvatarFallback: { alignItems: "center", justifyContent: "center", borderWidth: 1 },
+  playerActiveDot: { position: "absolute", bottom: 0, right: 0, width: 14, height: 14, backgroundColor: "#10B981", borderRadius: 7, borderWidth: 2 },
   playerInfo: { flex: 1, justifyContent: "center" },
-  playerName: { color: "#0F172A", fontSize: 16, fontWeight: "800", marginBottom: 2 },
-  playerPosition: { color: "#64748B", fontSize: 12, fontWeight: "700" },
+  playerName: { fontSize: 16, fontWeight: "800", marginBottom: 2 },
+  playerPosition: { fontSize: 12, fontWeight: "700" },
   jerseyWrap: { width: 44, height: 44, borderRadius: 14, alignItems: "center", justifyContent: "center", borderWidth: 1 },
   jerseyNumber: { fontSize: 18, fontWeight: "900" },
-  emptyRoster: { alignItems: "center", paddingVertical: 50, backgroundColor: "#FFFFFF", borderRadius: 24, borderWidth: 2, borderStyle: "dashed", borderColor: "#E2E8F0" },
-  emptyTitle: { color: "#0F172A", fontSize: 18, fontWeight: "800", marginTop: 12 },
-  emptySubtitle: { color: "#64748B", fontSize: 14, marginTop: 4 },
+  emptyRoster: { alignItems: "center", paddingVertical: 50, borderRadius: 24, borderWidth: 2, borderStyle: "dashed" },
+  emptyTitle: { fontSize: 18, fontWeight: "800", marginTop: 12 },
+  emptySubtitle: { fontSize: 14, marginTop: 4 },
 });

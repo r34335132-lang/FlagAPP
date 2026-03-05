@@ -8,13 +8,14 @@ import {
   ScrollView,
   ActivityIndicator,
   RefreshControl,
+  useColorScheme
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useMatches } from "@/hooks/useMatches";
 import { useTeams } from "@/hooks/useTeams";
 import { MatchCardLight } from "@/components/MatchCardLight";
-import { BRAND_GRADIENT } from "@/constants/colors";
+import { BRAND_GRADIENT, Colors } from "@/constants/colors"; // <-- Importamos paleta dinámica
 
 // Ramas principales (Agregamos EN VIVO)
 const MAIN_CATEGORIES = [
@@ -34,6 +35,9 @@ export default function MatchesScreen() {
   const [selectedMainCat, setSelectedMainCat] = useState("all");
   const [selectedSubCat, setSelectedSubCat] = useState("all");
   
+  const theme = useColorScheme() ?? "light";
+  const currentColors = Colors[theme];
+
   // --- LÓGICA DEL PULL-TO-REFRESH ---
   const [refreshing, setRefreshing] = useState(false);
 
@@ -122,20 +126,25 @@ export default function MatchesScreen() {
   // Ocultamos el ActivityIndicator inicial si estamos haciendo pull-to-refresh
   if (isLoading && !refreshing) {
     return (
-      <View style={styles.loading}>
+      <View style={[styles.loading, { backgroundColor: currentColors.bg }]}>
         <ActivityIndicator size="large" color={BRAND_GRADIENT[0]} />
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: currentColors.bg }]}>
       {/* --- HEADER FIJO --- */}
-      <View style={[styles.topBar, { paddingTop: insets.top + 10 }]}>
+      <View style={[styles.topBar, { 
+        paddingTop: insets.top + 10, 
+        backgroundColor: currentColors.card, 
+        borderBottomColor: currentColors.border,
+        shadowColor: theme === 'dark' ? '#000' : '#0F172A' 
+      }]}>
         <View style={styles.headerRow}>
-          <Text style={styles.headerTitle}>Partidos</Text>
+          <Text style={[styles.headerTitle, { color: currentColors.text }]}>Partidos</Text>
           <Pressable onPress={() => refetch()} style={styles.refreshBtn}>
-            <Ionicons name="refresh" size={18} color="#64748B" />
+            <Ionicons name="refresh" size={18} color={currentColors.textMuted} />
           </Pressable>
         </View>
 
@@ -153,7 +162,12 @@ export default function MatchesScreen() {
                 style={[styles.mainTab, isActive && styles.mainTabActive]}
                 onPress={() => setSelectedMainCat(cat.id)}
               >
-                <Text style={[styles.mainTabText, isActive && styles.mainTabTextActive, cat.id === "en_vivo" && {color: isActive ? "#EF4444" : "#FCA5A5"}]}>
+                <Text style={[
+                  styles.mainTabText, 
+                  { color: currentColors.textMuted },
+                  isActive && styles.mainTabTextActive, 
+                  cat.id === "en_vivo" && {color: isActive ? "#EF4444" : (theme === 'dark' ? '#991B1B' : '#FCA5A5')}
+                ]}>
                   {cat.label}
                 </Text>
                 {isActive && <View style={[styles.activeIndicator, cat.id === "en_vivo" && {backgroundColor: "#EF4444"}]} />}
@@ -164,17 +178,25 @@ export default function MatchesScreen() {
 
         {/* SELECTOR SECUNDARIO (Niveles) */}
         {selectedMainCat !== "all" && selectedMainCat !== "en_vivo" && availableSubCats.length > 0 && (
-          <View style={styles.subCategoryWrapper}>
+          <View style={[styles.subCategoryWrapper, { backgroundColor: currentColors.bgSecondary, borderTopColor: currentColors.border }]}>
             <ScrollView 
               horizontal 
               showsHorizontalScrollIndicator={false} 
               contentContainerStyle={styles.subCategoryScroll}
             >
               <Pressable 
-                style={[styles.subChip, selectedSubCat === "all" && styles.subChipActive]}
+                style={[
+                  styles.subChip, 
+                  { backgroundColor: currentColors.card, borderColor: currentColors.border },
+                  selectedSubCat === "all" && { backgroundColor: currentColors.text, borderColor: currentColors.text }
+                ]}
                 onPress={() => setSelectedSubCat("all")}
               >
-                <Text style={[styles.subChipText, selectedSubCat === "all" && styles.subChipTextActive]}>
+                <Text style={[
+                  styles.subChipText, 
+                  { color: currentColors.textSecondary },
+                  selectedSubCat === "all" && { color: currentColors.bg }
+                ]}>
                   Todas
                 </Text>
               </Pressable>
@@ -182,10 +204,18 @@ export default function MatchesScreen() {
               {availableSubCats.map(sub => (
                 <Pressable 
                   key={sub} 
-                  style={[styles.subChip, selectedSubCat === sub && styles.subChipActive]}
+                  style={[
+                    styles.subChip, 
+                    { backgroundColor: currentColors.card, borderColor: currentColors.border },
+                    selectedSubCat === sub && { backgroundColor: currentColors.text, borderColor: currentColors.text }
+                  ]}
                   onPress={() => setSelectedSubCat(sub)}
                 >
-                  <Text style={[styles.subChipText, selectedSubCat === sub && styles.subChipTextActive]}>
+                  <Text style={[
+                    styles.subChipText, 
+                    { color: currentColors.textSecondary },
+                    selectedSubCat === sub && { color: currentColors.bg }
+                  ]}>
                     {sub.toUpperCase()}
                   </Text>
                 </Pressable>
@@ -212,8 +242,8 @@ export default function MatchesScreen() {
         renderItem={({ item }) => (
           <View style={styles.jornadaSection}>
             <View style={styles.jornadaHeader}>
-              <Text style={[styles.jornadaTitle, item.title === "JUGANDO AHORA" && {color: "#EF4444"}]}>{item.title}</Text>
-              <View style={styles.line} />
+              <Text style={[styles.jornadaTitle, { color: currentColors.textSecondary }, item.title === "JUGANDO AHORA" && {color: "#EF4444"}]}>{item.title}</Text>
+              <View style={[styles.line, { backgroundColor: currentColors.border }]} />
             </View>
 
             {item.data.map((game) => (
@@ -223,11 +253,11 @@ export default function MatchesScreen() {
         )}
         ListEmptyComponent={
           <View style={styles.emptyState}>
-            <Ionicons name={selectedMainCat === "en_vivo" ? "american-football" : "calendar-outline"} size={60} color="#CBD5E1" />
-            <Text style={styles.emptyTitle}>
+            <Ionicons name={selectedMainCat === "en_vivo" ? "american-football" : "calendar-outline"} size={60} color={currentColors.textMuted} />
+            <Text style={[styles.emptyTitle, { color: currentColors.text }]}>
               {selectedMainCat === "en_vivo" ? "No hay juegos en vivo" : "Sin partidos"}
             </Text>
-            <Text style={styles.emptySub}>
+            <Text style={[styles.emptySub, { color: currentColors.textSecondary }]}>
               {selectedMainCat === "en_vivo" ? "No hay ningún partido jugándose en este momento." : "No hay juegos programados con estos filtros."}
             </Text>
           </View>
@@ -238,17 +268,14 @@ export default function MatchesScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F8FAFC" },
+  container: { flex: 1 },
   loading: { flex: 1, justifyContent: "center", alignItems: "center" },
   
   // Barra superior fija
   topBar: { 
-    backgroundColor: "#FFFFFF", 
     borderBottomWidth: 1, 
-    borderColor: "#E2E8F0",
     zIndex: 10,
     elevation: 4,
-    shadowColor: "#000",
     shadowOpacity: 0.05,
     shadowRadius: 10,
   },
@@ -259,14 +286,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     marginBottom: 10,
   },
-  headerTitle: { fontSize: 22, fontWeight: "900", color: "#0F172A" },
+  headerTitle: { fontSize: 22, fontWeight: "900" },
   refreshBtn: { padding: 5 },
 
   // Selector Principal (Texto)
   mainCategoryScroll: { paddingHorizontal: 20, paddingBottom: 10, gap: 20 },
   mainTab: { paddingVertical: 8, position: "relative", alignItems: "center" },
   mainTabActive: {},
-  mainTabText: { fontSize: 13, fontWeight: "700", color: "#94A3B8", letterSpacing: 0.5 },
+  mainTabText: { fontSize: 13, fontWeight: "700", letterSpacing: 0.5 },
   mainTabTextActive: { color: BRAND_GRADIENT[0] },
   activeIndicator: { 
     position: "absolute", 
@@ -279,31 +306,19 @@ const styles = StyleSheet.create({
 
   // Selector Secundario (Burbujas / Chips)
   subCategoryWrapper: {
-    backgroundColor: "#F8FAFC",
     paddingVertical: 12,
     borderTopWidth: 1,
-    borderTopColor: "#E2E8F0",
   },
   subCategoryScroll: { paddingHorizontal: 20, gap: 8 },
   subChip: {
     paddingHorizontal: 16,
     paddingVertical: 6,
     borderRadius: 16,
-    backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: "#E2E8F0",
-  },
-  subChipActive: {
-    backgroundColor: "#0F172A",
-    borderColor: "#0F172A",
   },
   subChipText: {
     fontSize: 12,
     fontWeight: "700",
-    color: "#64748B",
-  },
-  subChipTextActive: {
-    color: "#FFFFFF",
   },
 
   // Contenido de lista
@@ -318,12 +333,11 @@ const styles = StyleSheet.create({
   jornadaTitle: { 
     fontSize: 14, 
     fontWeight: "800", 
-    color: "#64748B", 
     letterSpacing: 1 
   },
-  line: { flex: 1, height: 1, backgroundColor: "#E2E8F0" },
+  line: { flex: 1, height: 1 },
 
   emptyState: { alignItems: "center", marginTop: 100 },
-  emptyTitle: { fontSize: 18, fontWeight: "800", color: "#0F172A", marginTop: 12 },
-  emptySub: { fontSize: 14, color: "#64748B", textAlign: "center", marginTop: 6, paddingHorizontal: 40 }
+  emptyTitle: { fontSize: 18, fontWeight: "800", marginTop: 12 },
+  emptySub: { fontSize: 14, textAlign: "center", marginTop: 6, paddingHorizontal: 40 }
 });

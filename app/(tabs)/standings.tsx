@@ -1,12 +1,23 @@
 import React, { useState, useMemo, useEffect } from "react";
-import { View, Text, StyleSheet, ScrollView, Platform, Pressable, RefreshControl, ActivityIndicator, Image } from "react-native";
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  ScrollView, 
+  Platform, 
+  Pressable, 
+  RefreshControl, 
+  ActivityIndicator, 
+  Image,
+  useColorScheme 
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useStats } from "@/hooks/useStats";
 import { useTeams } from "@/hooks/useTeams";
 import { usePlayerStats } from "@/hooks/usePlayerStats";
 import { StandingsTable } from "@/components/StandingsTable";
-import { BRAND_GRADIENT } from "@/constants/colors";
+import { BRAND_GRADIENT, Colors } from "@/constants/colors"; // <-- Importamos paleta dinámica
 
 const MAIN_CATEGORIES = [
   { id: "all", label: "TODOS" },
@@ -31,6 +42,9 @@ export default function StandingsScreen() {
   const [statType, setStatType] = useState<"touchdowns" | "interceptions" | "mvps">("touchdowns");
   const [selectedMainCat, setSelectedMainCat] = useState("varonil"); 
   const [selectedSubCat, setSelectedSubCat] = useState("all");
+
+  const theme = useColorScheme() ?? "light";
+  const currentColors = Colors[theme];
 
   const topPad = insets.top + (Platform.OS === "web" ? 20 : 10);
   const isLoading = statsLoading || teamsLoading || playersLoading;
@@ -128,43 +142,80 @@ export default function StandingsScreen() {
       .slice(0, 50); 
   }, [playerStats, selectedMainCat, selectedSubCat, statType]);
 
-  // ------------------------------------------------------------------
-
   const onRefresh = async () => {
     setRefreshing(true);
     await Promise.all([refetchStats(), refetchTeams(), refetchPlayers()]);
     setRefreshing(false);
   };
 
+  // ------------------------------------------------------------------
+  // MEDALLAS ADAPTATIVAS (Oscuro vs Claro)
+  // ------------------------------------------------------------------
   const getRankStyle = (index: number) => {
-    if (index === 0) return { bg: '#FEF3C7', color: '#D97706', border: '#FDE68A' }; // Oro
-    if (index === 1) return { bg: '#F1F5F9', color: '#64748B', border: '#E2E8F0' }; // Plata
-    if (index === 2) return { bg: '#FFEDD5', color: '#C2410C', border: '#FED7AA' }; // Bronce
-    return { bg: '#F8FAFC', color: '#94A3B8', border: 'transparent' };
+    const isDark = theme === 'dark';
+    if (index === 0) return { 
+      bg: isDark ? '#78350F' : '#FEF3C7', 
+      color: isDark ? '#FDE68A' : '#D97706', 
+      border: isDark ? '#92400E' : '#FDE68A' 
+    }; // Oro
+    if (index === 1) return { 
+      bg: isDark ? '#334155' : '#F1F5F9', 
+      color: isDark ? '#E2E8F0' : '#64748B', 
+      border: isDark ? '#475569' : '#E2E8F0' 
+    }; // Plata
+    if (index === 2) return { 
+      bg: isDark ? '#7C2D12' : '#FFEDD5', 
+      color: isDark ? '#FED7AA' : '#C2410C', 
+      border: isDark ? '#9A3412' : '#FED7AA' 
+    }; // Bronce
+    return { 
+      bg: isDark ? currentColors.bgSecondary : '#F8FAFC', 
+      color: currentColors.textMuted, 
+      border: isDark ? currentColors.borderLight : 'transparent' 
+    };
   };
 
   return (
-    <View style={styles.container}>
-      <View style={[styles.header, { paddingTop: topPad }]}>
+    <View style={[styles.container, { backgroundColor: currentColors.bg }]}>
+      <View style={[styles.header, { 
+        paddingTop: topPad, 
+        backgroundColor: currentColors.card, 
+        borderBottomColor: currentColors.border,
+        shadowColor: theme === 'dark' ? '#000' : '#0F172A'
+      }]}>
         <View style={styles.headerTopRow}>
-          <Text style={styles.screenTitle}>Clasificación</Text>
+          <Text style={[styles.screenTitle, { color: currentColors.text }]}>Clasificación</Text>
         </View>
 
         <View style={styles.toggleWrapper}>
-          <View style={styles.toggleContainer}>
+          <View style={[styles.toggleContainer, { backgroundColor: currentColors.bgSecondary }]}>
             <Pressable 
-              style={[styles.toggleBtn, viewMode === "teams" && styles.toggleBtnActive]}
+              style={[
+                styles.toggleBtn, 
+                viewMode === "teams" && [styles.toggleBtnActive, { backgroundColor: currentColors.text }]
+              ]}
               onPress={() => setViewMode("teams")}
             >
-              <Ionicons name="shield" size={16} color={viewMode === "teams" ? "#FFF" : "#64748B"} />
-              <Text style={[styles.toggleText, viewMode === "teams" && styles.toggleTextActive]}>Equipos</Text>
+              <Ionicons name="shield" size={16} color={viewMode === "teams" ? currentColors.bg : currentColors.textSecondary} />
+              <Text style={[
+                styles.toggleText, 
+                { color: currentColors.textSecondary },
+                viewMode === "teams" && [styles.toggleTextActive, { color: currentColors.bg }]
+              ]}>Equipos</Text>
             </Pressable>
             <Pressable 
-              style={[styles.toggleBtn, viewMode === "players" && styles.toggleBtnActive]}
+              style={[
+                styles.toggleBtn, 
+                viewMode === "players" && [styles.toggleBtnActive, { backgroundColor: currentColors.text }]
+              ]}
               onPress={() => setViewMode("players")}
             >
-              <Ionicons name="people" size={18} color={viewMode === "players" ? "#FFF" : "#64748B"} />
-              <Text style={[styles.toggleText, viewMode === "players" && styles.toggleTextActive]}>Líderes</Text>
+              <Ionicons name="people" size={18} color={viewMode === "players" ? currentColors.bg : currentColors.textSecondary} />
+              <Text style={[
+                styles.toggleText, 
+                { color: currentColors.textSecondary },
+                viewMode === "players" && [styles.toggleTextActive, { color: currentColors.bg }]
+              ]}>Líderes</Text>
             </Pressable>
           </View>
         </View>
@@ -174,7 +225,7 @@ export default function StandingsScreen() {
             const isActive = selectedMainCat === cat.id;
             return (
               <Pressable key={cat.id} style={[styles.mainTab, isActive && styles.mainTabActive]} onPress={() => setSelectedMainCat(cat.id)}>
-                <Text style={[styles.mainTabText, isActive && styles.mainTabTextActive]}>{cat.label}</Text>
+                <Text style={[styles.mainTabText, { color: currentColors.textMuted }, isActive && styles.mainTabTextActive]}>{cat.label}</Text>
                 {isActive && <View style={styles.activeIndicator} />}
               </Pressable>
             );
@@ -182,14 +233,37 @@ export default function StandingsScreen() {
         </ScrollView>
 
         {selectedMainCat !== "all" && availableSubCats.length > 0 && (
-          <View style={styles.subCategoryWrapper}>
+          <View style={[styles.subCategoryWrapper, { backgroundColor: currentColors.bgSecondary, borderTopColor: currentColors.border }]}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.subCategoryScroll}>
-              <Pressable style={[styles.subChip, selectedSubCat === "all" && styles.subChipActive]} onPress={() => setSelectedSubCat("all")}>
-                <Text style={[styles.subChipText, selectedSubCat === "all" && styles.subChipTextActive]}>Todas</Text>
+              <Pressable 
+                style={[
+                  styles.subChip, 
+                  { backgroundColor: currentColors.card, borderColor: currentColors.border },
+                  selectedSubCat === "all" && { backgroundColor: currentColors.text, borderColor: currentColors.text }
+                ]} 
+                onPress={() => setSelectedSubCat("all")}
+              >
+                <Text style={[
+                  styles.subChipText, 
+                  { color: currentColors.textSecondary },
+                  selectedSubCat === "all" && { color: currentColors.bg }
+                ]}>Todas</Text>
               </Pressable>
               {availableSubCats.map(sub => (
-                <Pressable key={sub} style={[styles.subChip, selectedSubCat === sub && styles.subChipActive]} onPress={() => setSelectedSubCat(sub)}>
-                  <Text style={[styles.subChipText, selectedSubCat === sub && styles.subChipTextActive]}>{sub.toUpperCase()}</Text>
+                <Pressable 
+                  key={sub} 
+                  style={[
+                    styles.subChip, 
+                    { backgroundColor: currentColors.card, borderColor: currentColors.border },
+                    selectedSubCat === sub && { backgroundColor: currentColors.text, borderColor: currentColors.text }
+                  ]} 
+                  onPress={() => setSelectedSubCat(sub)}
+                >
+                  <Text style={[
+                    styles.subChipText, 
+                    { color: currentColors.textSecondary },
+                    selectedSubCat === sub && { color: currentColors.bg }
+                  ]}>{sub.toUpperCase()}</Text>
                 </Pressable>
               ))}
             </ScrollView>
@@ -197,16 +271,49 @@ export default function StandingsScreen() {
         )}
 
         {viewMode === "players" && (
-          <View style={styles.statsSelectorWrapper}>
+          <View style={[styles.statsSelectorWrapper, { backgroundColor: currentColors.card, borderTopColor: currentColors.border }]}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.statsScroll}>
-              <Pressable style={[styles.statChip, statType === "touchdowns" && styles.statChipActive]} onPress={() => setStatType("touchdowns")}>
-                <Text style={[styles.statChipText, statType === "touchdowns" && styles.statChipTextActive]}>🏈 Anotaciones</Text>
+              <Pressable 
+                style={[
+                  styles.statChip, 
+                  { backgroundColor: currentColors.bg, borderColor: currentColors.border },
+                  statType === "touchdowns" && styles.statChipActive
+                ]} 
+                onPress={() => setStatType("touchdowns")}
+              >
+                <Text style={[
+                  styles.statChipText, 
+                  { color: currentColors.textSecondary },
+                  statType === "touchdowns" && styles.statChipTextActive
+                ]}>🏈 Anotaciones</Text>
               </Pressable>
-              <Pressable style={[styles.statChip, statType === "interceptions" && styles.statChipActive]} onPress={() => setStatType("interceptions")}>
-                <Text style={[styles.statChipText, statType === "interceptions" && styles.statChipTextActive]}>🤲 Intercepciones</Text>
+              <Pressable 
+                style={[
+                  styles.statChip, 
+                  { backgroundColor: currentColors.bg, borderColor: currentColors.border },
+                  statType === "interceptions" && styles.statChipActive
+                ]} 
+                onPress={() => setStatType("interceptions")}
+              >
+                <Text style={[
+                  styles.statChipText, 
+                  { color: currentColors.textSecondary },
+                  statType === "interceptions" && styles.statChipTextActive
+                ]}>🤲 Intercepciones</Text>
               </Pressable>
-              <Pressable style={[styles.statChip, statType === "mvps" && styles.statChipActive]} onPress={() => setStatType("mvps")}>
-                <Text style={[styles.statChipText, statType === "mvps" && styles.statChipTextActive]}>⭐ MVPs</Text>
+              <Pressable 
+                style={[
+                  styles.statChip, 
+                  { backgroundColor: currentColors.bg, borderColor: currentColors.border },
+                  statType === "mvps" && styles.statChipActive
+                ]} 
+                onPress={() => setStatType("mvps")}
+              >
+                <Text style={[
+                  styles.statChipText, 
+                  { color: currentColors.textSecondary },
+                  statType === "mvps" && styles.statChipTextActive
+                ]}>⭐ MVPs</Text>
               </Pressable>
             </ScrollView>
           </View>
@@ -223,54 +330,55 @@ export default function StandingsScreen() {
         ) : viewMode === "teams" ? (
           
           finalFilteredStats.length > 0 ? (
-            <View style={styles.tableContainer}>
+            <View style={[styles.tableContainer, { backgroundColor: currentColors.card, borderColor: currentColors.border, shadowColor: theme === 'dark' ? '#000' : '#0F172A' }]}>
+              {/* COMPONENTE EXTERNO: Posiblemente requiera adaptación también */}
               <StandingsTable stats={finalFilteredStats} teams={teams || []} />
             </View>
           ) : (
-            <View style={styles.emptyCard}>
-              <Ionicons name="trophy-outline" size={48} color="#CBD5E1" />
-              <Text style={styles.emptyTitle}>Sin datos</Text>
-              <Text style={styles.emptySubtitle}>No hay equipos registrados en esta categoría</Text>
+            <View style={[styles.emptyCard, { backgroundColor: currentColors.card, borderColor: currentColors.border }]}>
+              <Ionicons name="trophy-outline" size={48} color={currentColors.textMuted} />
+              <Text style={[styles.emptyTitle, { color: currentColors.text }]}>Sin datos</Text>
+              <Text style={[styles.emptySubtitle, { color: currentColors.textSecondary }]}>No hay equipos registrados en esta categoría</Text>
             </View>
           )
 
         ) : (
 
           topPlayers.length > 0 ? (
-            <View style={styles.leaderboardContainer}>
+            <View style={[styles.leaderboardContainer, { backgroundColor: currentColors.card, borderColor: currentColors.border }]}>
               {topPlayers.map((player, index) => {
                 const rankStyles = getRankStyle(index);
                 const hasPhoto = player.photo_url && !player.photo_url.startsWith("blob:");
 
                 return (
-                  <View key={player.id} style={styles.playerCard}>
+                  <View key={player.id} style={[styles.playerCard, { borderBottomColor: currentColors.bgSecondary }]}>
                     <View style={[styles.rankCircle, { backgroundColor: rankStyles.bg, borderColor: rankStyles.border }]}>
                       <Text style={[styles.rankText, { color: rankStyles.color }]}>{index + 1}</Text>
                     </View>
                     
                     <View style={styles.playerAvatarWrapper}>
                       {hasPhoto ? (
-                        <Image source={{ uri: player.photo_url }} style={styles.playerAvatar} />
+                        <Image source={{ uri: player.photo_url }} style={[styles.playerAvatar, { borderColor: currentColors.card }]} />
                       ) : (
-                        <View style={[styles.playerAvatar, { backgroundColor: '#F1F5F9', justifyContent: 'center', alignItems: 'center' }]}>
-                          <Ionicons name="person" size={20} color="#CBD5E1" />
+                        <View style={[styles.playerAvatar, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.card, justifyContent: 'center', alignItems: 'center' }]}>
+                          <Ionicons name="person" size={20} color={currentColors.textMuted} />
                         </View>
                       )}
                       {player.teams?.logo_url && (
-                        <Image source={{ uri: player.teams.logo_url }} style={styles.tinyTeamLogo} />
+                        <Image source={{ uri: player.teams.logo_url }} style={[styles.tinyTeamLogo, { borderColor: currentColors.border, backgroundColor: currentColors.card }]} />
                       )}
                     </View>
 
                     <View style={styles.playerInfo}>
-                      <Text style={styles.playerName} numberOfLines={1}>{player.name}</Text>
-                      <Text style={styles.playerTeam} numberOfLines={1}>
+                      <Text style={[styles.playerName, { color: currentColors.text }]} numberOfLines={1}>{player.name}</Text>
+                      <Text style={[styles.playerTeam, { color: currentColors.textSecondary }]} numberOfLines={1}>
                         {player.teams?.name} <Text style={{color: BRAND_GRADIENT[0]}}>#{player.jersey_number}</Text>
                       </Text>
                     </View>
 
                     <View style={styles.statValueBox}>
-                      <Text style={styles.statValueNumber}>{player[statType] || 0}</Text>
-                      <Text style={styles.statValueLabel}>
+                      <Text style={[styles.statValueNumber, { color: currentColors.text }]}>{player[statType] || 0}</Text>
+                      <Text style={[styles.statValueLabel, { color: currentColors.textMuted }]}>
                         {statType === 'touchdowns' ? 'TDs' : statType === 'interceptions' ? 'INTs' : 'MVPs'}
                       </Text>
                     </View>
@@ -279,10 +387,10 @@ export default function StandingsScreen() {
               })}
             </View>
           ) : (
-            <View style={styles.emptyCard}>
-              <Ionicons name="medal-outline" size={48} color="#CBD5E1" />
-              <Text style={styles.emptyTitle}>Sin jugadores</Text>
-              <Text style={styles.emptySubtitle}>Aún no hay jugadores registrados aquí.</Text>
+            <View style={[styles.emptyCard, { backgroundColor: currentColors.card, borderColor: currentColors.border }]}>
+              <Ionicons name="medal-outline" size={48} color={currentColors.textMuted} />
+              <Text style={[styles.emptyTitle, { color: currentColors.text }]}>Sin jugadores</Text>
+              <Text style={[styles.emptySubtitle, { color: currentColors.textSecondary }]}>Aún no hay jugadores registrados aquí.</Text>
             </View>
           )
 
@@ -292,61 +400,62 @@ export default function StandingsScreen() {
   );
 }
 
+// Retiramos colores fijos del StyleSheet
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F8FAFC" },
-  header: { backgroundColor: "#FFFFFF", borderBottomWidth: 1, borderColor: "#E2E8F0", paddingBottom: 10, zIndex: 10, elevation: 4, shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 10 },
+  container: { flex: 1 },
+  header: { borderBottomWidth: 1, paddingBottom: 10, zIndex: 10, elevation: 4, shadowOpacity: 0.05, shadowRadius: 10 },
   headerTopRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 20 },
-  screenTitle: { color: "#0F172A", fontSize: 26, fontWeight: "900", letterSpacing: -1 },
+  screenTitle: { fontSize: 26, fontWeight: "900", letterSpacing: -1 },
   
   toggleWrapper: { paddingHorizontal: 20, marginVertical: 15 },
-  toggleContainer: { flexDirection: "row", backgroundColor: "#F1F5F9", borderRadius: 12, padding: 4 },
+  toggleContainer: { flexDirection: "row", borderRadius: 12, padding: 4 },
   toggleBtn: { flex: 1, flexDirection: "row", justifyContent: "center", alignItems: "center", paddingVertical: 8, borderRadius: 8, gap: 6 },
-  toggleBtnActive: { backgroundColor: "#0F172A", elevation: 2, shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 4 },
-  toggleText: { fontSize: 13, fontWeight: "700", color: "#64748B" },
-  toggleTextActive: { color: "#FFFFFF" },
+  toggleBtnActive: { elevation: 2, shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 4 },
+  toggleText: { fontSize: 13, fontWeight: "700" },
+  toggleTextActive: {},
 
   mainCategoryScroll: { paddingHorizontal: 20, paddingBottom: 10, gap: 20 },
   mainTab: { paddingVertical: 8, position: "relative", alignItems: "center" },
   mainTabActive: {},
-  mainTabText: { fontSize: 13, fontWeight: "700", color: "#94A3B8", letterSpacing: 0.5 },
+  mainTabText: { fontSize: 13, fontWeight: "700", letterSpacing: 0.5 },
   mainTabTextActive: { color: BRAND_GRADIENT[0] },
   activeIndicator: { position: "absolute", bottom: -10, width: "100%", height: 3, backgroundColor: BRAND_GRADIENT[0], borderRadius: 2 },
 
-  subCategoryWrapper: { backgroundColor: "#F8FAFC", paddingVertical: 12, borderTopWidth: 1, borderTopColor: "#E2E8F0", marginTop: 10 },
+  subCategoryWrapper: { paddingVertical: 12, borderTopWidth: 1, marginTop: 10 },
   subCategoryScroll: { paddingHorizontal: 20, gap: 8 },
-  subChip: { paddingHorizontal: 16, paddingVertical: 6, borderRadius: 16, backgroundColor: "#FFFFFF", borderWidth: 1, borderColor: "#E2E8F0" },
-  subChipActive: { backgroundColor: "#0F172A", borderColor: "#0F172A" },
-  subChipText: { fontSize: 12, fontWeight: "700", color: "#64748B" },
-  subChipTextActive: { color: "#FFFFFF" },
+  subChip: { paddingHorizontal: 16, paddingVertical: 6, borderRadius: 16, borderWidth: 1 },
+  subChipActive: {},
+  subChipText: { fontSize: 12, fontWeight: "700" },
+  subChipTextActive: {},
 
-  statsSelectorWrapper: { backgroundColor: "#FFFFFF", paddingVertical: 10, borderTopWidth: 1, borderTopColor: "#E2E8F0" },
+  statsSelectorWrapper: { paddingVertical: 10, borderTopWidth: 1 },
   statsScroll: { paddingHorizontal: 20, gap: 10 },
-  statChip: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 8, backgroundColor: "#F8FAFC", borderWidth: 1, borderColor: "#E2E8F0" },
+  statChip: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 8, borderWidth: 1 },
   statChipActive: { backgroundColor: BRAND_GRADIENT[0], borderColor: BRAND_GRADIENT[0] },
-  statChipText: { fontSize: 12, fontWeight: "800", color: "#64748B" },
+  statChipText: { fontSize: 12, fontWeight: "800" },
   statChipTextActive: { color: "#FFFFFF" },
 
   scrollContent: { paddingHorizontal: 16, paddingTop: 20, paddingBottom: 100 },
-  tableContainer: { backgroundColor: "#FFFFFF", borderRadius: 22, borderWidth: 1, borderColor: "#E2E8F0", shadowColor: "#0F172A", shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.03, shadowRadius: 12, elevation: 2, overflow: "hidden" },
+  tableContainer: { borderRadius: 22, borderWidth: 1, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.03, shadowRadius: 12, elevation: 2, overflow: "hidden" },
   
-  leaderboardContainer: { backgroundColor: "#FFFFFF", borderRadius: 24, borderWidth: 1, borderColor: "#E2E8F0", paddingVertical: 5 },
-  playerCard: { flexDirection: "row", alignItems: "center", paddingVertical: 12, paddingHorizontal: 15, borderBottomWidth: 1, borderBottomColor: "#F8FAFC" },
+  leaderboardContainer: { borderRadius: 24, borderWidth: 1, paddingVertical: 5 },
+  playerCard: { flexDirection: "row", alignItems: "center", paddingVertical: 12, paddingHorizontal: 15, borderBottomWidth: 1 },
   rankCircle: { width: 30, height: 30, borderRadius: 15, justifyContent: "center", alignItems: "center", marginRight: 12, borderWidth: 1 },
   rankText: { fontSize: 13, fontWeight: "900" },
   
   playerAvatarWrapper: { position: "relative", marginRight: 15 },
-  playerAvatar: { width: 46, height: 46, borderRadius: 23, borderWidth: 2, borderColor: "#FFF" },
-  tinyTeamLogo: { position: "absolute", bottom: -2, right: -4, width: 18, height: 18, borderRadius: 9, backgroundColor: "#FFF", borderWidth: 1, borderColor: "#E2E8F0" },
+  playerAvatar: { width: 46, height: 46, borderRadius: 23, borderWidth: 2 },
+  tinyTeamLogo: { position: "absolute", bottom: -2, right: -4, width: 18, height: 18, borderRadius: 9, borderWidth: 1 },
   
   playerInfo: { flex: 1, justifyContent: "center" },
-  playerName: { fontSize: 15, fontWeight: "800", color: "#0F172A", marginBottom: 2 },
-  playerTeam: { fontSize: 11, fontWeight: "600", color: "#64748B" },
+  playerName: { fontSize: 15, fontWeight: "800", marginBottom: 2 },
+  playerTeam: { fontSize: 11, fontWeight: "600" },
   
   statValueBox: { alignItems: "flex-end", minWidth: 45 },
-  statValueNumber: { fontSize: 18, fontWeight: "900", color: "#0F172A" },
-  statValueLabel: { fontSize: 9, fontWeight: "800", color: "#94A3B8", textTransform: "uppercase" },
+  statValueNumber: { fontSize: 18, fontWeight: "900" },
+  statValueLabel: { fontSize: 9, fontWeight: "800", textTransform: "uppercase" },
 
-  emptyCard: { alignItems: "center", paddingVertical: 50, marginTop: 40, backgroundColor: "#FFFFFF", borderRadius: 24, borderWidth: 1, borderColor: "#E2E8F0", borderStyle: "dashed" },
-  emptyTitle: { color: "#0F172A", fontSize: 18, fontWeight: "800", marginTop: 12 },
-  emptySubtitle: { color: "#64748B", fontSize: 14, fontWeight: "500", marginTop: 4 },
+  emptyCard: { alignItems: "center", paddingVertical: 50, marginTop: 40, borderRadius: 24, borderWidth: 1, borderStyle: "dashed" },
+  emptyTitle: { fontSize: 18, fontWeight: "800", marginTop: 12 },
+  emptySubtitle: { fontSize: 14, fontWeight: "500", marginTop: 4 },
 });

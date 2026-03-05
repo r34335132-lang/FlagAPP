@@ -10,15 +10,16 @@ import {
   Platform,
   Image,
   ScrollView,
-  Alert
+  Alert,
+  useColorScheme
 } from "react-native";
 import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { BRAND_GRADIENT } from "@/constants/colors";
+import { BRAND_GRADIENT, Colors } from "@/constants/colors"; // <-- Importamos paleta dinámica
 
-// 👇 Cambia esto por tu IP local (ej. http://192.168.1.80:3000) si pruebas en tu PC
+// 👇 Cambia esto por tu IP local si pruebas en tu PC
 const BASE_URL = "https://www.flagdurango.com.mx"; 
 
 export default function LoginScreen() {
@@ -27,6 +28,9 @@ export default function LoginScreen() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+
+  const theme = useColorScheme() ?? "light";
+  const currentColors = Colors[theme];
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -51,7 +55,7 @@ export default function LoginScreen() {
         throw new Error(data.message || "Credenciales inválidas");
       }
 
-      // Guardamos la sesión que nos regresa tu API
+      // Guardamos la sesión
       if (data.user) {
         await AsyncStorage.setItem("userSession", JSON.stringify(data.user));
         
@@ -73,7 +77,7 @@ export default function LoginScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: currentColors.bg }]}>
       <LinearGradient colors={[BRAND_GRADIENT[0], BRAND_GRADIENT[1]]} style={styles.topBackground}>
         <Image 
           source={{ uri: "https://www.flagdurango.com.mx/images/logo-flag-durango.png" }} 
@@ -84,21 +88,26 @@ export default function LoginScreen() {
 
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.keyboardView}>
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-          <View style={styles.card}>
+          
+          <View style={[
+            styles.card, 
+            { backgroundColor: currentColors.card, shadowColor: theme === 'dark' ? '#000' : '#0F172A' }
+          ]}>
+            
             <View style={styles.header}>
-              <Text style={styles.title}>Bienvenido de vuelta</Text>
-              <Text style={styles.subtitle}>Inicia sesión para ver tu gafete y stats</Text>
+              <Text style={[styles.title, { color: currentColors.text }]}>Bienvenido de vuelta</Text>
+              <Text style={[styles.subtitle, { color: currentColors.textSecondary }]}>Inicia sesión para ver tu gafete y stats</Text>
             </View>
 
             <View style={styles.form}>
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Usuario o Correo</Text>
-                <View style={styles.inputContainer}>
-                  <Ionicons name="person-outline" size={20} color="#94A3B8" style={styles.inputIcon} />
+                <Text style={[styles.label, { color: currentColors.textMuted }]}>Usuario o Correo</Text>
+                <View style={[styles.inputContainer, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.borderLight }]}>
+                  <Ionicons name="person-outline" size={20} color={currentColors.textMuted} style={styles.inputIcon} />
                   <TextInput
-                    style={styles.input}
+                    style={[styles.input, { color: currentColors.text }]}
                     placeholder="ejemplo@correo.com"
-                    placeholderTextColor="#94A3B8"
+                    placeholderTextColor={currentColors.textMuted}
                     value={email}
                     onChangeText={setEmail}
                     autoCapitalize="none"
@@ -107,19 +116,19 @@ export default function LoginScreen() {
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Contraseña</Text>
-                <View style={styles.inputContainer}>
-                  <Ionicons name="lock-closed-outline" size={20} color="#94A3B8" style={styles.inputIcon} />
+                <Text style={[styles.label, { color: currentColors.textMuted }]}>Contraseña</Text>
+                <View style={[styles.inputContainer, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.borderLight }]}>
+                  <Ionicons name="lock-closed-outline" size={20} color={currentColors.textMuted} style={styles.inputIcon} />
                   <TextInput
-                    style={styles.input}
+                    style={[styles.input, { color: currentColors.text }]}
                     placeholder="••••••••"
-                    placeholderTextColor="#94A3B8"
+                    placeholderTextColor={currentColors.textMuted}
                     value={password}
                     onChangeText={setPassword}
                     secureTextEntry={!showPassword}
                   />
                   <Pressable onPress={() => setShowPassword(!showPassword)} style={styles.eyeIcon}>
-                    <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={20} color="#94A3B8" />
+                    <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={20} color={currentColors.textMuted} />
                   </Pressable>
                 </View>
               </View>
@@ -129,49 +138,52 @@ export default function LoginScreen() {
               </Pressable>
 
               <View style={styles.footerLinks}>
-                <Text style={styles.footerText}>¿No tienes cuenta?</Text>
+                <Text style={[styles.footerText, { color: currentColors.textSecondary }]}>¿No tienes cuenta?</Text>
                 <Pressable onPress={() => router.push("/register")}>
                   <Text style={styles.linkText}>Regístrate aquí</Text>
                 </Pressable>
               </View>
+              
               <Pressable onPress={() => router.push("/forgot-password")} style={{ marginTop: 15, alignItems: "center" }}>
                <Text style={{ color: BRAND_GRADIENT[0], fontWeight: "700" }}>¿Olvidaste tu contraseña?</Text>
               </Pressable>
 
               <Pressable style={styles.backBtn} onPress={() => router.back()}>
-                <Ionicons name="arrow-back" size={16} color="#64748B" />
-                <Text style={styles.backBtnText}>Volver al Inicio</Text>
+                <Ionicons name="arrow-back" size={16} color={currentColors.textMuted} />
+                <Text style={[styles.backBtnText, { color: currentColors.textSecondary }]}>Volver al Inicio</Text>
               </Pressable>
             </View>
           </View>
+
         </ScrollView>
       </KeyboardAvoidingView>
     </View>
   );
 }
 
+// Retiramos colores fijos para que actúen los dinámicos
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F8FAFC" },
+  container: { flex: 1 },
   topBackground: { height: "45%", width: "100%", position: "absolute", top: 0, justifyContent: "center", alignItems: "center", paddingBottom: 50 },
   logo: { width: 220, height: 80, tintColor: "#FFFFFF" },
   keyboardView: { flex: 1 },
   scrollContent: { flexGrow: 1, justifyContent: "flex-end" },
-  card: { backgroundColor: "#FFFFFF", borderTopLeftRadius: 32, borderTopRightRadius: 32, padding: 30, paddingTop: 40, minHeight: "65%", shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 20, elevation: 15 },
+  card: { borderTopLeftRadius: 32, borderTopRightRadius: 32, padding: 30, paddingTop: 40, minHeight: "65%", shadowOpacity: 0.1, shadowRadius: 20, elevation: 15 },
   header: { marginBottom: 30 },
-  title: { fontSize: 26, fontWeight: "900", color: "#0F172A", letterSpacing: -0.5 },
-  subtitle: { fontSize: 14, color: "#64748B", marginTop: 6, fontWeight: "500" },
+  title: { fontSize: 26, fontWeight: "900", letterSpacing: -0.5 },
+  subtitle: { fontSize: 14, marginTop: 6, fontWeight: "500" },
   form: { gap: 20 },
   inputGroup: { gap: 8 },
-  label: { fontSize: 11, fontWeight: "800", color: "#64748B", textTransform: "uppercase", letterSpacing: 0.5 },
-  inputContainer: { flexDirection: "row", alignItems: "center", backgroundColor: "#F8FAFC", borderWidth: 1, borderColor: "#E2E8F0", borderRadius: 14, paddingHorizontal: 16, height: 54 },
+  label: { fontSize: 11, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.5 },
+  inputContainer: { flexDirection: "row", alignItems: "center", borderWidth: 1, borderRadius: 14, paddingHorizontal: 16, height: 54 },
   inputIcon: { marginRight: 12 },
-  input: { flex: 1, fontSize: 15, color: "#0F172A", fontWeight: "500" },
+  input: { flex: 1, fontSize: 15, fontWeight: "500" },
   eyeIcon: { padding: 5 },
   loginBtn: { backgroundColor: BRAND_GRADIENT[0], height: 54, borderRadius: 14, justifyContent: "center", alignItems: "center", marginTop: 10, shadowColor: BRAND_GRADIENT[0], shadowOpacity: 0.3, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 5 },
   loginBtnText: { color: "#FFFFFF", fontSize: 16, fontWeight: "800" },
   footerLinks: { flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 6, marginTop: 10 },
-  footerText: { color: "#64748B", fontSize: 14, fontWeight: "500" },
+  footerText: { fontSize: 14, fontWeight: "500" },
   linkText: { color: BRAND_GRADIENT[0], fontSize: 14, fontWeight: "800" },
   backBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 20 },
-  backBtnText: { color: "#64748B", fontSize: 14, fontWeight: "700" },
+  backBtnText: { fontSize: 14, fontWeight: "700" },
 });

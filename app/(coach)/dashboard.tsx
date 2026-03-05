@@ -2,7 +2,8 @@ import React, { useState, useCallback } from "react";
 import {
   View, Text, StyleSheet, ScrollView, Pressable,
   Platform, Alert, ActivityIndicator, TextInput, Image,
-  RefreshControl // <-- 1. Importamos RefreshControl
+  RefreshControl,
+  useColorScheme
 } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -11,7 +12,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LinearGradient } from "expo-linear-gradient";
 import * as ImagePicker from "expo-image-picker"; 
 import { supabase } from "@/lib/supabase"; 
-import { BRAND_GRADIENT } from "@/constants/colors";
+import { BRAND_GRADIENT, Colors } from "@/constants/colors"; // <-- Paleta dinámica
 
 const API_BASE = "https://www.flagdurango.com.mx/api";
 
@@ -19,21 +20,23 @@ const CATEGORIES = [
   { id: "varonil-libre", label: "Varonil Libre" },
   { id: "varonil-gold", label: "Varonil Gold" },
   { id: "varonil-silver", label: "Varonil Silver" },
-  { id: "varonil-cooper", label: "Varonil Cooper" }, // <-- NUEVA CATEGORÍA
+  { id: "varonil-cooper", label: "Varonil Cooper" }, 
   { id: "femenil-gold", label: "Femenil Gold" },
   { id: "femenil-silver", label: "Femenil Silver" },
-  { id: "femenil-copper", label: "Femenil Cooper" }, // <-- (Corregí "cooper" a "copper" para que esté bien escrito)
+  { id: "femenil-copper", label: "Femenil Copper" }, 
   { id: "mixto-gold", label: "Mixto Gold" },
   { id: "mixto-silver", label: "Mixto Silver" },
-  { id: "mixto-cooper", label: "Mixto Cooper" },     // <-- NUEVA CATEGORÍA
+  { id: "mixto-cooper", label: "Mixto Cooper" },    
   { id: "mixto-recreativo", label: "Mixto Recreativo" },
   { id: "teens", label: "Teens" },
 ];
 
 export default function CoachDashboard() {
   const insets = useSafeAreaInsets();
+  const theme = useColorScheme() ?? "light";
+  const currentColors = Colors[theme];
+
   const [user, setUser] = useState<any>(null);
-  
   const [coachPhoto, setCoachPhoto] = useState<string | null>(null);
   
   const [teams, setTeams] = useState<any[]>([]);
@@ -42,10 +45,7 @@ export default function CoachDashboard() {
   const [championships, setChampionships] = useState<any[]>([]);
   
   const [loading, setLoading] = useState(true);
-  
-  // --- 2. Nuevo estado para el Refresh ---
   const [refreshing, setRefreshing] = useState(false);
-  
   const [uploading, setUploading] = useState(false);
   const [activeTab, setActiveTab] = useState<"equipos" | "crear" | "solicitudes" | "perfil">("equipos");
 
@@ -124,7 +124,6 @@ export default function CoachDashboard() {
     }
   };
 
-  // --- 3. Función que se dispara al deslizar hacia abajo ---
   const onRefresh = useCallback(async () => {
     if (!user) return;
     setRefreshing(true);
@@ -332,7 +331,9 @@ export default function CoachDashboard() {
   const topPad = insets.top + 10;
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: currentColors.bg }]}>
+      
+      {/* HEADER DEL COACH (Siempre oscuro/gradiente para mantener identidad) */}
       <LinearGradient colors={[BRAND_GRADIENT[0], BRAND_GRADIENT[1]]} style={[styles.header, { paddingTop: topPad }]}>
         <View style={styles.headerRow}>
           <Pressable onPress={() => router.replace("/(tabs)/")}><Ionicons name="home" size={24} color="#FFF" /></Pressable>
@@ -359,18 +360,18 @@ export default function CoachDashboard() {
         </View>
       </LinearGradient>
 
-      <View style={styles.tabsRow}>
-        <TabButton title="Mis Equipos" icon="shield" active={activeTab === "equipos"} onPress={() => setActiveTab("equipos")} />
-        <TabButton title="Nuevo" icon="add-circle" active={activeTab === "crear"} onPress={() => setActiveTab("crear")} />
-        <TabButton title="Inbox" icon="mail" active={activeTab === "solicitudes"} badge={requests.length} onPress={() => setActiveTab("solicitudes")} />
-        <TabButton title="Perfil" icon="trophy" active={activeTab === "perfil"} onPress={() => setActiveTab("perfil")} />
+      {/* MENÚ DE TABS (Se adapta al modo oscuro) */}
+      <View style={[styles.tabsRow, { backgroundColor: currentColors.card, shadowColor: theme === 'dark' ? '#000' : '#0F172A' }]}>
+        <TabButton title="Mis Equipos" icon="shield" active={activeTab === "equipos"} onPress={() => setActiveTab("equipos")} currentColors={currentColors} />
+        <TabButton title="Nuevo" icon="add-circle" active={activeTab === "crear"} onPress={() => setActiveTab("crear")} currentColors={currentColors} />
+        <TabButton title="Inbox" icon="mail" active={activeTab === "solicitudes"} badge={requests.length} onPress={() => setActiveTab("solicitudes")} currentColors={currentColors} />
+        <TabButton title="Perfil" icon="trophy" active={activeTab === "perfil"} onPress={() => setActiveTab("perfil")} currentColors={currentColors} />
       </View>
 
       <ScrollView 
         style={styles.body} 
         contentContainerStyle={{ paddingBottom: 60 }} 
         showsVerticalScrollIndicator={false}
-        // --- 4. Conectamos el RefreshControl ---
         refreshControl={
           <RefreshControl 
             refreshing={refreshing} 
@@ -380,43 +381,43 @@ export default function CoachDashboard() {
           />
         }
       >
-        {/* Aquí cambiamos la condición para que no muestre el loader gigante si solo estamos haciendo pull-to-refresh */}
         {loading && !refreshing && !teams.length && !championships.length ? (
           <ActivityIndicator size="large" color={BRAND_GRADIENT[0]} style={{ marginTop: 40 }} />
         ) : (
           <>
+            {/* PESTAÑA: MIS EQUIPOS */}
             {activeTab === "equipos" && (
               <View>
                 {teams.length === 0 ? (
-                  <View style={styles.emptyBox}>
-                    <Ionicons name="shield-half" size={48} color="#CBD5E1" />
-                    <Text style={styles.emptyTitle}>Sin Equipos</Text>
+                  <View style={[styles.emptyBox, { borderColor: currentColors.border }]}>
+                    <Ionicons name="shield-half" size={48} color={currentColors.textMuted} />
+                    <Text style={[styles.emptyTitle, { color: currentColors.textMuted }]}>Sin Equipos</Text>
                   </View>
                 ) : (
                   teams.map((team) => (
-                    <View key={team.id} style={styles.teamCard}>
-                      <View style={styles.teamHeader}>
+                    <View key={team.id} style={[styles.teamCard, { backgroundColor: currentColors.card, borderColor: currentColors.border, shadowColor: theme === 'dark' ? '#000' : '#0F172A' }]}>
+                      <View style={[styles.teamHeader, { borderBottomColor: currentColors.borderLight }]}>
                         <Pressable onPress={() => handleUpdateExistingTeamLogo(team.id)} style={styles.teamLogoWrapper}>
                           {team.logo_url ? (
                             <Image source={{ uri: team.logo_url }} style={styles.teamMiniLogo} />
                           ) : (
-                            <View style={styles.teamLogoPlaceholder}><Ionicons name="camera" size={16} color="#94A3B8" /></View>
+                            <View style={[styles.teamLogoPlaceholder, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border }]}><Ionicons name="camera" size={16} color={currentColors.textMuted} /></View>
                           )}
                           <View style={styles.editIconBadge}><Ionicons name="pencil" size={8} color="#FFF" /></View>
                         </Pressable>
                         <View style={{ flex: 1 }}>
-                          <Text style={styles.teamName}>{team.name}</Text>
-                          <Text style={styles.teamCat}>{team.category.replace("-", " ").toUpperCase()}</Text>
+                          <Text style={[styles.teamName, { color: currentColors.text }]}>{team.name}</Text>
+                          <Text style={[styles.teamCat, { color: currentColors.textSecondary }]}>{team.category.replace("-", " ").toUpperCase()}</Text>
                         </View>
-                        <View style={[styles.statusBadge, team.paid ? styles.bgGreen : styles.bgYellow]}>
-                          <Text style={styles.statusText}>{team.paid ? "PAGADO" : "DEUDA"}</Text>
+                        <View style={[styles.statusBadge, team.paid ? (theme === 'dark' ? {backgroundColor: '#064E3B'} : styles.bgGreen) : (theme === 'dark' ? {backgroundColor: '#78350F'} : styles.bgYellow)]}>
+                          <Text style={[styles.statusText, { color: team.paid ? (theme === 'dark' ? '#34D399' : '#0F172A') : (theme === 'dark' ? '#FDE68A' : '#0F172A') }]}>{team.paid ? "PAGADO" : "DEUDA"}</Text>
                         </View>
                       </View>
-                      <Text style={styles.rosterTitle}>Roster ({players.filter(p => p.team_id === team.id).length})</Text>
+                      <Text style={[styles.rosterTitle, { color: currentColors.text }]}>Roster ({players.filter(p => p.team_id === team.id).length})</Text>
                       {players.filter(p => p.team_id === team.id).map(player => (
-                        <View key={player.id} style={styles.playerRow}>
-                          <Text style={styles.playerName}>{player.name}</Text>
-                          <Text style={styles.playerPos}>#{player.jersey_number} {player.position}</Text>
+                        <View key={player.id} style={[styles.playerRow, { borderBottomColor: currentColors.bgSecondary }]}>
+                          <Text style={[styles.playerName, { color: currentColors.textSecondary }]}>{player.name}</Text>
+                          <Text style={[styles.playerPos, { color: currentColors.textMuted }]}>#{player.jersey_number} {player.position}</Text>
                         </View>
                       ))}
                     </View>
@@ -425,35 +426,36 @@ export default function CoachDashboard() {
               </View>
             )}
 
+            {/* PESTAÑA: CREAR EQUIPO */}
             {activeTab === "crear" && (
-              <View style={styles.formCard}>
-                <Text style={styles.cardTitle}>Nuevo Equipo</Text>
+              <View style={[styles.formCard, { backgroundColor: currentColors.card, borderColor: currentColors.border, shadowColor: theme === 'dark' ? '#000' : '#0F172A' }]}>
+                <Text style={[styles.cardTitle, { color: currentColors.text }]}>Nuevo Equipo</Text>
                 
-                <Text style={styles.label}>Logo del Equipo</Text>
+                <Text style={[styles.label, { color: currentColors.textMuted }]}>Logo del Equipo</Text>
                 <Pressable onPress={async () => {
                   const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 0.5 });
                   if (!res.canceled) setTempLogoUri(res.assets[0].uri);
-                }} style={styles.logoPicker}>
+                }} style={[styles.logoPicker, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border }]}>
                   {tempLogoUri ? <Image source={{ uri: tempLogoUri }} style={styles.logoPreview} /> : 
-                  <View style={styles.logoPickerInner}><Ionicons name="image-outline" size={32} color="#94A3B8" /><Text style={styles.logoPickerText}>Seleccionar Logo</Text></View>}
+                  <View style={styles.logoPickerInner}><Ionicons name="image-outline" size={32} color={currentColors.textMuted} /><Text style={[styles.logoPickerText, { color: currentColors.textMuted }]}>Seleccionar Logo</Text></View>}
                 </Pressable>
 
-                <Text style={styles.label}>Nombre del Equipo</Text>
-                <TextInput style={styles.input} placeholder="Nombre" value={teamForm.name} onChangeText={(t) => setTeamForm({...teamForm, name: t})} />
+                <Text style={[styles.label, { color: currentColors.textMuted }]}>Nombre del Equipo</Text>
+                <TextInput style={[styles.input, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border, color: currentColors.text }]} placeholder="Nombre" placeholderTextColor={currentColors.textMuted} value={teamForm.name} onChangeText={(t) => setTeamForm({...teamForm, name: t})} />
                 
-                <Text style={styles.label}>Categoría</Text>
+                <Text style={[styles.label, { color: currentColors.textMuted }]}>Categoría</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll}>
                   {CATEGORIES.map(cat => (
-                    <Pressable key={cat.id} style={[styles.catChip, teamForm.category === cat.id && styles.catChipActive]} onPress={() => setTeamForm({...teamForm, category: cat.id})}>
-                      <Text style={[styles.catChipText, teamForm.category === cat.id && {color:'#FFF'}]}>{cat.label}</Text>
+                    <Pressable key={cat.id} style={[styles.catChip, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border }, teamForm.category === cat.id && styles.catChipActive]} onPress={() => setTeamForm({...teamForm, category: cat.id})}>
+                      <Text style={[styles.catChipText, { color: currentColors.textSecondary }, teamForm.category === cat.id && {color:'#FFF'}]}>{cat.label}</Text>
                     </Pressable>
                   ))}
                 </ScrollView>
 
-                <Text style={styles.label}>Nombre del Capitán</Text>
-                <TextInput style={styles.input} placeholder="Nombre" value={teamForm.captain_name} onChangeText={(t) => setTeamForm({...teamForm, captain_name: t})} />
-                <Text style={styles.label}>Teléfono del Capitán</Text>
-                <TextInput style={styles.input} placeholder="618..." keyboardType="phone-pad" value={teamForm.captain_phone} onChangeText={(t) => setTeamForm({...teamForm, captain_phone: t})} />
+                <Text style={[styles.label, { color: currentColors.textMuted }]}>Nombre del Capitán</Text>
+                <TextInput style={[styles.input, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border, color: currentColors.text }]} placeholder="Nombre" placeholderTextColor={currentColors.textMuted} value={teamForm.captain_name} onChangeText={(t) => setTeamForm({...teamForm, captain_name: t})} />
+                <Text style={[styles.label, { color: currentColors.textMuted }]}>Teléfono del Capitán</Text>
+                <TextInput style={[styles.input, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border, color: currentColors.text }]} placeholder="618..." placeholderTextColor={currentColors.textMuted} keyboardType="phone-pad" value={teamForm.captain_phone} onChangeText={(t) => setTeamForm({...teamForm, captain_phone: t})} />
 
                 <Pressable style={styles.submitBtn} onPress={handleCreateTeam} disabled={creating}>
                   {creating ? <ActivityIndicator color="#FFF" /> : <Text style={styles.submitBtnText}>Inscribir Equipo</Text>}
@@ -461,21 +463,22 @@ export default function CoachDashboard() {
               </View>
             )}
 
+            {/* PESTAÑA: SOLICITUDES */}
             {activeTab === "solicitudes" && (
               <View>
                 {requests.length === 0 ? (
-                  <View style={styles.emptyBox}>
-                    <Ionicons name="mail-open" size={48} color="#CBD5E1" />
-                    <Text style={styles.emptyTitle}>Bandeja Limpia</Text>
-                    <Text style={styles.emptySub}>No tienes solicitudes pendientes.</Text>
+                  <View style={[styles.emptyBox, { borderColor: currentColors.border }]}>
+                    <Ionicons name="mail-open" size={48} color={currentColors.textMuted} />
+                    <Text style={[styles.emptyTitle, { color: currentColors.textMuted }]}>Bandeja Limpia</Text>
+                    <Text style={[styles.emptySub, { color: currentColors.textMuted }]}>No tienes solicitudes pendientes.</Text>
                   </View>
                 ) : (
                   requests.map(req => (
-                    <View key={req.id} style={styles.requestCard}>
+                    <View key={req.id} style={[styles.requestCard, { backgroundColor: currentColors.card, borderColor: currentColors.border }]}>
                       <View style={{ flex: 1 }}>
-                        <Text style={styles.reqName}>{req.player_name}</Text>
-                        <Text style={styles.reqInfo}>Se une a: <Text style={{fontWeight:'700'}}>{req.teams?.name}</Text></Text>
-                        <Text style={styles.reqInfo}>Posición: {req.position} | Jersey: #{req.jersey_number}</Text>
+                        <Text style={[styles.reqName, { color: currentColors.text }]}>{req.player_name}</Text>
+                        <Text style={[styles.reqInfo, { color: currentColors.textSecondary }]}>Se une a: <Text style={{fontWeight:'700'}}>{req.teams?.name}</Text></Text>
+                        <Text style={[styles.reqInfo, { color: currentColors.textSecondary }]}>Posición: {req.position} | Jersey: #{req.jersey_number}</Text>
                       </View>
                       <View style={styles.reqActions}>
                         <Pressable style={[styles.actionBtn, { backgroundColor: "#EF4444" }]} onPress={() => handleRequest(req.id, "rejected")}>
@@ -491,52 +494,53 @@ export default function CoachDashboard() {
               </View>
             )}
 
+            {/* PESTAÑA: PERFIL Y CAMPEONATOS */}
             {activeTab === "perfil" && (
               <View>
-                <Text style={[styles.cardTitle, {marginLeft: 5}]}>Mis Campeonatos</Text>
+                <Text style={[styles.cardTitle, {marginLeft: 5, color: currentColors.text }]}>Mis Campeonatos</Text>
                 {championships.length === 0 ? (
-                  <View style={[styles.emptyBox, {marginBottom: 20}]}>
-                    <Ionicons name="trophy-outline" size={40} color="#CBD5E1" />
-                    <Text style={styles.emptySub}>Aún no has registrado campeonatos.</Text>
+                  <View style={[styles.emptyBox, {marginBottom: 20, borderColor: currentColors.border }]}>
+                    <Ionicons name="trophy-outline" size={40} color={currentColors.textMuted} />
+                    <Text style={[styles.emptySub, { color: currentColors.textMuted }]}>Aún no has registrado campeonatos.</Text>
                   </View>
                 ) : (
                   championships.map(champ => (
-                    <View key={champ.id} style={styles.champCard}>
-                      <View style={styles.champIcon}><Ionicons name="trophy" size={24} color="#F59E0B" /></View>
+                    <View key={champ.id} style={[styles.champCard, { backgroundColor: currentColors.card, borderColor: theme === 'dark' ? '#78350F' : '#F59E0B40' }]}>
+                      <View style={[styles.champIcon, { backgroundColor: theme === 'dark' ? '#78350F' : '#FEF3C7' }]}><Ionicons name="trophy" size={24} color={theme === 'dark' ? '#FDE68A' : "#F59E0B"} /></View>
                       <View style={{flex: 1}}>
-                        <Text style={styles.champTitle}>{champ.title} ({champ.year})</Text>
-                        <Text style={styles.champSub}>{champ.tournament} • {champ.position}</Text>
+                        <Text style={[styles.champTitle, { color: currentColors.text }]}>{champ.title} ({champ.year})</Text>
+                        <Text style={[styles.champSub, { color: currentColors.textSecondary }]}>{champ.tournament} • {champ.position}</Text>
                       </View>
-                      <Pressable onPress={() => handleDeleteChampionship(champ.id)} style={styles.deleteBtn}>
+                      <Pressable onPress={() => handleDeleteChampionship(champ.id)} style={[styles.deleteBtn, { backgroundColor: theme === 'dark' ? 'rgba(239,68,68,0.2)' : '#FEF2F2' }]}>
                         <Ionicons name="trash" size={18} color="#EF4444" />
                       </Pressable>
                     </View>
                   ))
                 )}
 
-                <View style={styles.formCard}>
-                  <Text style={styles.cardTitle}>Registrar Trofeo</Text>
+                <View style={[styles.formCard, { backgroundColor: currentColors.card, borderColor: currentColors.border, shadowColor: theme === 'dark' ? '#000' : '#0F172A' }]}>
+                  <Text style={[styles.cardTitle, { color: currentColors.text }]}>Registrar Trofeo</Text>
                   
-                  <Text style={styles.label}>Selecciona el Equipo Ganador</Text>
+                  <Text style={[styles.label, { color: currentColors.textMuted }]}>Selecciona el Equipo Ganador</Text>
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll}>
                     {teams.map(t => (
-                      <Pressable key={t.id} style={[styles.catChip, champForm.team_id === t.id && styles.catChipActive]} onPress={() => setChampForm({...champForm, team_id: t.id})}>
-                        <Text style={[styles.catChipText, champForm.team_id === t.id && {color:'#FFF'}]}>{t.name}</Text>
+                      <Pressable key={t.id} style={[styles.catChip, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border }, champForm.team_id === t.id && styles.catChipActive]} onPress={() => setChampForm({...champForm, team_id: t.id})}>
+                        <Text style={[styles.catChipText, { color: currentColors.textSecondary }, champForm.team_id === t.id && {color:'#FFF'}]}>{t.name}</Text>
                       </Pressable>
                     ))}
                   </ScrollView>
 
-                  <Text style={styles.label}>Título (Ej. Campeón Invicto)</Text>
-                  <TextInput style={styles.input} placeholder="Escribe el título" value={champForm.title} onChangeText={(t) => setChampForm({...champForm, title: t})} />
+                  <Text style={[styles.label, { color: currentColors.textMuted }]}>Título (Ej. Campeón Invicto)</Text>
+                  <TextInput style={[styles.input, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border, color: currentColors.text }]} placeholderTextColor={currentColors.textMuted} placeholder="Escribe el título" value={champForm.title} onChangeText={(t) => setChampForm({...champForm, title: t})} />
 
                   <View style={{flexDirection: 'row', gap: 10}}>
                     <View style={{flex: 1}}>
-                      <Text style={styles.label}>Torneo / Liga</Text>
-                      <TextInput style={styles.input} placeholder="Ej. Flag Durango" value={champForm.tournament} onChangeText={(t) => setChampForm({...champForm, tournament: t})} />
+                      <Text style={[styles.label, { color: currentColors.textMuted }]}>Torneo / Liga</Text>
+                      <TextInput style={[styles.input, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border, color: currentColors.text }]} placeholderTextColor={currentColors.textMuted} placeholder="Ej. Flag Durango" value={champForm.tournament} onChangeText={(t) => setChampForm({...champForm, tournament: t})} />
                     </View>
                     <View style={{flex: 1}}>
-                      <Text style={styles.label}>Año</Text>
-                      <TextInput style={styles.input} placeholder="Ej. 2025" keyboardType="numeric" maxLength={4} value={champForm.year} onChangeText={(t) => setChampForm({...champForm, year: t})} />
+                      <Text style={[styles.label, { color: currentColors.textMuted }]}>Año</Text>
+                      <TextInput style={[styles.input, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border, color: currentColors.text }]} placeholderTextColor={currentColors.textMuted} placeholder="Ej. 2026" keyboardType="numeric" maxLength={4} value={champForm.year} onChangeText={(t) => setChampForm({...champForm, year: t})} />
                     </View>
                   </View>
 
@@ -546,7 +550,7 @@ export default function CoachDashboard() {
                 </View>
 
                 {/* --- BOTÓN DE ELIMINAR CUENTA --- */}
-                <Pressable style={styles.deleteAccountBtn} onPress={handleDeleteAccount}>
+                <Pressable style={[styles.deleteAccountBtn, { backgroundColor: theme === 'dark' ? 'rgba(239,68,68,0.1)' : "#FEF2F2", borderColor: theme === 'dark' ? 'rgba(239,68,68,0.3)' : "#FECACA" }]} onPress={handleDeleteAccount}>
                   <Ionicons name="warning-outline" size={18} color="#EF4444" />
                   <Text style={styles.deleteAccountText}>Eliminar Mi Cuenta</Text>
                 </Pressable>
@@ -560,18 +564,20 @@ export default function CoachDashboard() {
   );
 }
 
-function TabButton({ title, icon, active, onPress, badge }: any) {
+// Botón de las pestañas adaptado
+function TabButton({ title, icon, active, onPress, badge, currentColors }: any) {
   return (
     <Pressable style={[styles.tabBtn, active && styles.tabBtnActive]} onPress={onPress}>
-      <Ionicons name={icon} size={18} color={active ? "#FFF" : "#64748B"} />
-      <Text style={[styles.tabText, active && styles.tabTextActive]}>{title}</Text>
+      <Ionicons name={icon} size={18} color={active ? "#FFF" : currentColors.textMuted} />
+      <Text style={[styles.tabText, { color: currentColors.textMuted }, active && styles.tabTextActive]}>{title}</Text>
       {badge > 0 && <View style={styles.badgeWrap}><Text style={styles.badgeText}>{badge}</Text></View>}
     </Pressable>
   );
 }
 
+// Retiramos colores fijos del StyleSheet
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F8FAFC" },
+  container: { flex: 1 },
   header: { paddingBottom: 25, paddingHorizontal: 20 },
   headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 20 },
   headerTitle: { color: "#FFF", fontSize: 17, fontWeight: "800" },
@@ -581,60 +587,66 @@ const styles = StyleSheet.create({
   welcomeText: { color: "#FFF", fontSize: 20, fontWeight: "900" },
   coachStatsText: { color: "rgba(255,255,255,0.7)", fontSize: 12, fontWeight: "700" },
   eyeBtn: { backgroundColor: 'rgba(255,255,255,0.2)', padding: 10, borderRadius: 12 },
-  tabsRow: { flexDirection: "row", backgroundColor: "#FFFFFF", padding: 8, elevation: 4 },
+  
+  tabsRow: { flexDirection: "row", padding: 8, elevation: 4 },
   tabBtn: { flex: 1, alignItems: "center", paddingVertical: 10, borderRadius: 12, gap: 4 },
   tabBtnActive: { backgroundColor: BRAND_GRADIENT[0] },
-  tabText: { color: "#64748B", fontSize: 11, fontWeight: "700", textAlign: 'center' },
+  tabText: { fontSize: 11, fontWeight: "700", textAlign: 'center' },
   tabTextActive: { color: "#FFF" },
   badgeWrap: { position: 'absolute', top: 5, right: 10, backgroundColor: "#EF4444", borderRadius: 10, paddingHorizontal: 5 },
   badgeText: { color: "#FFF", fontSize: 10, fontWeight: "900" },
+  
   body: { padding: 16 },
-  teamCard: { backgroundColor: "#FFFFFF", padding: 20, borderRadius: 20, marginBottom: 16, elevation: 2, borderWidth: 1, borderColor: "#E2E8F0" },
-  teamHeader: { flexDirection: "row", alignItems: 'center', gap: 12, borderBottomWidth: 1, borderColor: "#F1F5F9", paddingBottom: 15, marginBottom: 15 },
+  
+  teamCard: { padding: 20, borderRadius: 20, marginBottom: 16, elevation: 2, borderWidth: 1 },
+  teamHeader: { flexDirection: "row", alignItems: 'center', gap: 12, borderBottomWidth: 1, paddingBottom: 15, marginBottom: 15 },
   teamLogoWrapper: { position: 'relative' },
   teamMiniLogo: { width: 45, height: 45, borderRadius: 10 },
-  teamLogoPlaceholder: { width: 45, height: 45, borderRadius: 10, backgroundColor: '#F1F5F9', justifyContent: 'center', alignItems: 'center', borderStyle: 'dashed', borderWidth: 1, borderColor: '#CBD5E1' },
+  teamLogoPlaceholder: { width: 45, height: 45, borderRadius: 10, justifyContent: 'center', alignItems: 'center', borderStyle: 'dashed', borderWidth: 1 },
   editIconBadge: { position: 'absolute', bottom: -2, right: -2, backgroundColor: BRAND_GRADIENT[0], width: 16, height: 16, borderRadius: 8, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#FFF' },
   teamName: { fontSize: 18, fontWeight: "900" },
-  teamCat: { fontSize: 11, color: "#64748B", fontWeight: "700" },
+  teamCat: { fontSize: 11, fontWeight: "700" },
   statusBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
   bgGreen: { backgroundColor: "#D1FAE5" },
   bgYellow: { backgroundColor: "#FEF3C7" },
-  statusText: { fontSize: 10, fontWeight: "800", color: "#0F172A" },
+  statusText: { fontSize: 10, fontWeight: "800" },
   rosterTitle: { fontSize: 13, fontWeight: "800", marginBottom: 10 },
-  playerRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#F8FAFC" },
-  playerName: { fontSize: 14, fontWeight: "700", color: "#334155" },
-  playerPos: { fontSize: 12, color: "#64748B" },
-  formCard: { backgroundColor: "#FFFFFF", padding: 20, borderRadius: 20, elevation: 2, borderWidth: 1, borderColor: "#E2E8F0", marginBottom: 20 },
+  playerRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 8, borderBottomWidth: 1 },
+  playerName: { fontSize: 14, fontWeight: "700" },
+  playerPos: { fontSize: 12 },
+  
+  formCard: { padding: 20, borderRadius: 20, elevation: 2, borderWidth: 1, marginBottom: 20 },
   cardTitle: { fontSize: 18, fontWeight: "900", marginBottom: 20 },
-  logoPicker: { width: '100%', height: 120, backgroundColor: '#F8FAFC', borderRadius: 16, borderStyle: 'dashed', borderWidth: 2, borderColor: '#CBD5E1', justifyContent: 'center', alignItems: 'center', marginBottom: 20, overflow: 'hidden' },
+  logoPicker: { width: '100%', height: 120, borderRadius: 16, borderStyle: 'dashed', borderWidth: 2, justifyContent: 'center', alignItems: 'center', marginBottom: 20, overflow: 'hidden' },
   logoPickerInner: { alignItems: 'center' },
-  logoPickerText: { fontSize: 12, color: '#94A3B8', fontWeight: '700', marginTop: 5 },
+  logoPickerText: { fontSize: 12, fontWeight: '700', marginTop: 5 },
   logoPreview: { width: '100%', height: '100%', resizeMode: 'cover' },
-  label: { fontSize: 11, fontWeight: "800", color: "#64748B", textTransform: "uppercase", marginBottom: 8 },
-  input: { backgroundColor: "#F8FAFC", borderRadius: 12, padding: 15, marginBottom: 15, borderWidth: 1, borderColor: "#E2E8F0", fontWeight: '600' },
+  label: { fontSize: 11, fontWeight: "800", textTransform: "uppercase", marginBottom: 8 },
+  input: { borderRadius: 12, padding: 15, marginBottom: 15, borderWidth: 1, fontWeight: '600' },
   categoryScroll: { marginBottom: 20 },
-  catChip: { paddingHorizontal: 15, paddingVertical: 10, borderRadius: 20, backgroundColor: "#F1F5F9", marginRight: 10, borderWidth: 1, borderColor: "#E2E8F0" },
+  catChip: { paddingHorizontal: 15, paddingVertical: 10, borderRadius: 20, marginRight: 10, borderWidth: 1 },
   catChipActive: { backgroundColor: BRAND_GRADIENT[0], borderColor: BRAND_GRADIENT[0] },
-  catChipText: { fontSize: 12, fontWeight: "700", color: "#64748B" },
+  catChipText: { fontSize: 12, fontWeight: "700" },
   submitBtn: { backgroundColor: "#0F172A", padding: 16, borderRadius: 12, alignItems: "center" },
   submitBtnText: { color: "#FFF", fontWeight: "800" },
-  emptyBox: { alignItems: 'center', padding: 40, borderStyle: 'dashed', borderWidth: 2, borderColor: '#E2E8F0', borderRadius: 20 },
-  emptyTitle: { color: '#94A3B8', fontWeight: '800', marginTop: 10, fontSize: 16 },
-  emptySub: { fontSize: 13, color: '#94A3B8', textAlign: 'center', marginTop: 5 },
-  requestCard: { flexDirection: "row", alignItems: "center", backgroundColor: "#FFFFFF", padding: 16, borderRadius: 16, marginBottom: 12, borderWidth: 1, borderColor: "#E2E8F0" },
-  reqName: { fontSize: 16, fontWeight: "800", color: "#0F172A", marginBottom: 4 },
-  reqInfo: { fontSize: 13, color: "#64748B" },
+  
+  emptyBox: { alignItems: 'center', padding: 40, borderStyle: 'dashed', borderWidth: 2, borderRadius: 20 },
+  emptyTitle: { fontWeight: '800', marginTop: 10, fontSize: 16 },
+  emptySub: { fontSize: 13, textAlign: 'center', marginTop: 5 },
+  
+  requestCard: { flexDirection: "row", alignItems: "center", padding: 16, borderRadius: 16, marginBottom: 12, borderWidth: 1 },
+  reqName: { fontSize: 16, fontWeight: "800", marginBottom: 4 },
+  reqInfo: { fontSize: 13 },
   reqActions: { flexDirection: "row", gap: 10, paddingLeft: 10 },
   actionBtn: { width: 42, height: 42, borderRadius: 21, alignItems: "center", justifyContent: "center" },
   loader: { position: 'absolute' },
-  champCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', padding: 15, borderRadius: 16, marginBottom: 10, borderWidth: 1, borderColor: '#F59E0B50' },
-  champIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#F59E0B20', justifyContent: 'center', alignItems: 'center', marginRight: 15 },
-  champTitle: { fontSize: 15, fontWeight: '800', color: '#0F172A' },
-  champSub: { fontSize: 12, color: '#64748B', fontWeight: '600', marginTop: 2 },
-  deleteBtn: { padding: 10, backgroundColor: '#FEF2F2', borderRadius: 10 },
   
-  // Botón Eliminar Cuenta Coach
-  deleteAccountBtn: { marginTop: 10, padding: 16, backgroundColor: "#FEF2F2", borderRadius: 16, borderWidth: 1, borderColor: "#FECACA", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
+  champCard: { flexDirection: 'row', alignItems: 'center', padding: 15, borderRadius: 16, marginBottom: 10, borderWidth: 1 },
+  champIcon: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center', marginRight: 15 },
+  champTitle: { fontSize: 15, fontWeight: '800' },
+  champSub: { fontSize: 12, fontWeight: '600', marginTop: 2 },
+  deleteBtn: { padding: 10, borderRadius: 10 },
+  
+  deleteAccountBtn: { marginTop: 10, padding: 16, borderRadius: 16, borderWidth: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
   deleteAccountText: { color: "#EF4444", fontSize: 14, fontWeight: "800" },
 });

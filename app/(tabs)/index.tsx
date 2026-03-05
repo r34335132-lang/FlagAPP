@@ -9,7 +9,8 @@ import {
   Pressable,
   SectionList,
   ScrollView,
-  Linking
+  Linking,
+  useColorScheme
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -19,7 +20,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useMatches } from "@/hooks/useMatches";
 import { useTeams } from "@/hooks/useTeams";
 import { MatchCardSkeleton } from "@/components/SkeletonLoader";
-import { BRAND_GRADIENT } from "@/constants/colors";
+import { BRAND_GRADIENT, Colors } from "@/constants/colors"; // <-- Importamos nuestra paleta dinámica
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 1. HOOKS Y COMPONENTES DE UTILIDAD
@@ -61,8 +62,10 @@ function useLiveTimer(game: any) {
 
 const LiveBadge = ({ game }: { game: any }) => {
   const timeString = useLiveTimer(game);
+  const theme = useColorScheme() ?? "light";
+  
   return (
-    <View style={styles.liveBadge}>
+    <View style={[styles.liveBadge, { backgroundColor: theme === 'dark' ? 'rgba(239, 68, 68, 0.2)' : '#FEF2F2' }]}>
       <View style={styles.liveDot} />
       <Text style={styles.liveBadgeText}>{timeString}</Text>
     </View>
@@ -98,99 +101,115 @@ const HeaderHome = ({ user, topPad, dateStr, onProfilePress }: any) => (
   </LinearGradient>
 );
 
-// 👇 BANNER DE TEMPORADA REDISEÑADO (BLANCO Y LIMPIO) 👇
-const AnnouncementBanner = () => (
-  <View style={styles.bannerWrapper}>
-    <View style={styles.bannerContainerLight}>
-      <View style={styles.bannerHeaderLight}>
-        <View style={styles.bannerTitleRow}>
-          <Ionicons name="american-football" size={24} color={BRAND_GRADIENT[0]} />
-          <Text style={styles.bannerTitleLight}>Temporada 2026</Text>
+const AnnouncementBanner = () => {
+  const theme = useColorScheme() ?? "light";
+  const currentColors = Colors[theme];
+
+  return (
+    <View style={styles.bannerWrapper}>
+      <View style={[styles.bannerContainerLight, { backgroundColor: currentColors.card, borderColor: currentColors.border }]}>
+        <View style={styles.bannerHeaderLight}>
+          <View style={styles.bannerTitleRow}>
+            <Ionicons name="american-football" size={24} color={BRAND_GRADIENT[0]} />
+            <Text style={[styles.bannerTitleLight, { color: currentColors.text }]}>Temporada 2026</Text>
+          </View>
+          <View style={[styles.badgeNew, { backgroundColor: theme === 'dark' ? 'rgba(239, 68, 68, 0.2)' : '#FEF2F2' }]}>
+            <Text style={styles.badgeNewText}>PRÓXIMO</Text>
+          </View>
         </View>
-        <View style={styles.badgeNew}>
-          <Text style={styles.badgeNewText}>PRÓXIMO</Text>
-        </View>
-      </View>
-      
-      <Text style={styles.bannerSubLight}>Asegura el lugar de tu equipo en la mejor liga de Flag Football de Durango.</Text>
-      
-      <View style={styles.bannerGrid}>
-        <View style={styles.bannerGridItem}>
-          <Text style={styles.bannerGridLabel}>KICKOFF</Text>
-          <Text style={styles.bannerGridValue}>22 Marzo</Text>
-        </View>
-        <View style={styles.bannerGridItem}>
-          <Text style={styles.bannerGridLabel}>CIERRE INSC.</Text>
-          <Text style={styles.bannerGridValue}>17 Marzo</Text>
-        </View>
-        <View style={styles.bannerGridItem}>
-          <Text style={styles.bannerGridLabel}>INSCRIPCIÓN</Text>
-          <Text style={styles.bannerGridValue}>$1,900</Text>
-        </View>
-        <View style={styles.bannerGridItem}>
-          <Text style={styles.bannerGridLabel}>ARBITRAJE</Text>
-          <Text style={styles.bannerGridValue}>$320 / jgo</Text>
+        
+        <Text style={[styles.bannerSubLight, { color: currentColors.textSecondary }]}>Asegura el lugar de tu equipo en la mejor liga de Flag Football de Durango.</Text>
+        
+        <View style={[styles.bannerGrid, { backgroundColor: currentColors.bgSecondary }]}>
+          <View style={styles.bannerGridItem}>
+            <Text style={[styles.bannerGridLabel, { color: currentColors.textMuted }]}>KICKOFF</Text>
+            <Text style={[styles.bannerGridValue, { color: currentColors.text }]}>22 Marzo</Text>
+          </View>
+          <View style={styles.bannerGridItem}>
+            <Text style={[styles.bannerGridLabel, { color: currentColors.textMuted }]}>CIERRE INSC.</Text>
+            <Text style={[styles.bannerGridValue, { color: currentColors.text }]}>17 Marzo</Text>
+          </View>
+          <View style={styles.bannerGridItem}>
+            <Text style={[styles.bannerGridLabel, { color: currentColors.textMuted }]}>INSCRIPCIÓN</Text>
+            <Text style={[styles.bannerGridValue, { color: currentColors.text }]}>$1,900</Text>
+          </View>
+          <View style={styles.bannerGridItem}>
+            <Text style={[styles.bannerGridLabel, { color: currentColors.textMuted }]}>ARBITRAJE</Text>
+            <Text style={[styles.bannerGridValue, { color: currentColors.text }]}>$320 / jgo</Text>
+          </View>
         </View>
       </View>
     </View>
-  </View>
-);
+  );
+};
 
-// 👇 NUEVO CONTENIDO: AVISOS DE PRETEMPORADA 👇
-const LeagueNews = () => (
-  <View style={styles.newsWrapper}>
-    <Text style={styles.sectionTitleLabel}>Avisos de Pretemporada</Text>
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.newsScroll}>
-      
-      <View style={styles.newsCard}>
-        <View style={[styles.newsIconWrap, { backgroundColor: '#EFF6FF' }]}>
-          <Ionicons name="people" size={22} color="#3B82F6" />
+const LeagueNews = () => {
+  const theme = useColorScheme() ?? "light";
+  const currentColors = Colors[theme];
+
+  return (
+    <View style={styles.newsWrapper}>
+      <Text style={[styles.sectionTitleLabel, { color: currentColors.textMuted }]}>Avisos de Pretemporada</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.newsScroll}>
+        
+        <View style={[styles.newsCard, { backgroundColor: currentColors.card, borderColor: currentColors.border }]}>
+          <View style={[styles.newsIconWrap, { backgroundColor: theme === 'dark' ? 'rgba(59, 130, 246, 0.2)' : '#EFF6FF' }]}>
+            <Ionicons name="people" size={22} color="#3B82F6" />
+          </View>
+          <Text style={[styles.newsTitle, { color: currentColors.text }]}>Junta de Capitanes</Text>
+          <Text style={[styles.newsSub, { color: currentColors.textSecondary }]}>Afinando últimos detalles del reglamento y horarios.</Text>
         </View>
-        <Text style={styles.newsTitle}>Junta de Capitanes</Text>
-        <Text style={styles.newsSub}>Afinando últimos detalles del reglamento y horarios.</Text>
-      </View>
 
-      <View style={styles.newsCard}>
-        <View style={[styles.newsIconWrap, { backgroundColor: '#F0FDF4' }]}>
-          <Ionicons name="document-text" size={22} color="#10B981" />
+        <View style={[styles.newsCard, { backgroundColor: currentColors.card, borderColor: currentColors.border }]}>
+          <View style={[styles.newsIconWrap, { backgroundColor: theme === 'dark' ? 'rgba(16, 185, 129, 0.2)' : '#F0FDF4' }]}>
+            <Ionicons name="document-text" size={22} color="#10B981" />
+          </View>
+          <Text style={[styles.newsTitle, { color: currentColors.text }]}>Registro de Roster</Text>
+          <Text style={[styles.newsSub, { color: currentColors.textSecondary }]}>Recuerda subir las fotos y números de tus jugadores a la app.</Text>
         </View>
-        <Text style={styles.newsTitle}>Registro de Roster</Text>
-        <Text style={styles.newsSub}>Recuerda subir las fotos y números de tus jugadores a la app.</Text>
-      </View>
 
-    </ScrollView>
-  </View>
-);
+      </ScrollView>
+    </View>
+  );
+};
 
-const CommunityCard = () => (
-  <View style={styles.communityWrapper}>
-    <View style={styles.communityCard}>
-      <View style={styles.communityContent}>
-        <Text style={styles.communityTitle}>Únete a la Acción 📸</Text>
-        <Text style={styles.communitySub}>Síguenos para no perderte las mejores fotos de cada jornada y noticias exclusivas.</Text>
-      </View>
-      <View style={styles.socialButtonsCol}>
-        <Pressable 
-          style={[styles.socialBtn, { backgroundColor: '#E1306C' }]} 
-          onPress={() => Linking.openURL('https://www.instagram.com/flag.durango/')}
-        >
-          <Ionicons name="logo-instagram" size={18} color="#FFF" />
-          <Text style={styles.socialBtnText}>Instagram</Text>
-        </Pressable>
+const CommunityCard = () => {
+  const theme = useColorScheme() ?? "light";
+  const currentColors = Colors[theme];
 
-        <Pressable 
-          style={[styles.socialBtn, { backgroundColor: '#1877F2' }]} 
-          onPress={() => Linking.openURL('https://www.facebook.com/TBFDurango')}
-        >
-          <Ionicons name="logo-facebook" size={18} color="#FFF" />
-          <Text style={styles.socialBtnText}>Facebook</Text>
-        </Pressable>
+  return (
+    <View style={styles.communityWrapper}>
+      <View style={[styles.communityCard, { backgroundColor: currentColors.card, borderColor: currentColors.border }]}>
+        <View style={styles.communityContent}>
+          <Text style={[styles.communityTitle, { color: currentColors.text }]}>Únete a la Acción 📸</Text>
+          <Text style={[styles.communitySub, { color: currentColors.textSecondary }]}>Síguenos para no perderte las mejores fotos de cada jornada y noticias exclusivas.</Text>
+        </View>
+        <View style={styles.socialButtonsCol}>
+          <Pressable 
+            style={[styles.socialBtn, { backgroundColor: '#E1306C' }]} 
+            onPress={() => Linking.openURL('https://www.instagram.com/flag.durango/')}
+          >
+            <Ionicons name="logo-instagram" size={18} color="#FFF" />
+            <Text style={styles.socialBtnText}>Instagram</Text>
+          </Pressable>
+
+          <Pressable 
+            style={[styles.socialBtn, { backgroundColor: '#1877F2' }]} 
+            onPress={() => Linking.openURL('https://www.facebook.com/TBFDurango')}
+          >
+            <Ionicons name="logo-facebook" size={18} color="#FFF" />
+            <Text style={styles.socialBtnText}>Facebook</Text>
+          </Pressable>
+        </View>
       </View>
     </View>
-  </View>
-);
+  );
+};
 
 const MatchCard = ({ game, teams, isFeatured = false }: { game: any, teams: any[], isFeatured?: boolean }) => {
+  const theme = useColorScheme() ?? "light";
+  const currentColors = Colors[theme];
+
   if (!game) return null;
 
   const homeTeam = teams.find((t) => t.name === game.home_team);
@@ -201,18 +220,18 @@ const MatchCard = ({ game, teams, isFeatured = false }: { game: any, teams: any[
   const TeamRow = ({ team, name, score, isWinner }: any) => (
     <View style={styles.teamRow}>
       <View style={styles.teamInfo}>
-        <View style={styles.logoContainer}>
+        <View style={[styles.logoContainer, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border }]}>
           {team?.logo_url ? (
             <Image source={{ uri: team.logo_url }} style={styles.teamLogo} resizeMode="contain" />
           ) : (
-            <Text style={styles.logoFallback}>{name?.charAt(0) || "?"}</Text>
+            <Text style={[styles.logoFallback, { color: currentColors.textMuted }]}>{name?.charAt(0) || "?"}</Text>
           )}
         </View>
-        <Text style={[styles.teamName, isWinner && styles.teamNameWinner]} numberOfLines={1}>
+        <Text style={[styles.teamName, { color: isWinner ? currentColors.text : currentColors.textSecondary }, isWinner && styles.teamNameWinner]} numberOfLines={1}>
           {name}
         </Text>
       </View>
-      <Text style={[styles.scoreText, isWinner && styles.scoreTextWinner]}>
+      <Text style={[styles.scoreText, { color: currentColors.textSecondary }, isWinner && [styles.scoreTextWinner, { color: currentColors.text }]]}>
         {score !== null && score !== undefined ? score : "-"}
       </Text>
     </View>
@@ -220,28 +239,32 @@ const MatchCard = ({ game, teams, isFeatured = false }: { game: any, teams: any[
 
   return (
     <Pressable 
-      style={[styles.matchCard, isFeatured && styles.featuredCard]}
+      style={[
+        styles.matchCard, 
+        { backgroundColor: currentColors.card, borderColor: currentColors.border, shadowColor: theme === 'dark' ? '#000' : '#0F172A' },
+        isFeatured && styles.featuredCard
+      ]}
       onPress={() => router.push({ pathname: "/match/[id]", params: { id: game.id } })}
     >
       <View style={styles.cardHeader}>
         {isLive ? (
           <LiveBadge game={game} />
         ) : (
-          <Text style={styles.statusText}>
+          <Text style={[styles.statusText, { color: currentColors.text }]}>
             {isFinished ? "FINALIZADO" : game.game_time?.substring(0, 5) || "POR DEFINIR"}
           </Text>
         )}
-        <Text style={styles.categoryText}>{game.category?.replace("-", " ").toUpperCase()}</Text>
+        <Text style={[styles.categoryText, { color: currentColors.textSecondary }]}>{game.category?.replace("-", " ").toUpperCase()}</Text>
       </View>
 
       <View style={styles.cardBody}>
         <TeamRow team={homeTeam} name={game.home_team} score={game.home_score} isWinner={isFinished && game.home_score > game.away_score} />
-        <View style={styles.teamDivider} />
+        <View style={[styles.teamDivider, { backgroundColor: currentColors.borderLight }]} />
         <TeamRow team={awayTeam} name={game.away_team} score={game.away_score} isWinner={isFinished && game.away_score > game.home_score} />
       </View>
 
-      <View style={styles.cardFooter}>
-        <Text style={styles.footerText}>
+      <View style={[styles.cardFooter, { borderTopColor: currentColors.borderLight }]}>
+        <Text style={[styles.footerText, { color: currentColors.textMuted }]}>
           {(game.venue !== null && game.venue !== undefined && String(game.venue).trim() !== "" && String(game.venue) !== "null") 
             ? game.venue 
             : "Sede por definir"} 
@@ -265,6 +288,9 @@ export default function HomeScreen() {
   const { data: teams, isLoading: teamsLoading, refetch: refetchTeams } = useTeams();
   const [refreshing, setRefreshing] = useState(false);
   const [user, setUser] = useState<any>(null);
+
+  const theme = useColorScheme() ?? "light";
+  const currentColors = Colors[theme];
 
   const isLoading = gamesLoading || teamsLoading;
   const safeTeams = teams ?? [];
@@ -325,7 +351,7 @@ export default function HomeScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: currentColors.bg }]}>
       <HeaderHome user={user} topPad={topPad} dateStr={dateStr} onProfilePress={handleProfilePress} />
 
       <SectionList
@@ -341,14 +367,13 @@ export default function HomeScreen() {
             <AnnouncementBanner />
             <LeagueNews />
             
-            {/* PARTIDO DESTACADO (Solo si existe) */}
             <View style={styles.featuredContainer}>
               {isLoading ? (
                 <View style={{ gap: 16 }}>{[1].map((k) => <MatchCardSkeleton key={k} />)}</View>
               ) : (
                 featuredGame && (
                   <>
-                    <Text style={styles.sectionTitleLabel}>PARTIDO DESTACADO</Text>
+                    <Text style={[styles.sectionTitleLabel, { color: currentColors.textMuted }]}>PARTIDO DESTACADO</Text>
                     <MatchCard game={featuredGame} teams={safeTeams} isFeatured={true} />
                   </>
                 )
@@ -359,7 +384,7 @@ export default function HomeScreen() {
 
         renderSectionHeader={({ section: { title, type } }) => (
           <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitleLabel, type === 'live' && styles.sectionTitleLive]}>
+            <Text style={[styles.sectionTitleLabel, { color: currentColors.textMuted }, type === 'live' && styles.sectionTitleLive]}>
               {title}
             </Text>
           </View>
@@ -371,12 +396,12 @@ export default function HomeScreen() {
 
         ListEmptyComponent={
           !isLoading && !featuredGame ? (
-            <View style={styles.emptyCard}>
-              <View style={styles.emptyIconWrap}>
-                <Ionicons name="barbell" size={40} color="#94A3B8" />
+            <View style={[styles.emptyCard, { backgroundColor: currentColors.card, borderColor: currentColors.border }]}>
+              <View style={[styles.emptyIconWrap, { backgroundColor: currentColors.bgSecondary }]}>
+                <Ionicons name="barbell" size={40} color={currentColors.textMuted} />
               </View>
-              <Text style={styles.emptyTitle}>¡Pretemporada en curso!</Text>
-              <Text style={styles.emptySubtitle}>Los equipos se están preparando. Arma tus jugadas, la temporada inicia pronto.</Text>
+              <Text style={[styles.emptyTitle, { color: currentColors.text }]}>¡Pretemporada en curso!</Text>
+              <Text style={[styles.emptySubtitle, { color: currentColors.textSecondary }]}>Los equipos se están preparando. Arma tus jugadas, la temporada inicia pronto.</Text>
             </View>
           ) : null
         }
@@ -390,15 +415,13 @@ export default function HomeScreen() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 4. ESTILOS
+// 4. ESTILOS (Los colores se sobrescriben dinámicamente arriba)
 // ─────────────────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F8FAFC", 
   },
-  
   headerGradient: {
     paddingBottom: 24, 
     borderBottomLeftRadius: 24,
@@ -443,20 +466,17 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
 
-  // ESTILOS DEL BANNER BLANCO/CLEAN
   bannerWrapper: {
     paddingHorizontal: 16,
     marginTop: 20,
     marginBottom: 5,
   },
   bannerContainerLight: {
-    backgroundColor: "#FFFFFF",
     borderRadius: 20,
     padding: 20,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
     borderLeftWidth: 4,
-    borderLeftColor: BRAND_GRADIENT[0], // Detalle de color en el borde izquierdo
+    borderLeftColor: BRAND_GRADIENT[0],
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.05,
@@ -477,11 +497,9 @@ const styles = StyleSheet.create({
   bannerTitleLight: {
     fontSize: 20,
     fontWeight: '900',
-    color: '#0F172A',
     letterSpacing: -0.5,
   },
   badgeNew: {
-    backgroundColor: '#FEF2F2',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
@@ -493,7 +511,6 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   bannerSubLight: {
-    color: '#64748B',
     fontSize: 13,
     marginBottom: 16,
     lineHeight: 18,
@@ -502,26 +519,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 15,
-    backgroundColor: '#F8FAFC',
     padding: 12,
     borderRadius: 12,
   },
   bannerGridItem: {
-    width: '45%', // Para que queden 2 en cada fila
+    width: '45%', 
   },
   bannerGridLabel: {
-    color: '#94A3B8',
     fontSize: 10,
     fontWeight: '800',
     marginBottom: 2,
   },
   bannerGridValue: {
-    color: '#0F172A',
     fontSize: 13,
     fontWeight: '900',
   },
 
-  // AVISOS DE PRETEMPORADA (Noticias)
   newsWrapper: {
     marginTop: 20,
     marginBottom: 10,
@@ -531,12 +544,10 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   newsCard: {
-    backgroundColor: "#FFFFFF",
     width: 260,
     padding: 16,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.03,
@@ -554,29 +565,24 @@ const styles = StyleSheet.create({
   newsTitle: {
     fontSize: 14,
     fontWeight: "800",
-    color: "#0F172A",
     marginBottom: 4,
   },
   newsSub: {
     fontSize: 12,
-    color: "#64748B",
     lineHeight: 18,
   },
 
-  // COMUNIDAD Y REDES (Mantenido y adaptado)
   communityWrapper: {
     paddingHorizontal: 16,
     marginTop: 20,
     marginBottom: 40,
   },
   communityCard: {
-    backgroundColor: "#FFFFFF",
     borderRadius: 20,
     padding: 20,
     flexDirection: 'row',
     alignItems: "center",
     borderWidth: 1,
-    borderColor: '#E2E8F0',
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.03,
@@ -588,13 +594,11 @@ const styles = StyleSheet.create({
     paddingRight: 15,
   },
   communityTitle: {
-    color: "#0F172A",
     fontSize: 16,
     fontWeight: "900",
     marginBottom: 4,
   },
   communitySub: {
-    color: "#64748B",
     fontSize: 11,
     lineHeight: 16,
   },
@@ -617,9 +621,8 @@ const styles = StyleSheet.create({
     marginLeft: 6,
   },
 
-  // LISTAS Y TARJETAS
   listContent: {
-    paddingBottom: 40,
+    paddingBottom: 100, // Le di un poco más de padding inferior para que no estorbe la barra nueva
   },
   featuredContainer: {
     marginTop: 25, 
@@ -628,7 +631,6 @@ const styles = StyleSheet.create({
   },
   
   sectionTitleLabel: {
-    color: "#94A3B8", 
     fontSize: 12,
     fontWeight: "800",
     letterSpacing: 1,
@@ -645,18 +647,15 @@ const styles = StyleSheet.create({
   },
 
   matchCard: {
-    backgroundColor: "#FFFFFF",
     borderRadius: 20,
     marginHorizontal: 16,
     marginBottom: 12,
     padding: 16,
-    shadowColor: "#0F172A",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.04,
     shadowRadius: 12,
     elevation: 2,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
   },
   featuredCard: {
     padding: 20, 
@@ -675,12 +674,10 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   statusText: {
-    color: "#0F172A",
     fontSize: 12,
     fontWeight: "800",
   },
   categoryText: {
-    color: "#64748B",
     fontSize: 11,
     fontWeight: "700",
     letterSpacing: 0.5,
@@ -691,7 +688,6 @@ const styles = StyleSheet.create({
   },
   teamDivider: {
     height: 1,
-    backgroundColor: "#F1F5F9",
     marginLeft: 40, 
   },
   teamRow: {
@@ -708,9 +704,7 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: "#F8FAFC",
     borderWidth: 1,
-    borderColor: "#E2E8F0",
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
@@ -721,41 +715,34 @@ const styles = StyleSheet.create({
     height: "100%",
   },
   logoFallback: {
-    color: "#94A3B8",
     fontSize: 12,
     fontWeight: "800",
   },
   teamName: {
     fontSize: 15,
     fontWeight: "600",
-    color: "#334155",
     flex: 1,
     paddingRight: 16,
   },
   teamNameWinner: {
     fontWeight: "800",
-    color: "#0F172A",
   },
   scoreText: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#64748B",
     width: 32,
     textAlign: "right",
   },
   scoreTextWinner: {
     fontWeight: "900",
-    color: "#0F172A",
   },
   
   cardFooter: {
     marginTop: 16,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: "#F1F5F9",
   },
   footerText: {
-    color: "#94A3B8",
     fontSize: 11,
     fontWeight: "600",
     textTransform: "uppercase",
@@ -764,7 +751,6 @@ const styles = StyleSheet.create({
   liveBadge: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FEF2F2", 
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
@@ -788,29 +774,24 @@ const styles = StyleSheet.create({
     paddingVertical: 48,
     marginHorizontal: 16,
     marginTop: 10,
-    backgroundColor: "#FFFFFF",
     borderRadius: 24,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
     borderStyle: "dashed",
   },
   emptyIconWrap: {
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: "#F8FAFC",
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 16,
   },
   emptyTitle: {
-    color: "#0F172A",
     fontSize: 18,
     fontWeight: "900",
     marginBottom: 6,
   },
   emptySubtitle: {
-    color: "#64748B",
     fontSize: 13,
     textAlign: "center",
     paddingHorizontal: 30,

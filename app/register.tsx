@@ -11,12 +11,13 @@ import {
   Image,
   ScrollView,
   Alert,
-  Linking
+  Linking,
+  useColorScheme
 } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { BRAND_GRADIENT } from "@/constants/colors";
+import { BRAND_GRADIENT, Colors } from "@/constants/colors"; // <-- Paleta dinámica
 
 const BASE_URL = "https://www.flagdurango.com.mx";
 
@@ -36,6 +37,9 @@ export default function RegisterScreen() {
   
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+
+  const theme = useColorScheme() ?? "light";
+  const currentColors = Colors[theme];
 
   const handleRegister = async () => {
     if (!username || !email || !password) {
@@ -91,7 +95,7 @@ export default function RegisterScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: currentColors.bg }]}>
       <LinearGradient colors={[BRAND_GRADIENT[0], BRAND_GRADIENT[1]]} style={styles.topBackground}>
         <Image 
           source={{ uri: "https://www.flagdurango.com.mx/images/logo-flag-durango.png" }} 
@@ -102,93 +106,159 @@ export default function RegisterScreen() {
 
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.keyboardView}>
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-          <View style={styles.card}>
+          
+          <View style={[
+            styles.card, 
+            { backgroundColor: currentColors.card, shadowColor: theme === 'dark' ? '#000' : '#0F172A' }
+          ]}>
             <View style={styles.header}>
-              <Text style={styles.title}>Crear Cuenta</Text>
-              <Text style={styles.subtitle}>Únete a la liga de Flag Durango</Text>
+              <Text style={[styles.title, { color: currentColors.text }]}>Crear Cuenta</Text>
+              <Text style={[styles.subtitle, { color: currentColors.textSecondary }]}>Únete a la liga de Flag Durango</Text>
             </View>
 
             {/* SELECTOR DE ROL */}
-            <View style={styles.roleSelector}>
+            <View style={[styles.roleSelector, { backgroundColor: currentColors.bgSecondary }]}>
               <Pressable 
-                style={[styles.roleBtn, role === "player" && styles.roleBtnActive]}
+                style={[
+                  styles.roleBtn, 
+                  role === "player" && [styles.roleBtnActive, { backgroundColor: currentColors.card }]
+                ]}
                 onPress={() => setRole("player")}
               >
-                <Text style={[styles.roleText, role === "player" && styles.roleTextActive]}>Jugador</Text>
+                <Text style={[
+                  styles.roleText, 
+                  { color: currentColors.textSecondary },
+                  role === "player" && styles.roleTextActive
+                ]}>Jugador</Text>
               </Pressable>
               <Pressable 
-                style={[styles.roleBtn, role === "coach" && styles.roleBtnActive]}
+                style={[
+                  styles.roleBtn, 
+                  role === "coach" && [styles.roleBtnActive, { backgroundColor: currentColors.card }]
+                ]}
                 onPress={() => setRole("coach")}
               >
-                <Text style={[styles.roleText, role === "coach" && styles.roleTextActive]}>Coach </Text>
+                <Text style={[
+                  styles.roleText, 
+                  { color: currentColors.textSecondary },
+                  role === "coach" && styles.roleTextActive
+                ]}>Coach </Text>
               </Pressable>
             </View>
 
             <View style={styles.form}>
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Nombre de Usuario (App)</Text>
-                <View style={styles.inputContainer}>
-                  <Ionicons name="at-outline" size={20} color="#94A3B8" style={styles.inputIcon} />
-                  <TextInput style={styles.input} placeholder="Ej. jperez99" value={username} onChangeText={setUsername} autoCapitalize="none" />
+                <Text style={[styles.label, { color: currentColors.textMuted }]}>Nombre de Usuario (App)</Text>
+                <View style={[styles.inputContainer, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.borderLight }]}>
+                  <Ionicons name="at-outline" size={20} color={currentColors.textMuted} style={styles.inputIcon} />
+                  <TextInput 
+                    style={[styles.input, { color: currentColors.text }]} 
+                    placeholder="Ej. jperez99" 
+                    placeholderTextColor={currentColors.textMuted}
+                    value={username} 
+                    onChangeText={setUsername} 
+                    autoCapitalize="none" 
+                  />
                 </View>
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Correo Electrónico</Text>
-                <View style={styles.inputContainer}>
-                  <Ionicons name="mail-outline" size={20} color="#94A3B8" style={styles.inputIcon} />
-                  <TextInput style={styles.input} placeholder="ejemplo@correo.com" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
+                <Text style={[styles.label, { color: currentColors.textMuted }]}>Correo Electrónico</Text>
+                <View style={[styles.inputContainer, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.borderLight }]}>
+                  <Ionicons name="mail-outline" size={20} color={currentColors.textMuted} style={styles.inputIcon} />
+                  <TextInput 
+                    style={[styles.input, { color: currentColors.text }]} 
+                    placeholder="ejemplo@correo.com" 
+                    placeholderTextColor={currentColors.textMuted}
+                    value={email} 
+                    onChangeText={setEmail} 
+                    keyboardType="email-address" 
+                    autoCapitalize="none" 
+                  />
                 </View>
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Contraseña</Text>
-                <View style={styles.inputContainer}>
-                  <Ionicons name="lock-closed-outline" size={20} color="#94A3B8" style={styles.inputIcon} />
-                  <TextInput style={styles.input} placeholder="••••••" value={password} onChangeText={setPassword} secureTextEntry={!showPassword} />
+                <Text style={[styles.label, { color: currentColors.textMuted }]}>Contraseña</Text>
+                <View style={[styles.inputContainer, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.borderLight }]}>
+                  <Ionicons name="lock-closed-outline" size={20} color={currentColors.textMuted} style={styles.inputIcon} />
+                  <TextInput 
+                    style={[styles.input, { color: currentColors.text }]} 
+                    placeholder="••••••" 
+                    placeholderTextColor={currentColors.textMuted}
+                    value={password} 
+                    onChangeText={setPassword} 
+                    secureTextEntry={!showPassword} 
+                  />
                   <Pressable onPress={() => setShowPassword(!showPassword)} style={styles.eyeIcon}>
-                    <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={20} color="#94A3B8" />
+                    <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={20} color={currentColors.textMuted} />
                   </Pressable>
                 </View>
               </View>
 
               {/* CAMPOS EXTRA PARA JUGADOR */}
               {role === "player" && (
-                <View style={styles.playerFieldsCard}>
+                <View style={[styles.playerFieldsCard, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.borderLight }]}>
                   <Text style={styles.playerFieldsTitle}>Datos del Campo</Text>
                   
                   <View style={styles.inputGroup}>
-                    <Text style={styles.label}>Nombre Completo (Real)</Text>
-                    <View style={styles.inputContainer}>
-                      <TextInput style={styles.input} placeholder="Juan Pérez" value={playerName} onChangeText={setPlayerName} autoCapitalize="words" />
+                    <Text style={[styles.label, { color: currentColors.textMuted }]}>Nombre Completo (Real)</Text>
+                    <View style={[styles.inputContainer, { backgroundColor: currentColors.card, borderColor: currentColors.border }]}>
+                      <TextInput 
+                        style={[styles.input, { color: currentColors.text }]} 
+                        placeholder="Juan Pérez" 
+                        placeholderTextColor={currentColors.textMuted}
+                        value={playerName} 
+                        onChangeText={setPlayerName} 
+                        autoCapitalize="words" 
+                      />
                     </View>
                   </View>
 
                   <View style={styles.rowInputs}>
                     <View style={[styles.inputGroup, { flex: 1 }]}>
-                      <Text style={styles.label}>Posición</Text>
-                      <View style={styles.inputContainer}>
-                        <TextInput style={styles.input} placeholder="Ej. QB, WR" value={position} onChangeText={setPosition} autoCapitalize="characters" />
+                      <Text style={[styles.label, { color: currentColors.textMuted }]}>Posición</Text>
+                      <View style={[styles.inputContainer, { backgroundColor: currentColors.card, borderColor: currentColors.border }]}>
+                        <TextInput 
+                          style={[styles.input, { color: currentColors.text }]} 
+                          placeholder="Ej. QB, WR" 
+                          placeholderTextColor={currentColors.textMuted}
+                          value={position} 
+                          onChangeText={setPosition} 
+                          autoCapitalize="characters" 
+                        />
                       </View>
                     </View>
 
                     <View style={[styles.inputGroup, { flex: 1 }]}>
-                      <Text style={styles.label}>Jersey #</Text>
-                      <View style={styles.inputContainer}>
-                        <TextInput style={styles.input} placeholder="Ej. 10" value={jerseyNumber} onChangeText={setJerseyNumber} keyboardType="numeric" maxLength={2} />
+                      <Text style={[styles.label, { color: currentColors.textMuted }]}>Jersey #</Text>
+                      <View style={[styles.inputContainer, { backgroundColor: currentColors.card, borderColor: currentColors.border }]}>
+                        <TextInput 
+                          style={[styles.input, { color: currentColors.text }]} 
+                          placeholder="Ej. 10" 
+                          placeholderTextColor={currentColors.textMuted}
+                          value={jerseyNumber} 
+                          onChangeText={setJerseyNumber} 
+                          keyboardType="numeric" 
+                          maxLength={2} 
+                        />
                       </View>
                     </View>
                   </View>
                 </View>
               )}
 
-              <Pressable style={styles.registerBtn} onPress={handleRegister} disabled={loading}>
+              <Pressable 
+                style={[styles.registerBtn, { backgroundColor: BRAND_GRADIENT[0], shadowColor: BRAND_GRADIENT[0] }]} 
+                onPress={handleRegister} 
+                disabled={loading}
+              >
                 {loading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.registerBtnText}>Registrarme</Text>}
               </Pressable>
 
-              {/* 👇 NUEVO: AVISO DE PRIVACIDAD 👇 */}
+              {/* AVISO DE PRIVACIDAD */}
               <View style={styles.privacyContainer}>
-                <Text style={styles.privacyText}>
+                <Text style={[styles.privacyText, { color: currentColors.textMuted }]}>
                   Al registrarte, aceptas nuestra{" "}
                   <Text 
                     style={styles.privacyLink} 
@@ -201,12 +271,13 @@ export default function RegisterScreen() {
               </View>
 
               <View style={styles.footerLinks}>
-                <Text style={styles.footerText}>¿Ya tienes cuenta?</Text>
+                <Text style={[styles.footerText, { color: currentColors.textSecondary }]}>¿Ya tienes cuenta?</Text>
                 <Pressable onPress={() => router.back()}>
                   <Text style={styles.linkText}>Inicia Sesión</Text>
                 </Pressable>
               </View>
             </View>
+
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -214,44 +285,44 @@ export default function RegisterScreen() {
   );
 }
 
+// Retiramos colores fijos para no generar conflictos
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F8FAFC" },
+  container: { flex: 1 },
   topBackground: { height: "35%", width: "100%", position: "absolute", top: 0, justifyContent: "center", alignItems: "center", paddingBottom: 20 },
   logo: { width: 160, height: 60, tintColor: "#FFFFFF" },
   keyboardView: { flex: 1 },
   scrollContent: { flexGrow: 1, justifyContent: "flex-end" },
-  card: { backgroundColor: "#FFFFFF", borderTopLeftRadius: 32, borderTopRightRadius: 32, padding: 25, paddingTop: 30, minHeight: "75%", shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 20, elevation: 15 },
+  card: { borderTopLeftRadius: 32, borderTopRightRadius: 32, padding: 25, paddingTop: 30, minHeight: "75%", shadowOpacity: 0.1, shadowRadius: 20, elevation: 15 },
   header: { marginBottom: 20 },
-  title: { fontSize: 26, fontWeight: "900", color: "#0F172A", letterSpacing: -0.5 },
-  subtitle: { fontSize: 14, color: "#64748B", marginTop: 4, fontWeight: "500" },
+  title: { fontSize: 26, fontWeight: "900", letterSpacing: -0.5 },
+  subtitle: { fontSize: 14, marginTop: 4, fontWeight: "500" },
   
-  roleSelector: { flexDirection: "row", backgroundColor: "#F1F5F9", borderRadius: 16, padding: 6, marginBottom: 25 },
+  roleSelector: { flexDirection: "row", borderRadius: 16, padding: 6, marginBottom: 25 },
   roleBtn: { flex: 1, paddingVertical: 12, borderRadius: 12, alignItems: "center" },
-  roleBtnActive: { backgroundColor: "#FFFFFF", shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 5, elevation: 2 },
-  roleText: { fontSize: 13, fontWeight: "700", color: "#64748B" },
+  roleBtnActive: { shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 5, elevation: 2 },
+  roleText: { fontSize: 13, fontWeight: "700" },
   roleTextActive: { color: BRAND_GRADIENT[0], fontWeight: "900" },
 
   form: { gap: 15 },
   inputGroup: { gap: 8 },
   rowInputs: { flexDirection: "row", gap: 15 },
-  label: { fontSize: 11, fontWeight: "800", color: "#64748B", textTransform: "uppercase", letterSpacing: 0.5 },
-  inputContainer: { flexDirection: "row", alignItems: "center", backgroundColor: "#F8FAFC", borderWidth: 1, borderColor: "#E2E8F0", borderRadius: 14, paddingHorizontal: 16, height: 50 },
+  label: { fontSize: 11, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.5 },
+  inputContainer: { flexDirection: "row", alignItems: "center", borderWidth: 1, borderRadius: 14, paddingHorizontal: 16, height: 50 },
   inputIcon: { marginRight: 12 },
-  input: { flex: 1, fontSize: 15, color: "#0F172A", fontWeight: "500" },
+  input: { flex: 1, fontSize: 15, fontWeight: "500" },
   eyeIcon: { padding: 5 },
 
-  playerFieldsCard: { backgroundColor: "#F8FAFC", padding: 15, borderRadius: 16, borderWidth: 1, borderColor: "#E2E8F0", gap: 15, marginTop: 5 },
+  playerFieldsCard: { padding: 15, borderRadius: 16, borderWidth: 1, gap: 15, marginTop: 5 },
   playerFieldsTitle: { fontSize: 12, fontWeight: "800", color: BRAND_GRADIENT[0], textTransform: "uppercase", letterSpacing: 0.5 },
   
-  registerBtn: { backgroundColor: "#0F172A", height: 54, borderRadius: 14, justifyContent: "center", alignItems: "center", marginTop: 15, shadowColor: "#0F172A", shadowOpacity: 0.3, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 5 },
+  registerBtn: { height: 54, borderRadius: 14, justifyContent: "center", alignItems: "center", marginTop: 15, shadowOpacity: 0.3, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 5 },
   registerBtnText: { color: "#FFFFFF", fontSize: 16, fontWeight: "800" },
   
-  // Estilos de Privacidad
   privacyContainer: { marginTop: 5, paddingHorizontal: 10 },
-  privacyText: { fontSize: 11, color: "#94A3B8", textAlign: "center", lineHeight: 16 },
+  privacyText: { fontSize: 11, textAlign: "center", lineHeight: 16 },
   privacyLink: { color: BRAND_GRADIENT[0], fontWeight: "800", textDecorationLine: "underline" },
 
   footerLinks: { flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 6, marginTop: 10, marginBottom: 10 },
-  footerText: { color: "#64748B", fontSize: 14, fontWeight: "500" },
+  footerText: { fontSize: 14, fontWeight: "500" },
   linkText: { color: BRAND_GRADIENT[0], fontSize: 14, fontWeight: "800" },
 });

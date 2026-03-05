@@ -2,7 +2,7 @@ import React, { useState, useCallback } from "react";
 import {
   View, Text, StyleSheet, ScrollView, Pressable,
   ActivityIndicator, Image, Modal, TextInput, Alert,
-  RefreshControl // <-- 1. Importamos RefreshControl
+  RefreshControl, useColorScheme
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useFocusEffect } from "expo-router";
@@ -12,13 +12,16 @@ import { LinearGradient } from "expo-linear-gradient";
 import QRCode from "react-native-qrcode-svg";
 import * as ImagePicker from "expo-image-picker";
 import { supabase } from "@/lib/supabase"; 
-import { BRAND_GRADIENT } from "@/constants/colors";
+import { BRAND_GRADIENT, Colors } from "@/constants/colors"; // <-- Paleta dinámica
 
 const BASE_URL = "https://www.flagdurango.com.mx";
 
 export default function PlayerDashboard() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+
+  const theme = useColorScheme() ?? "light";
+  const currentColors = Colors[theme];
   
   const [user, setUser] = useState<any>(null);
   const [playerInfo, setPlayerInfo] = useState<any>(null);
@@ -26,9 +29,7 @@ export default function PlayerDashboard() {
   const [joinRequests, setJoinRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   
-  // --- 2. Nuevo estado para el Refresh ---
   const [refreshing, setRefreshing] = useState(false);
-  
   const [uploadingImage, setUploadingImage] = useState(false);
 
   // --- Modales ---
@@ -98,7 +99,6 @@ export default function PlayerDashboard() {
     }
   };
 
-  // --- 3. Función que se dispara al deslizar hacia abajo ---
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await loadDashboardData();
@@ -265,20 +265,20 @@ export default function PlayerDashboard() {
     router.replace("/login");
   };
 
-  // Prevenimos que se vea el Loader gigante si el usuario solo está arrastrando para recargar
   if (loading && !refreshing && !playerInfo) {
-    return <View style={styles.loading}><ActivityIndicator size="large" color={BRAND_GRADIENT[0]} /></View>;
+    return <View style={[styles.loading, { backgroundColor: currentColors.bg }]}><ActivityIndicator size="large" color={BRAND_GRADIENT[0]} /></View>;
   }
 
   const myCategories = playerTeams.map(pt => pt.team?.category);
+  // Color principal de la tarjeta de gafete (se mantiene con la identidad del equipo o color base oscuro)
   const mainColor = playerTeams.length > 0 && playerTeams[0].team?.color1 ? playerTeams[0].team.color1 : "#1E293B";
   const qrValue = playerInfo ? `PLAYER-${playerInfo.id}` : "INVALID";
   const hasPhoto = playerInfo?.photo_url && !playerInfo.photo_url.startsWith('blob:');
 
   return (
-    <View style={styles.container}>
-      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
-        <Text style={styles.headerTitle}>Mi Perfil</Text>
+    <View style={[styles.container, { backgroundColor: currentColors.bg }]}>
+      <View style={[styles.header, { paddingTop: insets.top + 10, backgroundColor: currentColors.card, borderBottomColor: currentColors.border }]}>
+        <Text style={[styles.headerTitle, { color: currentColors.text }]}>Mi Perfil</Text>
         <Pressable onPress={handleLogout} style={styles.logoutIcon}>
           <Ionicons name="log-out-outline" size={26} color="#EF4444" />
         </Pressable>
@@ -287,7 +287,6 @@ export default function PlayerDashboard() {
       <ScrollView 
         contentContainerStyle={styles.scrollContent} 
         showsVerticalScrollIndicator={false}
-        // --- 4. Conectamos el RefreshControl ---
         refreshControl={
           <RefreshControl 
             refreshing={refreshing} 
@@ -298,28 +297,28 @@ export default function PlayerDashboard() {
         }
       >
         
-        {/* --- GAFETE DIGITAL (MASTER QR) --- */}
+        {/* --- GAFETE DIGITAL (Mantenemos diseño de credencial para contraste del QR) --- */}
         {playerInfo && (
-          <View style={[styles.qrCard, { borderColor: mainColor }]}>
+          <View style={[styles.qrCard, { borderColor: mainColor, backgroundColor: theme === 'dark' ? '#1E293B' : '#FFFFFF' }]}>
             <LinearGradient colors={[mainColor, "#0F172A"]} style={styles.qrHeader}>
               <Text style={styles.qrTeamName}>FLAG DURANGO PASSPORT</Text>
             </LinearGradient>
             
             <View style={styles.qrBody}>
-              <Pressable style={styles.playerPhotoRing} onPress={handlePickImage} disabled={uploadingImage}>
+              <Pressable style={[styles.playerPhotoRing, { backgroundColor: theme === 'dark' ? '#0F172A' : '#F1F5F9', borderColor: theme === 'dark' ? '#1E293B' : '#FFFFFF' }]} onPress={handlePickImage} disabled={uploadingImage}>
                 {uploadingImage ? (
                   <ActivityIndicator color={mainColor} size="small" />
                 ) : hasPhoto ? (
                   <Image source={{ uri: playerInfo.photo_url }} style={styles.playerPhoto} resizeMode="cover" />
                 ) : (
-                  <Ionicons name="person" size={45} color="#CBD5E1" />
+                  <Ionicons name="person" size={45} color={theme === 'dark' ? '#475569' : '#CBD5E1'} />
                 )}
-                <View style={[styles.cameraBadge, { backgroundColor: mainColor }]}>
+                <View style={[styles.cameraBadge, { backgroundColor: mainColor, borderColor: theme === 'dark' ? '#1E293B' : '#FFFFFF' }]}>
                   <Ionicons name="camera" size={14} color="#FFF" />
                 </View>
               </Pressable>
 
-              <Text style={styles.playerName}>{playerInfo.name}</Text>
+              <Text style={[styles.playerName, { color: theme === 'dark' ? '#F8FAFC' : '#0F172A' }]}>{playerInfo.name}</Text>
               
               <View style={styles.autoSaveBadge}>
                 <Ionicons name="cloud-done-outline" size={12} color="#94A3B8" />
@@ -327,19 +326,20 @@ export default function PlayerDashboard() {
               </View>
 
               {/* Stats Rápidas en el Gafete */}
-              <View style={styles.badgeStatsRow}>
+              <View style={[styles.badgeStatsRow, { backgroundColor: theme === 'dark' ? '#0F172A' : '#F8FAFC', borderColor: theme === 'dark' ? '#334155' : '#E2E8F0' }]}>
                 <View style={styles.badgeStat}>
-                  <Text style={styles.badgeStatValue}>{playerInfo.seasons_played || 0}</Text>
+                  <Text style={[styles.badgeStatValue, { color: theme === 'dark' ? '#F8FAFC' : '#0F172A' }]}>{playerInfo.seasons_played || 0}</Text>
                   <Text style={styles.badgeStatLabel}>TEMPS</Text>
                 </View>
-                <View style={styles.badgeStatDivider} />
+                <View style={[styles.badgeStatDivider, { backgroundColor: theme === 'dark' ? '#334155' : '#E2E8F0' }]} />
                 <View style={styles.badgeStat}>
-                  <Text style={styles.badgeStatValue}>{playerInfo.blood_type || "N/R"}</Text>
+                  <Text style={[styles.badgeStatValue, { color: theme === 'dark' ? '#F8FAFC' : '#0F172A' }]}>{playerInfo.blood_type || "N/R"}</Text>
                   <Text style={styles.badgeStatLabel}>SANGRE</Text>
                 </View>
               </View>
 
-              <View style={styles.qrWrapper}>
+              {/* EL QR DEBE SER SIEMPRE BLANCO Y NEGRO PARA QUE SE PUEDA ESCANEAR */}
+              <View style={[styles.qrWrapper, { backgroundColor: '#FFFFFF', borderColor: '#E2E8F0' }]}>
                 <QRCode value={qrValue} size={150} color="#0F172A" backgroundColor="#FFFFFF" />
               </View>
               <Text style={styles.qrInstructions}>Muestra este QR al árbitro en el campo</Text>
@@ -353,7 +353,7 @@ export default function PlayerDashboard() {
         )}
 
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Mis Equipos</Text>
+          <Text style={[styles.sectionTitle, { color: currentColors.text }]}>Mis Equipos</Text>
           <Pressable style={styles.addBtn} onPress={openJoinModal}>
             <Ionicons name="add" size={16} color="#FFF" />
             <Text style={styles.addBtnText}>Unirme a otro</Text>
@@ -361,19 +361,19 @@ export default function PlayerDashboard() {
         </View>
 
         {playerTeams.length === 0 ? (
-          <View style={styles.emptyCard}>
-            <Text style={styles.emptyText}>Sin equipo actualmente.</Text>
+          <View style={[styles.emptyCard, { backgroundColor: currentColors.card, borderColor: currentColors.border }]}>
+            <Text style={[styles.emptyText, { color: currentColors.textMuted }]}>Sin equipo actualmente.</Text>
           </View>
         ) : (
           playerTeams.map((pt, idx) => (
-            <View key={idx} style={styles.teamCard}>
+            <View key={idx} style={[styles.teamCard, { backgroundColor: currentColors.card, borderColor: currentColors.border }]}>
               <View style={styles.teamCardInfo}>
-                <Text style={styles.teamCardName}>{pt.team?.name}</Text>
-                <Text style={styles.teamCardCat}>{pt.team?.category}</Text>
+                <Text style={[styles.teamCardName, { color: currentColors.text }]}>{pt.team?.name}</Text>
+                <Text style={[styles.teamCardCat, { color: currentColors.textSecondary }]}>{pt.team?.category}</Text>
               </View>
-              <View style={styles.teamCardStats}>
+              <View style={[styles.teamCardStats, { backgroundColor: currentColors.bgSecondary }]}>
                 <Text style={styles.teamCardJersey}>#{pt.jersey_number}</Text>
-                <Text style={styles.teamCardPos}>{pt.position}</Text>
+                <Text style={[styles.teamCardPos, { color: currentColors.textMuted }]}>{pt.position}</Text>
               </View>
             </View>
           ))
@@ -381,19 +381,24 @@ export default function PlayerDashboard() {
 
         {joinRequests.length > 0 && (
           <>
-            <Text style={[styles.sectionTitle, { marginTop: 25 }]}>Estatus de Solicitudes</Text>
+            <Text style={[styles.sectionTitle, { marginTop: 25, color: currentColors.text }]}>Estatus de Solicitudes</Text>
             {joinRequests.map(req => (
-              <View key={req.id} style={styles.requestCard}>
+              <View key={req.id} style={[styles.requestCard, { backgroundColor: currentColors.card, borderColor: currentColors.border }]}>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.reqTeamName}>{req.teams?.name}</Text>
-                  <Text style={styles.reqCatName}>{req.teams?.category}</Text>
+                  <Text style={[styles.reqTeamName, { color: currentColors.text }]}>{req.teams?.name}</Text>
+                  <Text style={[styles.reqCatName, { color: currentColors.textSecondary }]}>{req.teams?.category}</Text>
                 </View>
                 <View style={[
                   styles.statusBadge, 
-                  req.status === 'accepted' ? styles.badgeGreen : 
-                  req.status === 'rejected' ? styles.badgeRed : styles.badgeYellow
+                  req.status === 'accepted' ? (theme === 'dark' ? {backgroundColor: '#064E3B'} : styles.badgeGreen) : 
+                  req.status === 'rejected' ? (theme === 'dark' ? {backgroundColor: '#7F1D1D'} : styles.badgeRed) : 
+                  (theme === 'dark' ? {backgroundColor: '#78350F'} : styles.badgeYellow)
                 ]}>
-                  <Text style={styles.statusText}>{req.status.toUpperCase()}</Text>
+                  <Text style={[styles.statusText, { 
+                    color: req.status === 'accepted' ? (theme === 'dark' ? '#34D399' : '#0F172A') : 
+                           req.status === 'rejected' ? (theme === 'dark' ? '#FCA5A5' : '#0F172A') : 
+                           (theme === 'dark' ? '#FDE68A' : '#0F172A')
+                  }]}>{req.status.toUpperCase()}</Text>
                 </View>
               </View>
             ))}
@@ -401,7 +406,7 @@ export default function PlayerDashboard() {
         )}
 
         <Pressable 
-          style={styles.deleteAccountBtn} 
+          style={[styles.deleteAccountBtn, { backgroundColor: theme === 'dark' ? 'rgba(239,68,68,0.1)' : "#FEF2F2", borderColor: theme === 'dark' ? 'rgba(239,68,68,0.3)' : "#FECACA" }]} 
           onPress={handleDeleteAccount}
         >
           <Ionicons name="warning-outline" size={18} color="#EF4444" />
@@ -413,10 +418,10 @@ export default function PlayerDashboard() {
       {/* MODAL: BUSCAR EQUIPO */}
       <Modal visible={showJoinModal} animationType="slide" transparent={true}>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, { backgroundColor: currentColors.card }]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Inscribirse en Equipo</Text>
-              <Pressable onPress={() => setShowJoinModal(false)}><Ionicons name="close" size={24} color="#64748B" /></Pressable>
+              <Text style={[styles.modalTitle, { color: currentColors.text }]}>Inscribirse en Equipo</Text>
+              <Pressable onPress={() => setShowJoinModal(false)}><Ionicons name="close" size={24} color={currentColors.textMuted} /></Pressable>
             </View>
             <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 350 }}>
               <View style={styles.teamList}>
@@ -427,29 +432,34 @@ export default function PlayerDashboard() {
                     <Pressable 
                       key={t.id} 
                       disabled={isBlocked}
-                      style={[styles.teamItem, isSelected && styles.teamItemActive, isBlocked && styles.teamItemBlocked]}
+                      style={[
+                        styles.teamItem, 
+                        { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.borderLight },
+                        isSelected && [styles.teamItemActive, { backgroundColor: theme === 'dark' ? 'rgba(59,130,246,0.2)' : '#EFF6FF', borderColor: BRAND_GRADIENT[0] }], 
+                        isBlocked && styles.teamItemBlocked
+                      ]}
                       onPress={() => setSelectedTeamId(t.id)}
                     >
                       <View style={{ flex: 1 }}>
-                        <Text style={[styles.teamItemText, isSelected && styles.teamItemTextActive]}>{t.name}</Text>
-                        <Text style={styles.teamItemCatText}>{t.category}</Text>
+                        <Text style={[styles.teamItemText, { color: currentColors.text }, isSelected && styles.teamItemTextActive]}>{t.name}</Text>
+                        <Text style={[styles.teamItemCatText, { color: currentColors.textSecondary }]}>{t.category}</Text>
                       </View>
                       {isBlocked && <Ionicons name="lock-closed" size={16} color="#EF4444" />}
                     </Pressable>
                   );
                 })}
               </View>
-              <View style={styles.divider} />
+              <View style={[styles.divider, { backgroundColor: currentColors.borderLight }]} />
               <View style={styles.rowInputs}>
-                <View style={styles.inputGroup}><Text style={styles.inputTitle}>Posición</Text>
-                  <TextInput style={styles.modalInput} value={joinPosition} onChangeText={setJoinPosition} autoCapitalize="characters" />
+                <View style={styles.inputGroup}><Text style={[styles.inputTitle, { color: currentColors.textMuted }]}>Posición</Text>
+                  <TextInput style={[styles.modalInput, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border, color: currentColors.text }]} value={joinPosition} onChangeText={setJoinPosition} autoCapitalize="characters" />
                 </View>
-                <View style={styles.inputGroup}><Text style={styles.inputTitle}>Jersey #</Text>
-                  <TextInput style={styles.modalInput} value={joinJersey} onChangeText={setJoinJersey} keyboardType="numeric" maxLength={2} />
+                <View style={styles.inputGroup}><Text style={[styles.inputTitle, { color: currentColors.textMuted }]}>Jersey #</Text>
+                  <TextInput style={[styles.modalInput, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border, color: currentColors.text }]} value={joinJersey} onChangeText={setJoinJersey} keyboardType="numeric" maxLength={2} />
                 </View>
               </View>
             </ScrollView>
-            <Pressable style={styles.submitBtn} onPress={handleJoinTeam}><Text style={styles.submitBtnText}>Enviar Solicitud</Text></Pressable>
+            <Pressable style={[styles.submitBtn, { backgroundColor: BRAND_GRADIENT[0] }]} onPress={handleJoinTeam}><Text style={styles.submitBtnText}>Enviar Solicitud</Text></Pressable>
           </View>
         </View>
       </Modal>
@@ -457,32 +467,32 @@ export default function PlayerDashboard() {
       {/* MODAL: EDITAR PERFIL */}
       <Modal visible={showEditModal} animationType="fade" transparent={true}>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, { backgroundColor: currentColors.card }]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Información de Perfil</Text>
-              <Pressable onPress={() => setShowEditModal(false)}><Ionicons name="close" size={24} color="#64748B" /></Pressable>
+              <Text style={[styles.modalTitle, { color: currentColors.text }]}>Información de Perfil</Text>
+              <Pressable onPress={() => setShowEditModal(false)}><Ionicons name="close" size={24} color={currentColors.textMuted} /></Pressable>
             </View>
             <ScrollView showsVerticalScrollIndicator={false}>
               
-              <Text style={styles.inputTitle}>Experiencia en la liga</Text>
+              <Text style={[styles.inputTitle, { color: currentColors.textMuted }]}>Experiencia en la liga</Text>
               <View style={styles.rowInputs}>
                  <View style={{flex: 1}}>
-                    <TextInput style={styles.modalInputLeft} placeholder="Temporadas" value={editSeasons} onChangeText={setEditSeasons} keyboardType="numeric" />
+                    <TextInput style={[styles.modalInputLeft, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border, color: currentColors.text }]} placeholderTextColor={currentColors.textMuted} placeholder="Temporadas" value={editSeasons} onChangeText={setEditSeasons} keyboardType="numeric" />
                  </View>
                  <View style={{flex: 1}}>
-                    <TextInput style={styles.modalInputLeft} placeholder="Año de Inicio" value={editSince} onChangeText={setEditSince} keyboardType="numeric" maxLength={4} />
+                    <TextInput style={[styles.modalInputLeft, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border, color: currentColors.text }]} placeholderTextColor={currentColors.textMuted} placeholder="Año de Inicio" value={editSince} onChangeText={setEditSince} keyboardType="numeric" maxLength={4} />
                  </View>
               </View>
 
-              <Text style={styles.inputTitle}>Datos de Salud</Text>
-              <TextInput style={styles.modalInputLeft} placeholder="Tipo de Sangre" value={editBlood} onChangeText={setEditBlood} />
-              <TextInput style={styles.modalInputLeft} placeholder="Teléfono Personal" value={editPhone} onChangeText={setEditPhone} keyboardType="phone-pad" />
+              <Text style={[styles.inputTitle, { color: currentColors.textMuted }]}>Datos de Salud</Text>
+              <TextInput style={[styles.modalInputLeft, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border, color: currentColors.text }]} placeholderTextColor={currentColors.textMuted} placeholder="Tipo de Sangre" value={editBlood} onChangeText={setEditBlood} />
+              <TextInput style={[styles.modalInputLeft, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border, color: currentColors.text }]} placeholderTextColor={currentColors.textMuted} placeholder="Teléfono Personal" value={editPhone} onChangeText={setEditPhone} keyboardType="phone-pad" />
               
-              <Text style={styles.inputTitle}>Contacto Emergencia</Text>
-              <TextInput style={styles.modalInputLeft} placeholder="Nombre Contacto" value={editEmergencyName} onChangeText={setEditEmergencyName} />
-              <TextInput style={styles.modalInputLeft} placeholder="Tel. Emergencia" value={editEmergencyPhone} onChangeText={setEditEmergencyPhone} keyboardType="phone-pad" />
+              <Text style={[styles.inputTitle, { color: currentColors.textMuted }]}>Contacto Emergencia</Text>
+              <TextInput style={[styles.modalInputLeft, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border, color: currentColors.text }]} placeholderTextColor={currentColors.textMuted} placeholder="Nombre Contacto" value={editEmergencyName} onChangeText={setEditEmergencyName} />
+              <TextInput style={[styles.modalInputLeft, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border, color: currentColors.text }]} placeholderTextColor={currentColors.textMuted} placeholder="Tel. Emergencia" value={editEmergencyPhone} onChangeText={setEditEmergencyPhone} keyboardType="phone-pad" />
             </ScrollView>
-            <Pressable style={styles.submitBtn} onPress={handleEditProfile}><Text style={styles.submitBtnText}>Guardar Cambios</Text></Pressable>
+            <Pressable style={[styles.submitBtn, { backgroundColor: BRAND_GRADIENT[0] }]} onPress={handleEditProfile}><Text style={styles.submitBtnText}>Guardar Cambios</Text></Pressable>
           </View>
         </View>
       </Modal>
@@ -490,77 +500,78 @@ export default function PlayerDashboard() {
   );
 }
 
+// Retiramos colores fijos del StyleSheet
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F8FAFC" },
+  container: { flex: 1 },
   loading: { flex: 1, justifyContent: "center", alignItems: "center" },
-  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 20, paddingBottom: 15, backgroundColor: "#FFFFFF", borderBottomWidth: 1, borderColor: "#E2E8F0" },
-  headerTitle: { fontSize: 26, fontWeight: "900", color: "#0F172A", letterSpacing: -1 },
+  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 20, paddingBottom: 15, borderBottomWidth: 1 },
+  headerTitle: { fontSize: 26, fontWeight: "900", letterSpacing: -1 },
   logoutIcon: { padding: 5 },
   scrollContent: { padding: 20, paddingBottom: 100 },
-  qrCard: { backgroundColor: "#FFFFFF", borderRadius: 24, borderWidth: 2, elevation: 8, shadowColor: "#000", shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.15, shadowRadius: 20, overflow: "hidden", marginBottom: 25 },
+  qrCard: { borderRadius: 24, borderWidth: 2, elevation: 8, shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.15, shadowRadius: 20, overflow: "hidden", marginBottom: 25 },
   qrHeader: { paddingVertical: 14, alignItems: "center" },
   qrTeamName: { color: "#FFFFFF", fontSize: 14, fontWeight: "900", letterSpacing: 2 },
   qrBody: { alignItems: "center", padding: 20 },
-  playerPhotoRing: { width: 84, height: 84, borderRadius: 42, backgroundColor: "#F1F5F9", justifyContent: "center", alignItems: "center", borderWidth: 3, borderColor: "#FFFFFF", elevation: 5, marginTop: -45, marginBottom: 10 },
+  playerPhotoRing: { width: 84, height: 84, borderRadius: 42, justifyContent: "center", alignItems: "center", borderWidth: 3, elevation: 5, marginTop: -45, marginBottom: 10 },
   playerPhoto: { width: "100%", height: "100%", borderRadius: 42 },
-  cameraBadge: { position: "absolute", bottom: 0, right: -4, width: 26, height: 26, borderRadius: 13, justifyContent: "center", alignItems: "center", borderWidth: 2, borderColor: "#FFFFFF" },
-  playerName: { fontSize: 22, fontWeight: "900", color: "#0F172A", marginBottom: 5 },
+  cameraBadge: { position: "absolute", bottom: 0, right: -4, width: 26, height: 26, borderRadius: 13, justifyContent: "center", alignItems: "center", borderWidth: 2 },
+  playerName: { fontSize: 22, fontWeight: "900", marginBottom: 5 },
   autoSaveBadge: { flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 12 },
-  autoSaveText: { fontSize: 10, fontWeight: "700", color: "#94A3B8", textTransform: "uppercase" },
+  autoSaveText: { fontSize: 10, fontWeight: "700", textTransform: "uppercase" },
 
   // Estilos de Stats del Gafete
-  badgeStatsRow: { flexDirection: "row", backgroundColor: "#F8FAFC", borderRadius: 12, padding: 10, marginBottom: 20, borderWidth: 1, borderColor: "#E2E8F0" },
+  badgeStatsRow: { flexDirection: "row", borderRadius: 12, padding: 10, marginBottom: 20, borderWidth: 1 },
   badgeStat: { alignItems: "center", minWidth: 65 },
-  badgeStatValue: { fontSize: 16, fontWeight: "900", color: "#0F172A" },
+  badgeStatValue: { fontSize: 16, fontWeight: "900" },
   badgeStatLabel: { fontSize: 8, fontWeight: "800", color: "#94A3B8" },
-  badgeStatDivider: { width: 1, height: 20, backgroundColor: "#E2E8F0", marginHorizontal: 15 },
+  badgeStatDivider: { width: 1, height: 20, marginHorizontal: 15 },
 
-  qrWrapper: { padding: 15, backgroundColor: "#FFFFFF", borderRadius: 20, borderWidth: 1, borderColor: "#E2E8F0" },
+  qrWrapper: { padding: 15, borderRadius: 20, borderWidth: 1 },
   qrInstructions: { fontSize: 11, color: "#94A3B8", textAlign: "center", marginTop: 12, fontWeight: "600" },
   editProfileBtn: { backgroundColor: "#1E293B", flexDirection: "row", justifyContent: "center", alignItems: "center", paddingVertical: 12, gap: 8 },
   editProfileText: { color: "#FFFFFF", fontSize: 12, fontWeight: "800" },
   sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
-  sectionTitle: { fontSize: 17, fontWeight: "900", color: "#0F172A" },
+  sectionTitle: { fontSize: 17, fontWeight: "900" },
   addBtn: { flexDirection: "row", backgroundColor: BRAND_GRADIENT[0], paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10, alignItems: "center", gap: 4 },
   addBtnText: { color: "#FFF", fontSize: 11, fontWeight: "800" },
-  emptyCard: { backgroundColor: "#FFFFFF", padding: 20, borderRadius: 16, alignItems: "center", borderWidth: 1, borderColor: "#E2E8F0", borderStyle: "dashed" },
-  emptyText: { color: "#64748B", fontSize: 13 },
-  teamCard: { flexDirection: "row", backgroundColor: "#FFFFFF", padding: 15, borderRadius: 16, marginBottom: 10, alignItems: "center", borderWidth: 1, borderColor: "#E2E8F0" },
+  emptyCard: { padding: 20, borderRadius: 16, alignItems: "center", borderWidth: 1, borderStyle: "dashed" },
+  emptyText: { fontSize: 13 },
+  teamCard: { flexDirection: "row", padding: 15, borderRadius: 16, marginBottom: 10, alignItems: "center", borderWidth: 1 },
   teamCardInfo: { flex: 1 },
-  teamCardName: { fontSize: 16, fontWeight: "800", color: "#0F172A" },
-  teamCardCat: { fontSize: 11, color: "#64748B" },
-  teamCardStats: { alignItems: "center", backgroundColor: "#F8FAFC", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10 },
+  teamCardName: { fontSize: 16, fontWeight: "800" },
+  teamCardCat: { fontSize: 11 },
+  teamCardStats: { alignItems: "center", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10 },
   teamCardJersey: { fontSize: 16, fontWeight: "900", color: BRAND_GRADIENT[0] },
-  teamCardPos: { fontSize: 10, fontWeight: "800", color: "#64748B" },
-  requestCard: { flexDirection: "row", backgroundColor: "#FFFFFF", padding: 15, borderRadius: 16, marginBottom: 10, alignItems: "center", borderWidth: 1, borderColor: "#E2E8F0" },
+  teamCardPos: { fontSize: 10, fontWeight: "800" },
+  requestCard: { flexDirection: "row", padding: 15, borderRadius: 16, marginBottom: 10, alignItems: "center", borderWidth: 1 },
   reqTeamName: { fontSize: 15, fontWeight: "800" },
-  reqCatName: { fontSize: 11, color: "#64748B" },
+  reqCatName: { fontSize: 11 },
   statusBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
   badgeYellow: { backgroundColor: "#FEF3C7" },
   badgeGreen: { backgroundColor: "#D1FAE5" },
   badgeRed: { backgroundColor: "#FEE2E2" },
   statusText: { fontSize: 10, fontWeight: "800" },
   
-  deleteAccountBtn: { marginTop: 40, padding: 16, backgroundColor: "#FEF2F2", borderRadius: 16, borderWidth: 1, borderColor: "#FECACA", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
+  deleteAccountBtn: { marginTop: 40, padding: 16, borderRadius: 16, borderWidth: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
   deleteAccountText: { color: "#EF4444", fontSize: 14, fontWeight: "800" },
 
   modalOverlay: { flex: 1, backgroundColor: "rgba(0, 0, 0, 0.5)", justifyContent: "flex-end" },
-  modalContent: { backgroundColor: "#FFFFFF", borderTopLeftRadius: 30, borderTopRightRadius: 30, padding: 25 },
+  modalContent: { borderTopLeftRadius: 30, borderTopRightRadius: 30, padding: 25 },
   modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 20 },
   modalTitle: { fontSize: 19, fontWeight: "900" },
   teamList: { gap: 8 },
-  teamItem: { flexDirection: "row", padding: 12, backgroundColor: "#F8FAFC", borderRadius: 12, marginBottom: 5, borderWidth: 1, borderColor: "#E2E8F0" },
-  teamItemActive: { backgroundColor: "#EFF6FF", borderColor: BRAND_GRADIENT[0] },
+  teamItem: { flexDirection: "row", padding: 12, borderRadius: 12, marginBottom: 5, borderWidth: 1 },
+  teamItemActive: {},
   teamItemBlocked: { opacity: 0.4 },
   teamItemText: { fontSize: 14, fontWeight: "700" },
   teamItemTextActive: { color: BRAND_GRADIENT[0] },
-  teamItemCatText: { fontSize: 10, color: "#64748B" },
-  divider: { height: 1, backgroundColor: "#E2E8F0", marginVertical: 15 },
+  teamItemCatText: { fontSize: 10 },
+  divider: { height: 1, marginVertical: 15 },
   rowInputs: { flexDirection: "row", gap: 10, marginBottom: 10 },
   inputGroup: { flex: 1 },
-  inputTitle: { fontSize: 10, fontWeight: "700", color: "#64748B", marginBottom: 5, textTransform: "uppercase" },
-  modalInput: { backgroundColor: "#F8FAFC", borderWidth: 1, borderColor: "#E2E8F0", borderRadius: 10, padding: 12, fontSize: 16, fontWeight: "700", textAlign: "center" },
-  modalInputLeft: { backgroundColor: "#F8FAFC", borderWidth: 1, borderColor: "#E2E8F0", borderRadius: 12, padding: 14, marginBottom: 12, fontSize: 14 },
-  submitBtn: { backgroundColor: "#0F172A", padding: 16, borderRadius: 14, alignItems: "center", marginTop: 10 },
+  inputTitle: { fontSize: 10, fontWeight: "700", marginBottom: 5, textTransform: "uppercase" },
+  modalInput: { borderWidth: 1, borderRadius: 10, padding: 12, fontSize: 16, fontWeight: "700", textAlign: "center" },
+  modalInputLeft: { borderWidth: 1, borderRadius: 12, padding: 14, marginBottom: 12, fontSize: 14 },
+  submitBtn: { padding: 16, borderRadius: 14, alignItems: "center", marginTop: 10 },
   submitBtnText: { color: "#FFFFFF", fontSize: 15, fontWeight: "800" },
 });

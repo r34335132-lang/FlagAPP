@@ -10,13 +10,14 @@ import {
   ActivityIndicator,
   ScrollView,
   RefreshControl,
+  useColorScheme
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { useTeams } from "@/hooks/useTeams";
-import { BRAND_GRADIENT } from "@/constants/colors";
+import { BRAND_GRADIENT, Colors } from "@/constants/colors"; // <-- Importamos paleta dinámica
 
 // Ramas principales
 const MAIN_CATEGORIES = [
@@ -35,6 +36,9 @@ export default function TeamsScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedMainCat, setSelectedMainCat] = useState("all");
   const [selectedSubCat, setSelectedSubCat] = useState("all");
+
+  const theme = useColorScheme() ?? "light";
+  const currentColors = Colors[theme];
 
   // --- LÓGICA DEL PULL-TO-REFRESH ---
   const [refreshing, setRefreshing] = useState(false);
@@ -95,7 +99,7 @@ export default function TeamsScreen() {
   // Ocultamos el ActivityIndicator inicial si estamos haciendo pull-to-refresh
   if (isLoading && !refreshing) {
     return (
-      <View style={styles.loading}>
+      <View style={[styles.loading, { backgroundColor: currentColors.bg }]}>
         <ActivityIndicator size="large" color={BRAND_GRADIENT[0]} />
       </View>
     );
@@ -104,12 +108,13 @@ export default function TeamsScreen() {
   // Componente de la Tarjeta del Equipo
   const renderTeamCard = ({ item }: { item: any }) => {
     const hasLogo = !!item.logo_url;
+    // Si no tienen color, les damos un gris oscuro por defecto (funciona bien en ambos modos)
     const color1 = item.color1 || "#334155";
     const color2 = item.color2 || "#0F172A";
 
     return (
       <Pressable 
-        style={styles.cardContainer}
+        style={[styles.cardContainer, { shadowColor: theme === 'dark' ? '#000' : '#0F172A' }]}
         // 👇 Navegación al detalle del equipo 👇
         onPress={() => router.push({ pathname: "/team/[id]", params: { id: item.id } })} 
       >
@@ -119,6 +124,7 @@ export default function TeamsScreen() {
           end={{ x: 1, y: 1 }}
           style={styles.cardGradient}
         >
+          {/* Mantenemos el fondo del logo en blanco para no romper imágenes JPG */}
           <View style={styles.logoWrapper}>
             {hasLogo ? (
               <Image source={{ uri: item.logo_url }} style={styles.teamLogo} resizeMode="contain" />
@@ -139,30 +145,35 @@ export default function TeamsScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: currentColors.bg }]}>
       {/* --- HEADER Y FILTROS --- */}
-      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
+      <View style={[styles.header, { 
+        paddingTop: insets.top + 10, 
+        backgroundColor: currentColors.card,
+        borderBottomColor: currentColors.border,
+        shadowColor: theme === 'dark' ? '#000' : '#0F172A'
+      }]}>
         <View style={styles.headerTop}>
-          <Text style={styles.title}>Equipos</Text>
+          <Text style={[styles.title, { color: currentColors.text }]}>Equipos</Text>
           <Pressable onPress={() => refetch()} style={styles.refreshBtn}>
-            <Ionicons name="refresh" size={20} color="#64748B" />
+            <Ionicons name="refresh" size={20} color={currentColors.textMuted} />
           </Pressable>
         </View>
 
         {/* BUSCADOR */}
-        <View style={styles.searchBar}>
-          <Ionicons name="search" size={20} color="#94A3B8" style={styles.searchIcon} />
+        <View style={[styles.searchBar, { backgroundColor: currentColors.bgSecondary }]}>
+          <Ionicons name="search" size={20} color={currentColors.textMuted} style={styles.searchIcon} />
           <TextInput
-            style={styles.searchInput}
+            style={[styles.searchInput, { color: currentColors.text }]}
             placeholder="Buscar equipo..."
-            placeholderTextColor="#94A3B8"
+            placeholderTextColor={currentColors.textMuted}
             value={searchQuery}
             onChangeText={setSearchQuery}
             autoCorrect={false}
           />
           {searchQuery.length > 0 && (
             <Pressable onPress={() => setSearchQuery("")}>
-              <Ionicons name="close-circle" size={20} color="#CBD5E1" />
+              <Ionicons name="close-circle" size={20} color={currentColors.textMuted} />
             </Pressable>
           )}
         </View>
@@ -181,7 +192,11 @@ export default function TeamsScreen() {
                 style={[styles.mainTab, isActive && styles.mainTabActive]}
                 onPress={() => setSelectedMainCat(cat.id)}
               >
-                <Text style={[styles.mainTabText, isActive && styles.mainTabTextActive]}>
+                <Text style={[
+                  styles.mainTabText, 
+                  { color: currentColors.textMuted },
+                  isActive && styles.mainTabTextActive
+                ]}>
                   {cat.label}
                 </Text>
                 {isActive && <View style={styles.activeIndicator} />}
@@ -192,17 +207,25 @@ export default function TeamsScreen() {
 
         {/* SELECTOR SECUNDARIO (Niveles) */}
         {selectedMainCat !== "all" && availableSubCats.length > 0 && (
-          <View style={styles.subCategoryWrapper}>
+          <View style={[styles.subCategoryWrapper, { backgroundColor: currentColors.bgSecondary, borderTopColor: currentColors.border }]}>
             <ScrollView 
               horizontal 
               showsHorizontalScrollIndicator={false} 
               contentContainerStyle={styles.subCategoryScroll}
             >
               <Pressable 
-                style={[styles.subChip, selectedSubCat === "all" && styles.subChipActive]}
+                style={[
+                  styles.subChip, 
+                  { backgroundColor: currentColors.card, borderColor: currentColors.border },
+                  selectedSubCat === "all" && { backgroundColor: currentColors.text, borderColor: currentColors.text }
+                ]}
                 onPress={() => setSelectedSubCat("all")}
               >
-                <Text style={[styles.subChipText, selectedSubCat === "all" && styles.subChipTextActive]}>
+                <Text style={[
+                  styles.subChipText, 
+                  { color: currentColors.textSecondary },
+                  selectedSubCat === "all" && { color: currentColors.bg }
+                ]}>
                   Todas
                 </Text>
               </Pressable>
@@ -210,10 +233,18 @@ export default function TeamsScreen() {
               {availableSubCats.map(sub => (
                 <Pressable 
                   key={sub} 
-                  style={[styles.subChip, selectedSubCat === sub && styles.subChipActive]}
+                  style={[
+                    styles.subChip, 
+                    { backgroundColor: currentColors.card, borderColor: currentColors.border },
+                    selectedSubCat === sub && { backgroundColor: currentColors.text, borderColor: currentColors.text }
+                  ]}
                   onPress={() => setSelectedSubCat(sub)}
                 >
-                  <Text style={[styles.subChipText, selectedSubCat === sub && styles.subChipTextActive]}>
+                  <Text style={[
+                    styles.subChipText, 
+                    { color: currentColors.textSecondary },
+                    selectedSubCat === sub && { color: currentColors.bg }
+                  ]}>
                     {sub.toUpperCase()}
                   </Text>
                 </Pressable>
@@ -231,7 +262,6 @@ export default function TeamsScreen() {
         contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 80 }]}
         columnWrapperStyle={styles.columnWrapper}
         showsVerticalScrollIndicator={false}
-        // 👇 AQUÍ ESTÁ EL PULL TO REFRESH 👇
         refreshControl={
           <RefreshControl 
             refreshing={refreshing} 
@@ -243,9 +273,9 @@ export default function TeamsScreen() {
         renderItem={renderTeamCard}
         ListEmptyComponent={
           <View style={styles.emptyState}>
-            <Ionicons name="shield-outline" size={60} color="#CBD5E1" />
-            <Text style={styles.emptyTitle}>No hay equipos</Text>
-            <Text style={styles.emptySub}>No encontramos equipos que coincidan con tu búsqueda.</Text>
+            <Ionicons name="shield-outline" size={60} color={currentColors.textMuted} />
+            <Text style={[styles.emptyTitle, { color: currentColors.text }]}>No hay equipos</Text>
+            <Text style={[styles.emptySub, { color: currentColors.textSecondary }]}>No encontramos equipos que coincidan con tu búsqueda.</Text>
           </View>
         }
       />
@@ -253,29 +283,26 @@ export default function TeamsScreen() {
   );
 }
 
+// Retiramos colores fijos para que no hagan conflicto con la paleta dinámica
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F8FAFC" },
+  container: { flex: 1 },
   loading: { flex: 1, justifyContent: "center", alignItems: "center" },
   
   header: { 
-    backgroundColor: "#FFFFFF", 
     borderBottomWidth: 1, 
-    borderColor: "#E2E8F0",
     paddingBottom: 10,
     zIndex: 10,
     elevation: 4,
-    shadowColor: "#000",
     shadowOpacity: 0.05,
     shadowRadius: 10,
   },
   headerTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 20, marginBottom: 15 },
-  title: { fontSize: 28, fontWeight: "900", color: "#0F172A", letterSpacing: -1 },
+  title: { fontSize: 28, fontWeight: "900", letterSpacing: -1 },
   refreshBtn: { padding: 5 },
 
   searchBar: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F1F5F9",
     borderRadius: 12,
     marginHorizontal: 20,
     paddingHorizontal: 12,
@@ -283,12 +310,12 @@ const styles = StyleSheet.create({
     marginBottom: 15,
   },
   searchIcon: { marginRight: 8 },
-  searchInput: { flex: 1, fontSize: 15, color: "#0F172A", fontWeight: "500" },
+  searchInput: { flex: 1, fontSize: 15, fontWeight: "500" },
 
   mainCategoryScroll: { paddingHorizontal: 20, paddingBottom: 10, gap: 20 },
   mainTab: { paddingVertical: 8, position: "relative", alignItems: "center" },
   mainTabActive: {},
-  mainTabText: { fontSize: 13, fontWeight: "700", color: "#94A3B8", letterSpacing: 0.5 },
+  mainTabText: { fontSize: 13, fontWeight: "700", letterSpacing: 0.5 },
   mainTabTextActive: { color: BRAND_GRADIENT[0] },
   activeIndicator: { 
     position: "absolute", 
@@ -300,10 +327,8 @@ const styles = StyleSheet.create({
   },
 
   subCategoryWrapper: {
-    backgroundColor: "#F8FAFC",
     paddingVertical: 12,
     borderTopWidth: 1,
-    borderTopColor: "#E2E8F0",
     marginTop: 10,
   },
   subCategoryScroll: { paddingHorizontal: 20, gap: 8 },
@@ -311,13 +336,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 6,
     borderRadius: 16,
-    backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: "#E2E8F0",
   },
-  subChipActive: { backgroundColor: "#0F172A", borderColor: "#0F172A" },
-  subChipText: { fontSize: 12, fontWeight: "700", color: "#64748B" },
-  subChipTextActive: { color: "#FFFFFF" },
+  subChipActive: {},
+  subChipText: { fontSize: 12, fontWeight: "700" },
+  subChipTextActive: {},
 
   listContent: { padding: 15, paddingTop: 20 },
   columnWrapper: { gap: 15, justifyContent: "space-between", marginBottom: 15 },
@@ -328,12 +351,12 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     overflow: "hidden",
     elevation: 5,
-    shadowColor: "#000",
     shadowOpacity: 0.1,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 4 },
   },
   cardGradient: { flex: 1, padding: 16, alignItems: "center", justifyContent: "center" },
+  // Dejamos el logo wrapper blanco para asegurar que las imágenes se vean limpias
   logoWrapper: {
     width: 70,
     height: 70,
@@ -356,6 +379,6 @@ const styles = StyleSheet.create({
   categoryText: { fontSize: 9, fontWeight: "800", color: "#FFFFFF", letterSpacing: 1 },
 
   emptyState: { alignItems: "center", marginTop: 80, paddingHorizontal: 20 },
-  emptyTitle: { fontSize: 18, fontWeight: "800", color: "#0F172A", marginTop: 12 },
-  emptySub: { fontSize: 14, color: "#64748B", textAlign: "center", marginTop: 6 },
+  emptyTitle: { fontSize: 18, fontWeight: "800", marginTop: 12 },
+  emptySub: { fontSize: 14, textAlign: "center", marginTop: 6 },
 });
