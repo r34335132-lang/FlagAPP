@@ -14,7 +14,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { usePlayer } from "@/hooks/useTeams"; 
-import { BRAND_GRADIENT, Colors } from "@/constants/colors"; // <-- Paleta dinámica
+import { BRAND_GRADIENT, Colors } from "@/constants/colors";
 
 export default function PlayerProfileScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -49,9 +49,13 @@ export default function PlayerProfileScreen() {
   const teamColor = player.teams?.color1 || BRAND_GRADIENT[0];
   const hasPhoto = player.photo_url && !player.photo_url.startsWith('blob:');
 
+  // Obtenemos el historial directamente de nuestro hook modificado
+  const gameHistory = player.gameHistory || [];
+  const realAttendanceCount = player.attendance_count || 0;
+
   return (
     <View style={[styles.container, { backgroundColor: currentColors.bg }]}>
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 50 }}>
         
         {/* --- HEADER DEL JUGADOR --- */}
         <LinearGradient 
@@ -91,7 +95,7 @@ export default function PlayerProfileScreen() {
               <View style={[styles.statIconWrap, { backgroundColor: theme === 'dark' ? 'rgba(16, 185, 129, 0.2)' : '#ECFDF5' }]}>
                 <Ionicons name="calendar-outline" size={22} color="#10B981" />
               </View>
-              <Text style={[styles.statNumber, { color: currentColors.text }]}>{player.attendance_count || 0}</Text>
+              <Text style={[styles.statNumber, { color: currentColors.text }]}>{realAttendanceCount}</Text>
               <Text style={[styles.statLabel, { color: currentColors.textSecondary }]}>ASISTENCIAS</Text>
             </View>
 
@@ -115,13 +119,13 @@ export default function PlayerProfileScreen() {
                 style={[styles.teamCard, { backgroundColor: currentColors.card, borderColor: currentColors.border }]} 
                 onPress={() => router.push(`/team/${player.teams.id}`)}
               >
-                {player.teams.logo_url ? (
-                  <Image source={{ uri: player.teams.logo_url }} style={styles.teamLogo} />
-                ) : (
-                  <View style={[styles.teamLogoFallback, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border }]}>
+                <View style={[styles.tinyTeamLogoWrapper, { borderColor: currentColors.border, backgroundColor: '#FFFFFF' }]}>
+                  {player.teams.logo_url ? (
+                    <Image source={{ uri: player.teams.logo_url }} style={styles.tinyTeamLogo} resizeMode="contain" />
+                  ) : (
                     <Ionicons name="shield" size={24} color={currentColors.textMuted} />
-                  </View>
-                )}
+                  )}
+                </View>
                 <View style={styles.teamInfo}>
                   <Text style={[styles.teamName, { color: currentColors.text }]}>{player.teams.name}</Text>
                   <View style={[styles.statusBadge, player.status === 'active' ? (theme === 'dark' ? {backgroundColor: '#064E3B'} : styles.bgGreen) : (theme === 'dark' ? {backgroundColor: '#78350F'} : styles.bgYellow)]}>
@@ -143,6 +147,51 @@ export default function PlayerProfileScreen() {
             <InfoRow icon="time-outline" label="Jugando desde" value={player.playing_since || "No registrado"} currentColors={currentColors} />
           </View>
 
+          {/* --- HISTORIAL DE ASISTENCIA (Línea de Tiempo) --- */}
+          <Text style={[styles.sectionTitle, { color: currentColors.text, marginTop: 25 }]}>Historial de Partidos</Text>
+          
+          {gameHistory.length > 0 ? (
+            <View style={[styles.historyContainer, { backgroundColor: currentColors.card, borderColor: currentColors.border }]}>
+              {gameHistory.map((game: any, index: number) => {
+                const isLast = index === gameHistory.length - 1;
+                // Determinamos contra quién jugó
+                const rival = game.home_team === player.teams?.name ? game.away_team : game.home_team;
+                
+                // Formateamos la fecha (sin la semana)
+                const dateObj = new Date(game.game_date);
+                const prettyDate = dateObj.toLocaleDateString('es-ES', { day: 'numeric', month: 'long' });
+
+                return (
+                  <View key={game.id} style={styles.historyRow}>
+                    <View style={styles.historyTimeline}>
+                      <View style={[styles.timelineDot, { backgroundColor: teamColor, borderColor: currentColors.card }]} />
+                      {!isLast && <View style={[styles.timelineLine, { backgroundColor: currentColors.border }]} />}
+                    </View>
+                    <View style={[styles.historyContent, { borderBottomColor: isLast ? 'transparent' : currentColors.borderLight }]}>
+                      <View>
+                        <Text style={[styles.historyMatch, { color: currentColors.text }]}>
+                          vs {rival}
+                        </Text>
+                        <Text style={[styles.historyDate, { color: currentColors.textMuted }]}>
+                          {prettyDate}
+                        </Text>
+                      </View>
+                      <View style={[styles.attendanceBadge, { backgroundColor: theme === 'dark' ? 'rgba(16, 185, 129, 0.1)' : '#ECFDF5' }]}>
+                        <Ionicons name="checkmark-circle" size={14} color="#10B981" />
+                        <Text style={[styles.attendanceText, { color: '#10B981' }]}>Presente</Text>
+                      </View>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          ) : (
+            <View style={[styles.emptyHistory, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border }]}>
+              <Ionicons name="calendar-clear-outline" size={32} color={currentColors.textMuted} />
+              <Text style={[styles.emptyHistoryText, { color: currentColors.textSecondary }]}>No hay registros de partidos jugados en esta temporada.</Text>
+            </View>
+          )}
+
         </View>
       </ScrollView>
     </View>
@@ -163,7 +212,6 @@ function InfoRow({ icon, label, value, currentColors }: any) {
   );
 }
 
-// Retiramos colores fijos
 const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
@@ -194,8 +242,8 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 17, fontWeight: "900", marginBottom: 12, marginLeft: 5 },
   
   teamCard: { flexDirection: "row", alignItems: "center", borderRadius: 20, padding: 15, borderWidth: 1, elevation: 1, marginBottom: 25 },
-  teamLogo: { width: 56, height: 56, borderRadius: 14, marginRight: 15 },
-  teamLogoFallback: { width: 56, height: 56, borderRadius: 14, justifyContent: "center", alignItems: "center", marginRight: 15, borderWidth: 1 },
+  tinyTeamLogoWrapper: { width: 56, height: 56, borderRadius: 14, justifyContent: 'center', alignItems: 'center', overflow: 'hidden', marginRight: 15, borderWidth: 1, padding: 4 },
+  tinyTeamLogo: { width: '100%', height: '100%' },
   teamInfo: { flex: 1 },
   teamName: { fontSize: 17, fontWeight: "900", marginBottom: 4 },
   statusBadge: { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
@@ -208,5 +256,18 @@ const styles = StyleSheet.create({
   infoIconBox: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center', marginRight: 15 },
   infoLabel: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase' },
   infoValue: { fontSize: 15, fontWeight: '700', marginTop: 2 },
-  divider: { height: 1, marginVertical: 8 }
+  divider: { height: 1, marginVertical: 8 },
+
+  historyContainer: { borderRadius: 20, padding: 20, borderWidth: 1, elevation: 1 },
+  historyRow: { flexDirection: 'row' },
+  historyTimeline: { width: 30, alignItems: 'center' },
+  timelineDot: { width: 12, height: 12, borderRadius: 6, borderWidth: 2, zIndex: 2, marginTop: 5 },
+  timelineLine: { width: 2, flex: 1, marginTop: -5, marginBottom: -10 },
+  historyContent: { flex: 1, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 20, borderBottomWidth: 1 },
+  historyMatch: { fontSize: 15, fontWeight: '800', marginBottom: 2 },
+  historyDate: { fontSize: 12, fontWeight: '600', textTransform: 'capitalize' },
+  attendanceBadge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12, gap: 4 },
+  attendanceText: { fontSize: 11, fontWeight: '800' },
+  emptyHistory: { padding: 30, borderRadius: 20, borderWidth: 1, borderStyle: 'dashed', alignItems: 'center' },
+  emptyHistoryText: { marginTop: 10, fontSize: 13, textAlign: 'center', fontWeight: '600' },
 });

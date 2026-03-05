@@ -15,9 +15,9 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { supabase } from "@/lib/supabase";
-import { BRAND_GRADIENT, Colors } from "@/constants/colors"; // <-- Importamos paleta
+import { BRAND_GRADIENT, Colors } from "@/constants/colors"; 
+import { useHeadToHead } from "@/hooks/useTeams"; // <-- IMPORTAMOS EL NUEVO HOOK
 
-// Herramientas para compartir
 import ViewShot from "react-native-view-shot";
 import * as Sharing from "expo-sharing";
 
@@ -120,6 +120,9 @@ export default function MatchDetailScreen() {
     }
   };
 
+  // --- CARGAMOS EL CARA A CARA ---
+  const { data: h2h } = useHeadToHead(game?.home_team, game?.away_team);
+
   const handleShare = async () => {
     try {
       if (scoreboardRef.current && scoreboardRef.current.capture) {
@@ -163,7 +166,10 @@ export default function MatchDetailScreen() {
   const homeRoster = players.filter(p => p.team_id === homeTeam?.id);
   const awayRoster = players.filter(p => p.team_id === awayTeam?.id);
   const currentDisplayRoster = activeRoster === "home" ? homeRoster : awayRoster;
-  const currentTeamColor = activeRoster === "home" ? (homeTeam?.color1 || BRAND_GRADIENT[0]) : (awayTeam?.color1 || currentColors.textMuted);
+  
+  const homeColor = homeTeam?.color1 || BRAND_GRADIENT[0];
+  const awayColor = awayTeam?.color1 || currentColors.textMuted;
+  const currentTeamColor = activeRoster === "home" ? homeColor : awayColor;
 
   return (
     <View style={[styles.container, { backgroundColor: currentColors.bg }]}>
@@ -174,7 +180,6 @@ export default function MatchDetailScreen() {
         <ViewShot 
           ref={scoreboardRef} 
           options={{ format: "jpg", quality: 0.9 }} 
-          // El fondo dinámico asegura que el screenshot comparta el tema del usuario
           style={{ backgroundColor: currentColors.bg, paddingBottom: 10 }}
         >
           <LinearGradient colors={[BRAND_GRADIENT[0], BRAND_GRADIENT[1]]} style={[styles.scoreboard, { paddingTop: insets.top + 60 }]}>
@@ -185,7 +190,6 @@ export default function MatchDetailScreen() {
               <Text style={styles.categoryHeader}>{game.category?.toUpperCase()} • {game.match_type?.toUpperCase()}</Text>
             </View>
 
-            {/* --- SECCIÓN DE LOGOS Y MARCADOR CORREGIDA --- */}
             <View style={styles.teamsMainRow}>
               <View style={styles.teamBrand}>
                 <View style={styles.logoCircleFixed}>
@@ -255,8 +259,8 @@ export default function MatchDetailScreen() {
             {/* --- ESTADÍSTICAS DEL MARCADOR --- */}
             <Text style={[styles.sectionTitle, { color: currentColors.text }]}>Análisis de Anotaciones</Text>
             <View style={[styles.statsCard, { backgroundColor: currentColors.card, borderColor: currentColors.border }]}>
-              <StatBar label="Touchdowns (6 pts)" home={hTDs} away={aTDs} />
-              <StatBar label="Extras / Safeties" home={hExtra} away={aExtra} />
+              <StatBar label="Touchdowns (6 pts)" home={hTDs} away={aTDs} colors={currentColors} />
+              <StatBar label="Extras / Safeties" home={hExtra} away={aExtra} colors={currentColors} />
 
               <View style={[styles.efficiencyContainer, { borderTopColor: currentColors.borderLight }]}>
                  <View style={styles.fullBar}>
@@ -265,6 +269,53 @@ export default function MatchDetailScreen() {
                  </View>
               </View>
             </View>
+
+            {/* --- CARA A CARA (HEAD-TO-HEAD) --- */}
+            {h2h && (
+              <>
+                <Text style={[styles.sectionTitle, { color: currentColors.text, marginTop: 20 }]}>Cara a Cara (Historial)</Text>
+                <View style={[styles.h2hCard, { backgroundColor: currentColors.card, borderColor: currentColors.border }]}>
+                  {h2h.totalGames === 0 ? (
+                    <View style={styles.h2hEmpty}>
+                      <Ionicons name="shield-half-outline" size={32} color={currentColors.textMuted} />
+                      <Text style={[styles.h2hEmptyText, { color: currentColors.textSecondary }]}>Primer enfrentamiento registrado en la liga.</Text>
+                    </View>
+                  ) : (
+                    <>
+                      <View style={styles.h2hRow}>
+                        <View style={styles.h2hTeam}>
+                          <Text style={[styles.h2hWins, { color: homeColor }]}>{h2h.team1Wins}</Text>
+                          <Text style={[styles.h2hLabel, { color: currentColors.textSecondary }]}>Victorias</Text>
+                        </View>
+                        
+                        <View style={styles.h2hCenter}>
+                          <Text style={[styles.h2hTotal, { color: currentColors.text }]}>{h2h.totalGames}</Text>
+                          <Text style={[styles.h2hLabel, { color: currentColors.textSecondary }]}>Partidos</Text>
+                          {h2h.draws > 0 && <Text style={[styles.h2hDraws, { color: currentColors.textMuted }]}>{h2h.draws} Empates</Text>}
+                        </View>
+
+                        <View style={styles.h2hTeam}>
+                          <Text style={[styles.h2hWins, { color: awayColor }]}>{h2h.team2Wins}</Text>
+                          <Text style={[styles.h2hLabel, { color: currentColors.textSecondary }]}>Victorias</Text>
+                        </View>
+                      </View>
+
+                      {h2h.lastGame && (
+                        <View style={[styles.lastGameBox, { backgroundColor: currentColors.bgSecondary }]}>
+                          <Text style={[styles.lastGameTitle, { color: currentColors.textMuted }]}>ÚLTIMO ENFRENTAMIENTO</Text>
+                          <Text style={[styles.lastGameResult, { color: currentColors.text }]}>
+                            {h2h.lastGame.home_team}  <Text style={{color: BRAND_GRADIENT[0]}}>{h2h.lastGame.home_score}</Text> - <Text style={{color: BRAND_GRADIENT[0]}}>{h2h.lastGame.away_score}</Text>  {h2h.lastGame.away_team}
+                          </Text>
+                          <Text style={[styles.lastGameDate, { color: currentColors.textMuted }]}>
+                            {new Date(h2h.lastGame.game_date).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })}
+                          </Text>
+                        </View>
+                      )}
+                    </>
+                  )}
+                </View>
+              </>
+            )}
 
           </View>
         </ViewShot>
@@ -340,29 +391,25 @@ export default function MatchDetailScreen() {
   );
 }
 
-const StatBar = ({ label, home, away }: any) => {
-  const theme = useColorScheme() ?? "light";
-  const currentColors = Colors[theme];
-  
+const StatBar = ({ label, home, away, colors }: any) => {
   const total = home + away || 1;
   const homeWidth = (home / total) * 100;
   
   return (
     <View style={{ marginBottom: 20 }}>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 5 }}>
-        <Text style={[styles.statNum, { color: currentColors.text }]}>{home}</Text>
-        <Text style={[styles.statLabel, { color: currentColors.textSecondary }]}>{label}</Text>
-        <Text style={[styles.statNum, { color: currentColors.text }]}>{away}</Text>
+        <Text style={[styles.statNum, { color: colors.text }]}>{home}</Text>
+        <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{label}</Text>
+        <Text style={[styles.statNum, { color: colors.text }]}>{away}</Text>
       </View>
-      <View style={[styles.barBg, { backgroundColor: currentColors.bgSecondary }]}>
+      <View style={[styles.barBg, { backgroundColor: colors.bgSecondary }]}>
         <View style={[styles.barFill, { width: `${homeWidth}%`, backgroundColor: BRAND_GRADIENT[0] }]} />
-        <View style={[styles.barFill, { width: `${100 - homeWidth}%`, backgroundColor: currentColors.borderLight }]} />
+        <View style={[styles.barFill, { width: `${100 - homeWidth}%`, backgroundColor: colors.borderLight }]} />
       </View>
     </View>
   );
 };
 
-// Retiramos colores fijos del StyleSheet
 const styles = StyleSheet.create({
   container: { flex: 1 },
   loadingCenter: { flex: 1, justifyContent: 'center', alignItems: 'center' },
@@ -380,34 +427,11 @@ const styles = StyleSheet.create({
   teamsMainRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20 },
   teamBrand: { flex: 1, alignItems: 'center' },
   
-  // ESTILO CORREGIDO PARA LOS LOGOS
   logoCircleFixed: { 
-    width: 80, 
-    height: 80, 
-    borderRadius: 40, 
-    backgroundColor: '#FFFFFF', // Siempre blanco puro
-    padding: 8, // Margen interno
-    elevation: 10, 
-    shadowColor: '#000', 
-    shadowOffset: { width: 0, height: 5 }, 
-    shadowOpacity: 0.2, 
-    shadowRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-    overflow: 'hidden'
+    width: 80, height: 80, borderRadius: 40, backgroundColor: '#FFFFFF', padding: 8, elevation: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.2, shadowRadius: 8, justifyContent: 'center', alignItems: 'center', overflow: 'hidden'
   },
-  mainLogo: { 
-    width: '100%', 
-    height: '100%',
-  },
-  teamNameMain: { 
-    color: '#FFF', 
-    fontWeight: '900', 
-    fontSize: 14, 
-    marginTop: 12, 
-    textAlign: 'center',
-    paddingHorizontal: 5
-  },
+  mainLogo: { width: '100%', height: '100%' },
+  teamNameMain: { color: '#FFF', fontWeight: '900', fontSize: 14, marginTop: 12, textAlign: 'center', paddingHorizontal: 5 },
   
   scoreContainer: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 10 },
   scoreNumber: { color: '#FFF', fontSize: 44, fontWeight: '900' },
@@ -436,6 +460,22 @@ const styles = StyleSheet.create({
   fullBar: { height: 12, flexDirection: 'row', borderRadius: 6, overflow: 'hidden' },
   homeSegment: { backgroundColor: BRAND_GRADIENT[0] },
   awaySegment: {},
+
+  // ESTILOS PARA CARA A CARA (H2H)
+  h2hCard: { borderRadius: 24, padding: 20, borderWidth: 1, marginBottom: 25 },
+  h2hRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, paddingHorizontal: 10 },
+  h2hTeam: { alignItems: 'center' },
+  h2hWins: { fontSize: 32, fontWeight: '900' },
+  h2hCenter: { alignItems: 'center' },
+  h2hTotal: { fontSize: 16, fontWeight: '900' },
+  h2hLabel: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase', marginTop: 2 },
+  h2hDraws: { fontSize: 10, fontWeight: '800', marginTop: 5 },
+  lastGameBox: { padding: 15, borderRadius: 16, alignItems: 'center' },
+  lastGameTitle: { fontSize: 10, fontWeight: '800', letterSpacing: 1, marginBottom: 5 },
+  lastGameResult: { fontSize: 14, fontWeight: '900', marginBottom: 2 },
+  lastGameDate: { fontSize: 12, fontWeight: '600' },
+  h2hEmpty: { padding: 20, alignItems: 'center' },
+  h2hEmptyText: { marginTop: 10, fontSize: 13, fontWeight: '600' },
 
   rosterSection: { marginTop: 10 },
   rosterToggleWrapper: { flexDirection: 'row', marginHorizontal: 20, borderRadius: 16, padding: 4, marginBottom: 15 },
