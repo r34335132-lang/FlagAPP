@@ -28,27 +28,14 @@ import { BRAND_GRADIENT, Colors } from "@/constants/colors";
 // 1. ANIMACIONES BASE
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Componente que hace aparecer los elementos suavemente de abajo hacia arriba
 const FadeInView = ({ children, delay = 0, style }: { children: any, delay?: number, style?: any }) => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(20)).current;
 
   useEffect(() => {
     Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 600,
-        delay: delay,
-        useNativeDriver: true,
-        easing: Easing.out(Easing.cubic)
-      }),
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 600,
-        delay: delay,
-        useNativeDriver: true,
-        easing: Easing.out(Easing.cubic)
-      })
+      Animated.timing(fadeAnim, { toValue: 1, duration: 600, delay: delay, useNativeDriver: true, easing: Easing.out(Easing.cubic) }),
+      Animated.timing(slideAnim, { toValue: 0, duration: 600, delay: delay, useNativeDriver: true, easing: Easing.out(Easing.cubic) })
     ]).start();
   }, []);
 
@@ -100,8 +87,6 @@ function useLiveTimer(game: any) {
 const LiveBadge = ({ game }: { game: any }) => {
   const timeString = useLiveTimer(game);
   const theme = useColorScheme() ?? "light";
-  
-  // Animación de latido (Pulse) para el punto rojo
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -259,7 +244,6 @@ const MatchCard = ({ game, teams, isFeatured = false, index = 0 }: { game: any, 
   const theme = useColorScheme() ?? "light";
   const currentColors = Colors[theme];
   
-  // Animación de escala (bounce) al presionar la tarjeta
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
   if (!game) return null;
@@ -345,7 +329,7 @@ const MatchCard = ({ game, teams, isFeatured = false, index = 0 }: { game: any, 
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 4. PANTALLA PRINCIPAL
+// 4. PANTALLA PRINCIPAL DE LOS TABS
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function HomeScreen() {
