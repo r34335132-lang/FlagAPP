@@ -7,7 +7,8 @@ import {
   Animated,
   Easing,
   Modal,
-  Linking
+  Linking,
+  KeyboardAvoidingView // <-- IMPORTADO PARA EL TECLADO
 } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -105,9 +106,6 @@ export default function CoachDashboard() {
     }, [])
   );
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // NUEVO: ESCUCHAR SOLICITUDES EN TIEMPO REAL
-  // ─────────────────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!user) return;
 
@@ -126,7 +124,6 @@ export default function CoachDashboard() {
             "🔔 ¡Nueva Solicitud!", 
             `El jugador ${payload.new.player_name} ha enviado una solicitud para unirse a tu equipo.`
           );
-          // Recargamos silenciosamente los datos para actualizar la bandeja
           loadCoachData(user);
         }
       )
@@ -172,7 +169,8 @@ export default function CoachDashboard() {
         }
       }
 
-      const champsRes = await fetch(`${API_BASE}/coach_championships?coach_id=${coachUser.id}`);
+      // SOLUCIÓN: Cambiado a la ruta correcta de la API (/api/championships)
+      const champsRes = await fetch(`${API_BASE}/championships?coach_id=${coachUser.id}`);
       const champsData = await safeJsonParse(champsRes);
       if (champsData?.success) setChampionships(champsData.data);
 
@@ -239,7 +237,8 @@ export default function CoachDashboard() {
     }
     setSavingChamp(true);
     try {
-      const res = await fetch(`${API_BASE}/coach_championships`, {
+      // SOLUCIÓN: Cambiado a la ruta correcta de la API (/api/championships)
+      const res = await fetch(`${API_BASE}/championships`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -256,6 +255,8 @@ export default function CoachDashboard() {
         Alert.alert("¡Campeonato Agregado!", "Tu trayectoria ha crecido.");
         setChampForm({ team_id: null, title: "", year: "", tournament: "", position: "1er Lugar" });
         loadCoachData(user);
+      } else {
+        Alert.alert("Error", data?.message || "No se pudo guardar el campeonato.");
       }
     } catch (error) {
       Alert.alert("Error", "Fallo de conexión.");
@@ -269,7 +270,8 @@ export default function CoachDashboard() {
       { text: "Cancelar", style: "cancel" },
       { text: "Eliminar", style: "destructive", onPress: async () => {
         try {
-          await fetch(`${API_BASE}/coach_championships?id=${id}`, { method: "DELETE" });
+          // SOLUCIÓN: Cambiado a la ruta correcta de la API (/api/championships)
+          await fetch(`${API_BASE}/championships?id=${id}`, { method: "DELETE" });
           loadCoachData(user);
         } catch (error) {}
       }}
@@ -434,210 +436,217 @@ export default function CoachDashboard() {
         <TabButton title="Perfil" icon="trophy" active={activeTab === "perfil"} onPress={() => setActiveTab("perfil")} currentColors={currentColors} />
       </View>
 
-      <ScrollView 
-        style={styles.body} 
-        contentContainerStyle={{ paddingBottom: 60 }} 
-        showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BRAND_GRADIENT[0]} colors={[BRAND_GRADIENT[0]]} />}
+      {/* SOLUCIÓN AL TECLADO: Envolvemos el ScrollView en KeyboardAvoidingView */}
+      <KeyboardAvoidingView 
+        behavior={Platform.OS === "ios" ? "padding" : "height"} 
+        style={{ flex: 1 }}
       >
-        {loading && !refreshing && !teams.length && !championships.length ? (
-          <ActivityIndicator size="large" color={BRAND_GRADIENT[0]} style={{ marginTop: 40 }} />
-        ) : (
-          <FadeInView>
-            {/* PESTAÑA: MIS EQUIPOS */}
-            {activeTab === "equipos" && (
-              <View>
-                {teams.length === 0 ? (
-                  <View style={[styles.emptyBox, { borderColor: currentColors.border }]}>
-                    <Ionicons name="shield-half" size={48} color={currentColors.textMuted} />
-                    <Text style={[styles.emptyTitle, { color: currentColors.textMuted }]}>Sin Equipos</Text>
-                  </View>
-                ) : (
-                  teams.map((team, index) => (
-                    <FadeInView key={team.id} delay={index * 100}>
-                      <View style={[styles.teamCard, { backgroundColor: currentColors.card, borderColor: currentColors.border, shadowColor: theme === 'dark' ? '#000' : '#0F172A' }]}>
-                        
-                        <View style={[styles.teamHeader, { borderBottomColor: currentColors.borderLight }]}>
-                          <Pressable onPress={() => handleUpdateExistingTeamLogo(team.id)} style={styles.teamLogoWrapper}>
-                            {team.logo_url ? (
-                              <Image source={{ uri: team.logo_url }} style={styles.teamMiniLogo} />
-                            ) : (
-                              <View style={[styles.teamLogoPlaceholder, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border }]}>
-                                <Ionicons name="camera" size={16} color={currentColors.textMuted} />
-                              </View>
-                            )}
-                            <View style={styles.editIconBadge}><Ionicons name="pencil" size={8} color="#FFF" /></View>
-                          </Pressable>
+        <ScrollView 
+          style={styles.body} 
+          contentContainerStyle={{ paddingBottom: 60 }} 
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BRAND_GRADIENT[0]} colors={[BRAND_GRADIENT[0]]} />}
+        >
+          {loading && !refreshing && !teams.length && !championships.length ? (
+            <ActivityIndicator size="large" color={BRAND_GRADIENT[0]} style={{ marginTop: 40 }} />
+          ) : (
+            <FadeInView>
+              {/* PESTAÑA: MIS EQUIPOS */}
+              {activeTab === "equipos" && (
+                <View>
+                  {teams.length === 0 ? (
+                    <View style={[styles.emptyBox, { borderColor: currentColors.border }]}>
+                      <Ionicons name="shield-half" size={48} color={currentColors.textMuted} />
+                      <Text style={[styles.emptyTitle, { color: currentColors.textMuted }]}>Sin Equipos</Text>
+                    </View>
+                  ) : (
+                    teams.map((team, index) => (
+                      <FadeInView key={team.id} delay={index * 100}>
+                        <View style={[styles.teamCard, { backgroundColor: currentColors.card, borderColor: currentColors.border, shadowColor: theme === 'dark' ? '#000' : '#0F172A' }]}>
+                          
+                          <View style={[styles.teamHeader, { borderBottomColor: currentColors.borderLight }]}>
+                            <Pressable onPress={() => handleUpdateExistingTeamLogo(team.id)} style={styles.teamLogoWrapper}>
+                              {team.logo_url ? (
+                                <Image source={{ uri: team.logo_url }} style={styles.teamMiniLogo} />
+                              ) : (
+                                <View style={[styles.teamLogoPlaceholder, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border }]}>
+                                  <Ionicons name="camera" size={16} color={currentColors.textMuted} />
+                                </View>
+                              )}
+                              <View style={styles.editIconBadge}><Ionicons name="pencil" size={8} color="#FFF" /></View>
+                            </Pressable>
 
-                          <View style={{ flex: 1 }}>
-                            <Text style={[styles.teamName, { color: currentColors.text }]}>{team.name}</Text>
-                            <Text style={[styles.teamCat, { color: currentColors.textSecondary }]}>{team.category.replace("-", " ").toUpperCase()}</Text>
+                            <View style={{ flex: 1 }}>
+                              <Text style={[styles.teamName, { color: currentColors.text }]}>{team.name}</Text>
+                              <Text style={[styles.teamCat, { color: currentColors.textSecondary }]}>{team.category.replace("-", " ").toUpperCase()}</Text>
+                            </View>
+
+                            <View style={[styles.statusBadge, team.paid ? (theme === 'dark' ? {backgroundColor: '#064E3B'} : styles.bgGreen) : (theme === 'dark' ? {backgroundColor: '#78350F'} : styles.bgYellow)]}>
+                              <Text style={[styles.statusText, { color: team.paid ? (theme === 'dark' ? '#34D399' : '#0F172A') : (theme === 'dark' ? '#FDE68A' : '#0F172A') }]}>{team.paid ? "PAGADO" : "DEUDA"}</Text>
+                            </View>
                           </View>
 
-                          <View style={[styles.statusBadge, team.paid ? (theme === 'dark' ? {backgroundColor: '#064E3B'} : styles.bgGreen) : (theme === 'dark' ? {backgroundColor: '#78350F'} : styles.bgYellow)]}>
-                            <Text style={[styles.statusText, { color: team.paid ? (theme === 'dark' ? '#34D399' : '#0F172A') : (theme === 'dark' ? '#FDE68A' : '#0F172A') }]}>{team.paid ? "PAGADO" : "DEUDA"}</Text>
-                          </View>
+                          {/* BOTÓN DE PAGO DINÁMICO */}
+                          {!team.paid && (
+                            <Pressable 
+                              style={[styles.payBtn, { backgroundColor: theme === 'dark' ? 'rgba(245, 158, 11, 0.1)' : '#FFFBEB', borderColor: '#F59E0B' }]}
+                              onPress={() => setPaymentTeam(team)}
+                            >
+                              <Ionicons name="card" size={18} color="#F59E0B" />
+                              <Text style={styles.payBtnText}>Pagar Inscripción / Arbitraje</Text>
+                            </Pressable>
+                          )}
+
+                          <Text style={[styles.rosterTitle, { color: currentColors.text }]}>Roster ({players.filter(p => p.team_id === team.id).length})</Text>
+                          {players.filter(p => p.team_id === team.id).map(player => (
+                            <View key={player.id} style={[styles.playerRow, { borderBottomColor: currentColors.bgSecondary }]}>
+                              <Text style={[styles.playerName, { color: currentColors.textSecondary }]}>{player.name}</Text>
+                              <Text style={[styles.playerPos, { color: currentColors.textMuted }]}>#{player.jersey_number} {player.position}</Text>
+                            </View>
+                          ))}
                         </View>
+                      </FadeInView>
+                    ))
+                  )}
+                </View>
+              )}
 
-                        {/* BOTÓN DE PAGO */}
-                        {!team.paid && (
-                          <Pressable 
-                            style={[styles.payBtn, { backgroundColor: theme === 'dark' ? 'rgba(245, 158, 11, 0.1)' : '#FFFBEB', borderColor: '#F59E0B' }]}
-                            onPress={() => setPaymentTeam(team)}
-                          >
-                            <Ionicons name="card" size={18} color="#F59E0B" />
-                            <Text style={styles.payBtnText}>Pagar Inscripción </Text>
-                          </Pressable>
-                        )}
-
-                        <Text style={[styles.rosterTitle, { color: currentColors.text }]}>Roster ({players.filter(p => p.team_id === team.id).length})</Text>
-                        {players.filter(p => p.team_id === team.id).map(player => (
-                          <View key={player.id} style={[styles.playerRow, { borderBottomColor: currentColors.bgSecondary }]}>
-                            <Text style={[styles.playerName, { color: currentColors.textSecondary }]}>{player.name}</Text>
-                            <Text style={[styles.playerPos, { color: currentColors.textMuted }]}>#{player.jersey_number} {player.position}</Text>
-                          </View>
-                        ))}
-                      </View>
-                    </FadeInView>
-                  ))
-                )}
-              </View>
-            )}
-
-            {/* PESTAÑA: CREAR EQUIPO */}
-            {activeTab === "crear" && (
-              <View style={[styles.formCard, { backgroundColor: currentColors.card, borderColor: currentColors.border, shadowColor: theme === 'dark' ? '#000' : '#0F172A' }]}>
-                <Text style={[styles.cardTitle, { color: currentColors.text }]}>Nuevo Equipo</Text>
-                
-                <Text style={[styles.label, { color: currentColors.textMuted }]}>Logo del Equipo</Text>
-                <Pressable onPress={async () => {
-                  const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 0.5 });
-                  if (!res.canceled) setTempLogoUri(res.assets[0].uri);
-                }} style={[styles.logoPicker, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border }]}>
-                  {tempLogoUri ? <Image source={{ uri: tempLogoUri }} style={styles.logoPreview} /> : 
-                  <View style={styles.logoPickerInner}><Ionicons name="image-outline" size={32} color={currentColors.textMuted} /><Text style={[styles.logoPickerText, { color: currentColors.textMuted }]}>Seleccionar Logo</Text></View>}
-                </Pressable>
-
-                <Text style={[styles.label, { color: currentColors.textMuted }]}>Nombre del Equipo</Text>
-                <TextInput style={[styles.input, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border, color: currentColors.text }]} placeholder="Nombre" placeholderTextColor={currentColors.textMuted} value={teamForm.name} onChangeText={(t) => setTeamForm({...teamForm, name: t})} />
-                
-                <Text style={[styles.label, { color: currentColors.textMuted }]}>Categoría</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll}>
-                  {CATEGORIES.map(cat => (
-                    <Pressable key={cat.id} style={[styles.catChip, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border }, teamForm.category === cat.id && styles.catChipActive]} onPress={() => setTeamForm({...teamForm, category: cat.id})}>
-                      <Text style={[styles.catChipText, { color: currentColors.textSecondary }, teamForm.category === cat.id && {color:'#FFF'}]}>{cat.label}</Text>
-                    </Pressable>
-                  ))}
-                </ScrollView>
-
-                <Text style={[styles.label, { color: currentColors.textMuted }]}>Nombre del Capitán</Text>
-                <TextInput style={[styles.input, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border, color: currentColors.text }]} placeholder="Nombre" placeholderTextColor={currentColors.textMuted} value={teamForm.captain_name} onChangeText={(t) => setTeamForm({...teamForm, captain_name: t})} />
-                <Text style={[styles.label, { color: currentColors.textMuted }]}>Teléfono del Capitán</Text>
-                <TextInput style={[styles.input, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border, color: currentColors.text }]} placeholder="618..." placeholderTextColor={currentColors.textMuted} keyboardType="phone-pad" value={teamForm.captain_phone} onChangeText={(t) => setTeamForm({...teamForm, captain_phone: t})} />
-
-                <Pressable style={styles.submitBtn} onPress={handleCreateTeam} disabled={creating}>
-                  {creating ? <ActivityIndicator color="#FFF" /> : <Text style={styles.submitBtnText}>Inscribir Equipo</Text>}
-                </Pressable>
-              </View>
-            )}
-
-            {/* PESTAÑA: SOLICITUDES */}
-            {activeTab === "solicitudes" && (
-              <View>
-                {requests.length === 0 ? (
-                  <View style={[styles.emptyBox, { borderColor: currentColors.border }]}>
-                    <Ionicons name="mail-open" size={48} color={currentColors.textMuted} />
-                    <Text style={[styles.emptyTitle, { color: currentColors.textMuted }]}>Bandeja Limpia</Text>
-                    <Text style={[styles.emptySub, { color: currentColors.textMuted }]}>No tienes solicitudes pendientes.</Text>
-                  </View>
-                ) : (
-                  requests.map(req => (
-                    <View key={req.id} style={[styles.requestCard, { backgroundColor: currentColors.card, borderColor: currentColors.border }]}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={[styles.reqName, { color: currentColors.text }]}>{req.player_name}</Text>
-                        <Text style={[styles.reqInfo, { color: currentColors.textSecondary }]}>Se une a: <Text style={{fontWeight:'700'}}>{req.teams?.name}</Text></Text>
-                        <Text style={[styles.reqInfo, { color: currentColors.textSecondary }]}>Posición: {req.position} | Jersey: #{req.jersey_number}</Text>
-                      </View>
-                      <View style={styles.reqActions}>
-                        <Pressable style={[styles.actionBtn, { backgroundColor: "#EF4444" }]} onPress={() => handleRequest(req.id, "rejected")}>
-                          <Ionicons name="close" size={20} color="#FFF" />
-                        </Pressable>
-                        <Pressable style={[styles.actionBtn, { backgroundColor: "#10B981" }]} onPress={() => handleRequest(req.id, "accepted")}>
-                          <Ionicons name="checkmark" size={20} color="#FFF" />
-                        </Pressable>
-                      </View>
-                    </View>
-                  ))
-                )}
-              </View>
-            )}
-
-            {/* PESTAÑA: PERFIL Y CAMPEONATOS */}
-            {activeTab === "perfil" && (
-              <View>
-                <Text style={[styles.cardTitle, {marginLeft: 5, color: currentColors.text }]}>Mis Campeonatos</Text>
-                {championships.length === 0 ? (
-                  <View style={[styles.emptyBox, {marginBottom: 20, borderColor: currentColors.border }]}>
-                    <Ionicons name="trophy-outline" size={40} color={currentColors.textMuted} />
-                    <Text style={[styles.emptySub, { color: currentColors.textMuted }]}>Aún no has registrado campeonatos.</Text>
-                  </View>
-                ) : (
-                  championships.map(champ => (
-                    <View key={champ.id} style={[styles.champCard, { backgroundColor: currentColors.card, borderColor: theme === 'dark' ? '#78350F' : '#F59E0B40' }]}>
-                      <View style={[styles.champIcon, { backgroundColor: theme === 'dark' ? '#78350F' : '#FEF3C7' }]}><Ionicons name="trophy" size={24} color={theme === 'dark' ? '#FDE68A' : "#F59E0B"} /></View>
-                      <View style={{flex: 1}}>
-                        <Text style={[styles.champTitle, { color: currentColors.text }]}>{champ.title} ({champ.year})</Text>
-                        <Text style={[styles.champSub, { color: currentColors.textSecondary }]}>{champ.tournament} • {champ.position}</Text>
-                      </View>
-                      <Pressable onPress={() => handleDeleteChampionship(champ.id)} style={[styles.deleteBtn, { backgroundColor: theme === 'dark' ? 'rgba(239,68,68,0.2)' : '#FEF2F2' }]}>
-                        <Ionicons name="trash" size={18} color="#EF4444" />
-                      </Pressable>
-                    </View>
-                  ))
-                )}
-
+              {/* PESTAÑA: CREAR EQUIPO */}
+              {activeTab === "crear" && (
                 <View style={[styles.formCard, { backgroundColor: currentColors.card, borderColor: currentColors.border, shadowColor: theme === 'dark' ? '#000' : '#0F172A' }]}>
-                  <Text style={[styles.cardTitle, { color: currentColors.text }]}>Registrar Trofeo</Text>
+                  <Text style={[styles.cardTitle, { color: currentColors.text }]}>Nuevo Equipo</Text>
                   
-                  <Text style={[styles.label, { color: currentColors.textMuted }]}>Selecciona el Equipo Ganador</Text>
+                  <Text style={[styles.label, { color: currentColors.textMuted }]}>Logo del Equipo</Text>
+                  <Pressable onPress={async () => {
+                    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 0.5 });
+                    if (!res.canceled) setTempLogoUri(res.assets[0].uri);
+                  }} style={[styles.logoPicker, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border }]}>
+                    {tempLogoUri ? <Image source={{ uri: tempLogoUri }} style={styles.logoPreview} /> : 
+                    <View style={styles.logoPickerInner}><Ionicons name="image-outline" size={32} color={currentColors.textMuted} /><Text style={[styles.logoPickerText, { color: currentColors.textMuted }]}>Seleccionar Logo</Text></View>}
+                  </Pressable>
+
+                  <Text style={[styles.label, { color: currentColors.textMuted }]}>Nombre del Equipo</Text>
+                  <TextInput style={[styles.input, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border, color: currentColors.text }]} placeholder="Nombre" placeholderTextColor={currentColors.textMuted} value={teamForm.name} onChangeText={(t) => setTeamForm({...teamForm, name: t})} />
+                  
+                  <Text style={[styles.label, { color: currentColors.textMuted }]}>Categoría</Text>
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll}>
-                    {teams.map(t => (
-                      <Pressable key={t.id} style={[styles.catChip, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border }, champForm.team_id === t.id && styles.catChipActive]} onPress={() => setChampForm({...champForm, team_id: t.id})}>
-                        <Text style={[styles.catChipText, { color: currentColors.textSecondary }, champForm.team_id === t.id && {color:'#FFF'}]}>{t.name}</Text>
+                    {CATEGORIES.map(cat => (
+                      <Pressable key={cat.id} style={[styles.catChip, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border }, teamForm.category === cat.id && styles.catChipActive]} onPress={() => setTeamForm({...teamForm, category: cat.id})}>
+                        <Text style={[styles.catChipText, { color: currentColors.textSecondary }, teamForm.category === cat.id && {color:'#FFF'}]}>{cat.label}</Text>
                       </Pressable>
                     ))}
                   </ScrollView>
 
-                  <Text style={[styles.label, { color: currentColors.textMuted }]}>Título (Ej. Campeón Invicto)</Text>
-                  <TextInput style={[styles.input, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border, color: currentColors.text }]} placeholderTextColor={currentColors.textMuted} placeholder="Escribe el título" value={champForm.title} onChangeText={(t) => setChampForm({...champForm, title: t})} />
+                  <Text style={[styles.label, { color: currentColors.textMuted }]}>Nombre del Capitán</Text>
+                  <TextInput style={[styles.input, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border, color: currentColors.text }]} placeholder="Nombre" placeholderTextColor={currentColors.textMuted} value={teamForm.captain_name} onChangeText={(t) => setTeamForm({...teamForm, captain_name: t})} />
+                  <Text style={[styles.label, { color: currentColors.textMuted }]}>Teléfono del Capitán</Text>
+                  <TextInput style={[styles.input, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border, color: currentColors.text }]} placeholder="618..." placeholderTextColor={currentColors.textMuted} keyboardType="phone-pad" value={teamForm.captain_phone} onChangeText={(t) => setTeamForm({...teamForm, captain_phone: t})} />
 
-                  <View style={{flexDirection: 'row', gap: 10}}>
-                    <View style={{flex: 1}}>
-                      <Text style={[styles.label, { color: currentColors.textMuted }]}>Torneo / Liga</Text>
-                      <TextInput style={[styles.input, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border, color: currentColors.text }]} placeholderTextColor={currentColors.textMuted} placeholder="Ej. Flag Durango" value={champForm.tournament} onChangeText={(t) => setChampForm({...champForm, tournament: t})} />
-                    </View>
-                    <View style={{flex: 1}}>
-                      <Text style={[styles.label, { color: currentColors.textMuted }]}>Año</Text>
-                      <TextInput style={[styles.input, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border, color: currentColors.text }]} placeholderTextColor={currentColors.textMuted} placeholder="Ej. 2026" keyboardType="numeric" maxLength={4} value={champForm.year} onChangeText={(t) => setChampForm({...champForm, year: t})} />
-                    </View>
-                  </View>
-
-                  <Pressable style={styles.submitBtn} onPress={handleAddChampionship} disabled={savingChamp}>
-                    {savingChamp ? <ActivityIndicator color="#FFF" /> : <Text style={styles.submitBtnText}>Agregar Campeonato</Text>}
+                  <Pressable style={styles.submitBtn} onPress={handleCreateTeam} disabled={creating}>
+                    {creating ? <ActivityIndicator color="#FFF" /> : <Text style={styles.submitBtnText}>Inscribir Equipo</Text>}
                   </Pressable>
                 </View>
+              )}
 
-                {/* BOTÓN ELIMINAR CUENTA */}
-                <Pressable style={[styles.deleteAccountBtn, { backgroundColor: theme === 'dark' ? 'rgba(239,68,68,0.1)' : "#FEF2F2", borderColor: theme === 'dark' ? 'rgba(239,68,68,0.3)' : "#FECACA" }]} onPress={handleDeleteAccount}>
-                  <Ionicons name="warning-outline" size={18} color="#EF4444" />
-                  <Text style={styles.deleteAccountText}>Eliminar Mi Cuenta</Text>
-                </Pressable>
+              {/* PESTAÑA: SOLICITUDES */}
+              {activeTab === "solicitudes" && (
+                <View>
+                  {requests.length === 0 ? (
+                    <View style={[styles.emptyBox, { borderColor: currentColors.border }]}>
+                      <Ionicons name="mail-open" size={48} color={currentColors.textMuted} />
+                      <Text style={[styles.emptyTitle, { color: currentColors.textMuted }]}>Bandeja Limpia</Text>
+                      <Text style={[styles.emptySub, { color: currentColors.textMuted }]}>No tienes solicitudes pendientes.</Text>
+                    </View>
+                  ) : (
+                    requests.map(req => (
+                      <View key={req.id} style={[styles.requestCard, { backgroundColor: currentColors.card, borderColor: currentColors.border }]}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.reqName, { color: currentColors.text }]}>{req.player_name}</Text>
+                          <Text style={[styles.reqInfo, { color: currentColors.textSecondary }]}>Se une a: <Text style={{fontWeight:'700'}}>{req.teams?.name}</Text></Text>
+                          <Text style={[styles.reqInfo, { color: currentColors.textSecondary }]}>Posición: {req.position} | Jersey: #{req.jersey_number}</Text>
+                        </View>
+                        <View style={styles.reqActions}>
+                          <Pressable style={[styles.actionBtn, { backgroundColor: "#EF4444" }]} onPress={() => handleRequest(req.id, "rejected")}>
+                            <Ionicons name="close" size={20} color="#FFF" />
+                          </Pressable>
+                          <Pressable style={[styles.actionBtn, { backgroundColor: "#10B981" }]} onPress={() => handleRequest(req.id, "accepted")}>
+                            <Ionicons name="checkmark" size={20} color="#FFF" />
+                          </Pressable>
+                        </View>
+                      </View>
+                    ))
+                  )}
+                </View>
+              )}
 
-              </View>
-            )}
-          </FadeInView>
-        )}
-      </ScrollView>
+              {/* PESTAÑA: PERFIL Y CAMPEONATOS */}
+              {activeTab === "perfil" && (
+                <View>
+                  <Text style={[styles.cardTitle, {marginLeft: 5, color: currentColors.text }]}>Mis Campeonatos</Text>
+                  {championships.length === 0 ? (
+                    <View style={[styles.emptyBox, {marginBottom: 20, borderColor: currentColors.border }]}>
+                      <Ionicons name="trophy-outline" size={40} color={currentColors.textMuted} />
+                      <Text style={[styles.emptySub, { color: currentColors.textMuted }]}>Aún no has registrado campeonatos.</Text>
+                    </View>
+                  ) : (
+                    championships.map(champ => (
+                      <View key={champ.id} style={[styles.champCard, { backgroundColor: currentColors.card, borderColor: theme === 'dark' ? '#78350F' : '#F59E0B40' }]}>
+                        <View style={[styles.champIcon, { backgroundColor: theme === 'dark' ? '#78350F' : '#FEF3C7' }]}><Ionicons name="trophy" size={24} color={theme === 'dark' ? '#FDE68A' : "#F59E0B"} /></View>
+                        <View style={{flex: 1}}>
+                          <Text style={[styles.champTitle, { color: currentColors.text }]}>{champ.title} ({champ.year})</Text>
+                          <Text style={[styles.champSub, { color: currentColors.textSecondary }]}>{champ.tournament} • {champ.position}</Text>
+                        </View>
+                        <Pressable onPress={() => handleDeleteChampionship(champ.id)} style={[styles.deleteBtn, { backgroundColor: theme === 'dark' ? 'rgba(239,68,68,0.2)' : '#FEF2F2' }]}>
+                          <Ionicons name="trash" size={18} color="#EF4444" />
+                        </Pressable>
+                      </View>
+                    ))
+                  )}
+
+                  <View style={[styles.formCard, { backgroundColor: currentColors.card, borderColor: currentColors.border, shadowColor: theme === 'dark' ? '#000' : '#0F172A' }]}>
+                    <Text style={[styles.cardTitle, { color: currentColors.text }]}>Registrar Trofeo</Text>
+                    
+                    <Text style={[styles.label, { color: currentColors.textMuted }]}>Selecciona el Equipo Ganador</Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll}>
+                      {teams.map(t => (
+                        <Pressable key={t.id} style={[styles.catChip, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border }, champForm.team_id === t.id && styles.catChipActive]} onPress={() => setChampForm({...champForm, team_id: t.id})}>
+                          <Text style={[styles.catChipText, { color: currentColors.textSecondary }, champForm.team_id === t.id && {color:'#FFF'}]}>{t.name}</Text>
+                        </Pressable>
+                      ))}
+                    </ScrollView>
+
+                    <Text style={[styles.label, { color: currentColors.textMuted }]}>Título (Ej. Campeón Invicto)</Text>
+                    <TextInput style={[styles.input, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border, color: currentColors.text }]} placeholderTextColor={currentColors.textMuted} placeholder="Escribe el título" value={champForm.title} onChangeText={(t) => setChampForm({...champForm, title: t})} />
+
+                    <View style={{flexDirection: 'row', gap: 10}}>
+                      <View style={{flex: 1}}>
+                        <Text style={[styles.label, { color: currentColors.textMuted }]}>Torneo / Liga</Text>
+                        <TextInput style={[styles.input, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border, color: currentColors.text }]} placeholderTextColor={currentColors.textMuted} placeholder="Ej. Flag Durango" value={champForm.tournament} onChangeText={(t) => setChampForm({...champForm, tournament: t})} />
+                      </View>
+                      <View style={{flex: 1}}>
+                        <Text style={[styles.label, { color: currentColors.textMuted }]}>Año</Text>
+                        <TextInput style={[styles.input, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border, color: currentColors.text }]} placeholderTextColor={currentColors.textMuted} placeholder="Ej. 2026" keyboardType="numeric" maxLength={4} value={champForm.year} onChangeText={(t) => setChampForm({...champForm, year: t})} />
+                      </View>
+                    </View>
+
+                    <Pressable style={styles.submitBtn} onPress={handleAddChampionship} disabled={savingChamp}>
+                      {savingChamp ? <ActivityIndicator color="#FFF" /> : <Text style={styles.submitBtnText}>Agregar Campeonato</Text>}
+                    </Pressable>
+                  </View>
+
+                  {/* BOTÓN ELIMINAR CUENTA */}
+                  <Pressable style={[styles.deleteAccountBtn, { backgroundColor: theme === 'dark' ? 'rgba(239,68,68,0.1)' : "#FEF2F2", borderColor: theme === 'dark' ? 'rgba(239,68,68,0.3)' : "#FECACA" }]} onPress={handleDeleteAccount}>
+                    <Ionicons name="warning-outline" size={18} color="#EF4444" />
+                    <Text style={styles.deleteAccountText}>Eliminar Mi Cuenta</Text>
+                  </Pressable>
+
+                </View>
+              )}
+            </FadeInView>
+          )}
+        </ScrollView>
+      </KeyboardAvoidingView>
 
       {/* ─────────────────────────────────────────────────────────────────────────────
           MODAL DE PAGO

@@ -2,17 +2,16 @@ import React, { useState, useCallback } from "react";
 import {
   View, Text, StyleSheet, ScrollView, Pressable,
   ActivityIndicator, Image, Modal, TextInput, Alert,
-  RefreshControl, useColorScheme
+  RefreshControl, useColorScheme, KeyboardAvoidingView, Platform // <-- IMPORTAMOS KeyboardAvoidingView y Platform
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useFocusEffect } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import QRCode from "react-native-qrcode-svg";
 import * as ImagePicker from "expo-image-picker";
 import { supabase } from "@/lib/supabase"; 
-import { BRAND_GRADIENT, Colors } from "@/constants/colors"; // <-- Paleta dinámica
+import { BRAND_GRADIENT, Colors } from "@/constants/colors";
 
 const BASE_URL = "https://www.flagdurango.com.mx";
 
@@ -270,9 +269,7 @@ export default function PlayerDashboard() {
   }
 
   const myCategories = playerTeams.map(pt => pt.team?.category);
-  // Color principal de la tarjeta de gafete (se mantiene con la identidad del equipo o color base oscuro)
   const mainColor = playerTeams.length > 0 && playerTeams[0].team?.color1 ? playerTeams[0].team.color1 : "#1E293B";
-  const qrValue = playerInfo ? `PLAYER-${playerInfo.id}` : "INVALID";
   const hasPhoto = playerInfo?.photo_url && !playerInfo.photo_url.startsWith('blob:');
 
   return (
@@ -297,7 +294,7 @@ export default function PlayerDashboard() {
         }
       >
         
-        {/* --- GAFETE DIGITAL (Mantenemos diseño de credencial para contraste del QR) --- */}
+        {/* --- GAFETE DIGITAL (Versión Limpia sin QR) --- */}
         {playerInfo && (
           <View style={[styles.qrCard, { borderColor: mainColor, backgroundColor: theme === 'dark' ? '#1E293B' : '#FFFFFF' }]}>
             <LinearGradient colors={[mainColor, "#0F172A"]} style={styles.qrHeader}>
@@ -338,11 +335,11 @@ export default function PlayerDashboard() {
                 </View>
               </View>
 
-              {/* EL QR DEBE SER SIEMPRE BLANCO Y NEGRO PARA QUE SE PUEDA ESCANEAR */}
-              <View style={[styles.qrWrapper, { backgroundColor: '#FFFFFF', borderColor: '#E2E8F0' }]}>
-                <QRCode value={qrValue} size={150} color="#0F172A" backgroundColor="#FFFFFF" />
+              {/* ID DIGITAL LIMPIO */}
+              <View style={styles.digitalIdContainer}>
+                <Ionicons name="shield-checkmark-outline" size={24} color="#94A3B8" />
+                <Text style={styles.digitalIdText}>Gafete Oficial • Liga Flag Durango</Text>
               </View>
-              <Text style={styles.qrInstructions}>Muestra este QR al árbitro en el campo</Text>
             </View>
             
             <Pressable style={styles.editProfileBtn} onPress={() => setShowEditModal(true)}>
@@ -396,8 +393,8 @@ export default function PlayerDashboard() {
                 ]}>
                   <Text style={[styles.statusText, { 
                     color: req.status === 'accepted' ? (theme === 'dark' ? '#34D399' : '#0F172A') : 
-                           req.status === 'rejected' ? (theme === 'dark' ? '#FCA5A5' : '#0F172A') : 
-                           (theme === 'dark' ? '#FDE68A' : '#0F172A')
+                            req.status === 'rejected' ? (theme === 'dark' ? '#FCA5A5' : '#0F172A') : 
+                            (theme === 'dark' ? '#FDE68A' : '#0F172A')
                   }]}>{req.status.toUpperCase()}</Text>
                 </View>
               </View>
@@ -415,92 +412,99 @@ export default function PlayerDashboard() {
 
       </ScrollView>
 
-      {/* MODAL: BUSCAR EQUIPO */}
+      {/* ─────────────────────────────────────────────────────────────
+          MODAL: BUSCAR EQUIPO CON KEYBOARD AVOIDING VIEW
+      ────────────────────────────────────────────────────────────── */}
       <Modal visible={showJoinModal} animationType="slide" transparent={true}>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: currentColors.card }]}>
-            <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: currentColors.text }]}>Inscribirse en Equipo</Text>
-              <Pressable onPress={() => setShowJoinModal(false)}><Ionicons name="close" size={24} color={currentColors.textMuted} /></Pressable>
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContent, { backgroundColor: currentColors.card }]}>
+              <View style={styles.modalHeader}>
+                <Text style={[styles.modalTitle, { color: currentColors.text }]}>Inscribirse en Equipo</Text>
+                <Pressable onPress={() => setShowJoinModal(false)}><Ionicons name="close" size={24} color={currentColors.textMuted} /></Pressable>
+              </View>
+              <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 300 }} keyboardShouldPersistTaps="handled">
+                <View style={styles.teamList}>
+                  {availableTeams.map(t => {
+                    const isBlocked = myCategories.includes(t.category);
+                    const isSelected = selectedTeamId === t.id;
+                    return (
+                      <Pressable 
+                        key={t.id} 
+                        disabled={isBlocked}
+                        style={[
+                          styles.teamItem, 
+                          { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.borderLight },
+                          isSelected && [styles.teamItemActive, { backgroundColor: theme === 'dark' ? 'rgba(59,130,246,0.2)' : '#EFF6FF', borderColor: BRAND_GRADIENT[0] }], 
+                          isBlocked && styles.teamItemBlocked
+                        ]}
+                        onPress={() => setSelectedTeamId(t.id)}
+                      >
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.teamItemText, { color: currentColors.text }, isSelected && styles.teamItemTextActive]}>{t.name}</Text>
+                          <Text style={[styles.teamItemCatText, { color: currentColors.textSecondary }]}>{t.category}</Text>
+                        </View>
+                        {isBlocked && <Ionicons name="lock-closed" size={16} color="#EF4444" />}
+                      </Pressable>
+                    );
+                  })}
+                </View>
+                <View style={[styles.divider, { backgroundColor: currentColors.borderLight }]} />
+                <View style={styles.rowInputs}>
+                  <View style={styles.inputGroup}><Text style={[styles.inputTitle, { color: currentColors.textMuted }]}>Posición</Text>
+                    <TextInput style={[styles.modalInput, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border, color: currentColors.text }]} value={joinPosition} onChangeText={setJoinPosition} autoCapitalize="characters" />
+                  </View>
+                  <View style={styles.inputGroup}><Text style={[styles.inputTitle, { color: currentColors.textMuted }]}>Jersey #</Text>
+                    <TextInput style={[styles.modalInput, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border, color: currentColors.text }]} value={joinJersey} onChangeText={setJoinJersey} keyboardType="numeric" maxLength={2} />
+                  </View>
+                </View>
+              </ScrollView>
+              <Pressable style={[styles.submitBtn, { backgroundColor: BRAND_GRADIENT[0] }]} onPress={handleJoinTeam}><Text style={styles.submitBtnText}>Enviar Solicitud</Text></Pressable>
             </View>
-            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 350 }}>
-              <View style={styles.teamList}>
-                {availableTeams.map(t => {
-                  const isBlocked = myCategories.includes(t.category);
-                  const isSelected = selectedTeamId === t.id;
-                  return (
-                    <Pressable 
-                      key={t.id} 
-                      disabled={isBlocked}
-                      style={[
-                        styles.teamItem, 
-                        { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.borderLight },
-                        isSelected && [styles.teamItemActive, { backgroundColor: theme === 'dark' ? 'rgba(59,130,246,0.2)' : '#EFF6FF', borderColor: BRAND_GRADIENT[0] }], 
-                        isBlocked && styles.teamItemBlocked
-                      ]}
-                      onPress={() => setSelectedTeamId(t.id)}
-                    >
-                      <View style={{ flex: 1 }}>
-                        <Text style={[styles.teamItemText, { color: currentColors.text }, isSelected && styles.teamItemTextActive]}>{t.name}</Text>
-                        <Text style={[styles.teamItemCatText, { color: currentColors.textSecondary }]}>{t.category}</Text>
-                      </View>
-                      {isBlocked && <Ionicons name="lock-closed" size={16} color="#EF4444" />}
-                    </Pressable>
-                  );
-                })}
-              </View>
-              <View style={[styles.divider, { backgroundColor: currentColors.borderLight }]} />
-              <View style={styles.rowInputs}>
-                <View style={styles.inputGroup}><Text style={[styles.inputTitle, { color: currentColors.textMuted }]}>Posición</Text>
-                  <TextInput style={[styles.modalInput, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border, color: currentColors.text }]} value={joinPosition} onChangeText={setJoinPosition} autoCapitalize="characters" />
-                </View>
-                <View style={styles.inputGroup}><Text style={[styles.inputTitle, { color: currentColors.textMuted }]}>Jersey #</Text>
-                  <TextInput style={[styles.modalInput, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border, color: currentColors.text }]} value={joinJersey} onChangeText={setJoinJersey} keyboardType="numeric" maxLength={2} />
-                </View>
-              </View>
-            </ScrollView>
-            <Pressable style={[styles.submitBtn, { backgroundColor: BRAND_GRADIENT[0] }]} onPress={handleJoinTeam}><Text style={styles.submitBtnText}>Enviar Solicitud</Text></Pressable>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
-      {/* MODAL: EDITAR PERFIL */}
+      {/* ─────────────────────────────────────────────────────────────
+          MODAL: EDITAR PERFIL CON KEYBOARD AVOIDING VIEW
+      ────────────────────────────────────────────────────────────── */}
       <Modal visible={showEditModal} animationType="fade" transparent={true}>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: currentColors.card }]}>
-            <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: currentColors.text }]}>Información de Perfil</Text>
-              <Pressable onPress={() => setShowEditModal(false)}><Ionicons name="close" size={24} color={currentColors.textMuted} /></Pressable>
-            </View>
-            <ScrollView showsVerticalScrollIndicator={false}>
-              
-              <Text style={[styles.inputTitle, { color: currentColors.textMuted }]}>Experiencia en la liga</Text>
-              <View style={styles.rowInputs}>
-                 <View style={{flex: 1}}>
-                    <TextInput style={[styles.modalInputLeft, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border, color: currentColors.text }]} placeholderTextColor={currentColors.textMuted} placeholder="Temporadas" value={editSeasons} onChangeText={setEditSeasons} keyboardType="numeric" />
-                 </View>
-                 <View style={{flex: 1}}>
-                    <TextInput style={[styles.modalInputLeft, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border, color: currentColors.text }]} placeholderTextColor={currentColors.textMuted} placeholder="Año de Inicio" value={editSince} onChangeText={setEditSince} keyboardType="numeric" maxLength={4} />
-                 </View>
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContent, { backgroundColor: currentColors.card }]}>
+              <View style={styles.modalHeader}>
+                <Text style={[styles.modalTitle, { color: currentColors.text }]}>Información de Perfil</Text>
+                <Pressable onPress={() => setShowEditModal(false)}><Ionicons name="close" size={24} color={currentColors.textMuted} /></Pressable>
               </View>
+              <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                
+                <Text style={[styles.inputTitle, { color: currentColors.textMuted }]}>Experiencia en la liga</Text>
+                <View style={styles.rowInputs}>
+                   <View style={{flex: 1}}>
+                      <TextInput style={[styles.modalInputLeft, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border, color: currentColors.text }]} placeholderTextColor={currentColors.textMuted} placeholder="Temporadas" value={editSeasons} onChangeText={setEditSeasons} keyboardType="numeric" />
+                   </View>
+                   <View style={{flex: 1}}>
+                      <TextInput style={[styles.modalInputLeft, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border, color: currentColors.text }]} placeholderTextColor={currentColors.textMuted} placeholder="Año de Inicio" value={editSince} onChangeText={setEditSince} keyboardType="numeric" maxLength={4} />
+                   </View>
+                </View>
 
-              <Text style={[styles.inputTitle, { color: currentColors.textMuted }]}>Datos de Salud</Text>
-              <TextInput style={[styles.modalInputLeft, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border, color: currentColors.text }]} placeholderTextColor={currentColors.textMuted} placeholder="Tipo de Sangre" value={editBlood} onChangeText={setEditBlood} />
-              <TextInput style={[styles.modalInputLeft, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border, color: currentColors.text }]} placeholderTextColor={currentColors.textMuted} placeholder="Teléfono Personal" value={editPhone} onChangeText={setEditPhone} keyboardType="phone-pad" />
-              
-              <Text style={[styles.inputTitle, { color: currentColors.textMuted }]}>Contacto Emergencia</Text>
-              <TextInput style={[styles.modalInputLeft, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border, color: currentColors.text }]} placeholderTextColor={currentColors.textMuted} placeholder="Nombre Contacto" value={editEmergencyName} onChangeText={setEditEmergencyName} />
-              <TextInput style={[styles.modalInputLeft, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border, color: currentColors.text }]} placeholderTextColor={currentColors.textMuted} placeholder="Tel. Emergencia" value={editEmergencyPhone} onChangeText={setEditEmergencyPhone} keyboardType="phone-pad" />
-            </ScrollView>
-            <Pressable style={[styles.submitBtn, { backgroundColor: BRAND_GRADIENT[0] }]} onPress={handleEditProfile}><Text style={styles.submitBtnText}>Guardar Cambios</Text></Pressable>
+                <Text style={[styles.inputTitle, { color: currentColors.textMuted }]}>Datos de Salud</Text>
+                <TextInput style={[styles.modalInputLeft, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border, color: currentColors.text }]} placeholderTextColor={currentColors.textMuted} placeholder="Tipo de Sangre" value={editBlood} onChangeText={setEditBlood} />
+                <TextInput style={[styles.modalInputLeft, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border, color: currentColors.text }]} placeholderTextColor={currentColors.textMuted} placeholder="Teléfono Personal" value={editPhone} onChangeText={setEditPhone} keyboardType="phone-pad" />
+                
+                <Text style={[styles.inputTitle, { color: currentColors.textMuted }]}>Contacto Emergencia</Text>
+                <TextInput style={[styles.modalInputLeft, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border, color: currentColors.text }]} placeholderTextColor={currentColors.textMuted} placeholder="Nombre Contacto" value={editEmergencyName} onChangeText={setEditEmergencyName} />
+                <TextInput style={[styles.modalInputLeft, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border, color: currentColors.text }]} placeholderTextColor={currentColors.textMuted} placeholder="Tel. Emergencia" value={editEmergencyPhone} onChangeText={setEditEmergencyPhone} keyboardType="phone-pad" />
+              </ScrollView>
+              <Pressable style={[styles.submitBtn, { backgroundColor: BRAND_GRADIENT[0] }]} onPress={handleEditProfile}><Text style={styles.submitBtnText}>Guardar Cambios</Text></Pressable>
+            </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
 }
 
-// Retiramos colores fijos del StyleSheet
 const styles = StyleSheet.create({
   container: { flex: 1 },
   loading: { flex: 1, justifyContent: "center", alignItems: "center" },
@@ -519,15 +523,15 @@ const styles = StyleSheet.create({
   autoSaveBadge: { flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 12 },
   autoSaveText: { fontSize: 10, fontWeight: "700", textTransform: "uppercase" },
 
-  // Estilos de Stats del Gafete
   badgeStatsRow: { flexDirection: "row", borderRadius: 12, padding: 10, marginBottom: 20, borderWidth: 1 },
   badgeStat: { alignItems: "center", minWidth: 65 },
   badgeStatValue: { fontSize: 16, fontWeight: "900" },
   badgeStatLabel: { fontSize: 8, fontWeight: "800", color: "#94A3B8" },
   badgeStatDivider: { width: 1, height: 20, marginHorizontal: 15 },
 
-  qrWrapper: { padding: 15, borderRadius: 20, borderWidth: 1 },
-  qrInstructions: { fontSize: 11, color: "#94A3B8", textAlign: "center", marginTop: 12, fontWeight: "600" },
+  digitalIdContainer: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 5, marginBottom: 10 },
+  digitalIdText: { fontSize: 12, color: "#94A3B8", fontWeight: "700", textTransform: 'uppercase', letterSpacing: 0.5 },
+
   editProfileBtn: { backgroundColor: "#1E293B", flexDirection: "row", justifyContent: "center", alignItems: "center", paddingVertical: 12, gap: 8 },
   editProfileText: { color: "#FFFFFF", fontSize: 12, fontWeight: "800" },
   sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },

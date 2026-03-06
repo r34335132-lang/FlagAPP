@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { 
   View, 
   Text, 
@@ -10,7 +10,7 @@ import {
   Image,
   ActivityIndicator
 } from "react-native";
-import { useRouter, useFocusEffect } from "expo-router";
+import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -19,47 +19,54 @@ export default function LandingScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   
-  // Estado para evitar que la pantalla "parpadee" mientras revisamos la sesión
+  // Estado para controlar si seguimos revisando la sesión o no
   const [isChecking, setIsChecking] = useState(true);
 
-  // Animaciones de entrada
+  // Animaciones
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
 
-  useFocusEffect(
-    useCallback(() => {
-      // Revisamos si el usuario ya inició sesión previamente
-      AsyncStorage.getItem("userSession").then(res => {
-        if (res) {
-          // Si ya hay sesión, lo mandamos directo a los partidos sin mostrar el Splash
+  useEffect(() => {
+    const checkSession = async () => {
+      try {
+        const session = await AsyncStorage.getItem("userSession");
+        if (session) {
+          // Si hay sesión, navegamos directamente sin mostrar las animaciones
           router.replace("/(tabs)/");
         } else {
-          // Si no hay sesión, quitamos el loader y disparamos la animación
+          // Si NO hay sesión, quitamos el loader y disparamos las animaciones
           setIsChecking(false);
           Animated.parallel([
             Animated.timing(fadeAnim, {
               toValue: 1,
               duration: 800,
-              delay: 300,
+              delay: 100, // Un delay más corto para que se sienta más responsivo
               useNativeDriver: true,
             }),
             Animated.spring(slideAnim, {
               toValue: 0,
               tension: 50,
               friction: 7,
-              delay: 300,
+              delay: 100,
               useNativeDriver: true,
             })
           ]).start();
         }
-      });
-    }, [])
-  );
+      } catch (error) {
+        // En caso de error (muy raro), simplemente mostramos el login
+        setIsChecking(false);
+      }
+    };
 
-  // Mientras verifica la sesión, mostramos un fondo negro limpio
+    checkSession();
+  }, []);
+
+  // Mientras revisa el AsyncStorage (toma milisegundos), mostramos una pantalla oscura
+  // Esto evita que el usuario vea el botón "ENTRAR" y de repente desaparezca
   if (isChecking) {
     return (
       <View style={[styles.container, styles.center]}>
+        <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
         <ActivityIndicator size="large" color="#FFFFFF" />
       </View>
     );
@@ -67,16 +74,15 @@ export default function LandingScreen() {
 
   return (
     <View style={styles.container}>
-      {/* StatusBar transparente para que la imagen llegue hasta arriba en Android e iOS */}
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
       
-      {/* IMAGEN HERO: Cambia el URL por una foto chida de tu liga */}
+      {/* IMAGEN HERO: Jugadores en acción */}
       <ImageBackground 
         source={{ uri: "https://images.unsplash.com/photo-1566577739112-5180d4bf9390?q=80&w=2000&auto=format&fit=crop" }} 
         style={styles.backgroundImage}
         resizeMode="cover"
       >
-        {/* DEGRADADO NTC STYLE: Oscuro abajo, transparente arriba */}
+        {/* DEGRADADO NTC STYLE */}
         <LinearGradient
           colors={['transparent', 'rgba(0,0,0,0.7)', '#000000']}
           locations={[0, 0.4, 0.9]}
@@ -112,13 +118,13 @@ export default function LandingScreen() {
             <View style={styles.buttonContainer}>
               <Pressable 
                 style={({ pressed }) => [styles.primaryButton, { opacity: pressed ? 0.8 : 1 }]}
-                // Usamos replace para que no puedan darle "Atrás" y volver a esta pantalla
+                // Mandamos a /(tabs)/ para que vean el feed público sin loguearse si así lo desean
                 onPress={() => router.replace("/(tabs)/")}
               >
                 <Text style={styles.primaryButtonText}>ENTRAR A LA LIGA</Text>
               </Pressable>
               
-              {/* Botón sutil por si quieren iniciar sesión directamente */}
+              {/* Botón secundario para Login/Registro */}
               <Pressable 
                 style={({ pressed }) => [styles.secondaryButton, { opacity: pressed ? 0.6 : 1 }]}
                 onPress={() => router.push("/login")}
