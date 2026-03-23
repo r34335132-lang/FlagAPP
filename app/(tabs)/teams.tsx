@@ -124,10 +124,15 @@ export default function TeamsScreen() {
           end={{ x: 1, y: 1 }}
           style={styles.cardGradient}
         >
-          {/* Mantenemos el fondo del logo en blanco para no romper imágenes JPG */}
+          {/* Contenedor del logo con fondo blanco y esquinas redondeadas */}
           <View style={styles.logoWrapper}>
             {hasLogo ? (
-              <Image source={{ uri: item.logo_url }} style={styles.teamLogo} resizeMode="contain" />
+              <Image 
+                source={{ uri: item.logo_url }} 
+                style={styles.teamLogo} 
+                // 👇 CAMBIO CLAVE: "cover" hace que llene todo el espacio 👇
+                resizeMode="cover" 
+              />
             ) : (
               <Text style={[styles.initialsText, { color: color2 }]}>
                 {item.name.substring(0, 2).toUpperCase()}
@@ -356,11 +361,12 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
   },
   cardGradient: { flex: 1, padding: 16, alignItems: "center", justifyContent: "center" },
-  // Dejamos el logo wrapper blanco para asegurar que las imágenes se vean limpias
+  
+  // AQUÍ ESTÁN LOS CAMBIOS FINALES: Cuadrado con esquinas redondeadas sin padding
   logoWrapper: {
     width: 70,
     height: 70,
-    borderRadius: 35,
+    borderRadius: 18, // <-- Esquinas suaves
     backgroundColor: "#FFFFFF",
     justifyContent: "center",
     alignItems: "center",
@@ -369,10 +375,14 @@ const styles = StyleSheet.create({
     shadowColor: "#000",
     shadowOpacity: 0.1,
     shadowRadius: 5,
-    overflow: "hidden",
-    padding: 5,
+    overflow: "hidden", // <-- Obligatorio para que la imagen se corte en las esquinas
+    padding: 0, // <-- QUITAMOS EL PADDING para que ocupe todo el espacio
   },
-  teamLogo: { width: "100%", height: "100%" },
+  teamLogo: { 
+    width: "100%", 
+    height: "100%" 
+  },
+  
   initialsText: { fontSize: 24, fontWeight: "900" },
   teamName: { fontSize: 15, fontWeight: "900", color: "#FFFFFF", textAlign: "center", marginBottom: 8, letterSpacing: -0.5 },
   categoryBadge: { backgroundColor: "rgba(255,255,255,0.2)", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },

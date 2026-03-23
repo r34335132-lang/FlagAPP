@@ -8,7 +8,7 @@ import {
   Easing,
   Modal,
   Linking,
-  KeyboardAvoidingView // <-- IMPORTADO PARA EL TECLADO
+  KeyboardAvoidingView
 } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -25,6 +25,7 @@ const CATEGORIES = [
   { id: "varonil-libre", label: "Varonil Libre" },
   { id: "varonil-gold", label: "Varonil Gold" },
   { id: "varonil-silver", label: "Varonil Silver" },
+  { id: "varonil-master", label: "Varonil Master" },
   { id: "varonil-cooper", label: "Varonil Cooper" }, 
   { id: "femenil-gold", label: "Femenil Gold" },
   { id: "femenil-silver", label: "Femenil Silver" },
@@ -169,7 +170,6 @@ export default function CoachDashboard() {
         }
       }
 
-      // SOLUCIÓN: Cambiado a la ruta correcta de la API (/api/championships)
       const champsRes = await fetch(`${API_BASE}/championships?coach_id=${coachUser.id}`);
       const champsData = await safeJsonParse(champsRes);
       if (champsData?.success) setChampionships(champsData.data);
@@ -237,7 +237,6 @@ export default function CoachDashboard() {
     }
     setSavingChamp(true);
     try {
-      // SOLUCIÓN: Cambiado a la ruta correcta de la API (/api/championships)
       const res = await fetch(`${API_BASE}/championships`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -270,7 +269,6 @@ export default function CoachDashboard() {
       { text: "Cancelar", style: "cancel" },
       { text: "Eliminar", style: "destructive", onPress: async () => {
         try {
-          // SOLUCIÓN: Cambiado a la ruta correcta de la API (/api/championships)
           await fetch(`${API_BASE}/championships?id=${id}`, { method: "DELETE" });
           loadCoachData(user);
         } catch (error) {}
@@ -391,7 +389,7 @@ export default function CoachDashboard() {
 
   const sendWhatsAppProof = () => {
     if (!paymentTeam) return;
-    const message = `Hola, acabo de pagar la inscripción de mi equipo: *${paymentTeam.name}* (${paymentTeam.category.replace("-", " ").toUpperCase()}). Aquí está mi comprobante:`;
+    const message = `Hola, acabo de pagar la inscripción ($1,900) de mi equipo: *${paymentTeam.name}* (${paymentTeam.category.replace("-", " ").toUpperCase()}). Aquí está mi comprobante:`;
     const url = `https://wa.me/526182614228?text=${encodeURIComponent(message)}`;
     Linking.openURL(url);
   };
@@ -436,7 +434,6 @@ export default function CoachDashboard() {
         <TabButton title="Perfil" icon="trophy" active={activeTab === "perfil"} onPress={() => setActiveTab("perfil")} currentColors={currentColors} />
       </View>
 
-      {/* SOLUCIÓN AL TECLADO: Envolvemos el ScrollView en KeyboardAvoidingView */}
       <KeyboardAvoidingView 
         behavior={Platform.OS === "ios" ? "padding" : "height"} 
         style={{ flex: 1 }}
@@ -494,7 +491,7 @@ export default function CoachDashboard() {
                               onPress={() => setPaymentTeam(team)}
                             >
                               <Ionicons name="card" size={18} color="#F59E0B" />
-                              <Text style={styles.payBtnText}>Pagar Inscripción / Arbitraje</Text>
+                              <Text style={styles.payBtnText}>Pagar Inscripción</Text>
                             </Pressable>
                           )}
 
@@ -663,20 +660,37 @@ export default function CoachDashboard() {
               </View>
 
               <Text style={[styles.modalText, { color: currentColors.textSecondary }]}>
-                Para liberar a tu equipo y permitirles jugar, realiza una transferencia a la siguiente cuenta:
+                Para liberar a tu equipo y permitirles jugar, realiza el pago de inscripción a la siguiente cuenta:
               </Text>
 
               <View style={[styles.bankBox, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border }]}>
+                
+                {/* FILA DEL MONTO A PAGAR (DESTACADA) */}
+                <View style={[styles.bankRow, { marginBottom: 15, paddingBottom: 15, borderBottomWidth: 1, borderBottomColor: currentColors.border }]}>
+                  <Ionicons name="cash-outline" size={24} color="#10B981" />
+                  <Text style={[styles.bankLabel, { color: currentColors.textMuted, width: 90 }]}>Monto total:</Text>
+                  <Text style={[styles.bankValueClabe, { color: "#10B981", fontSize: 22 }]}>$1,900.00</Text>
+                </View>
+
                 <View style={styles.bankRow}>
                   <Ionicons name="business" size={20} color={currentColors.textMuted} />
                   <Text style={[styles.bankLabel, { color: currentColors.textMuted }]}>Banco:</Text>
-                  <Text style={[styles.bankValue, { color: currentColors.text }]}>BBVA Bancomer</Text>
+                  <Text style={[styles.bankValue, { color: currentColors.text }]}>CitiBanamex</Text>
                 </View>
+
+                {/* FILA DE LA TARJETA NUEVA */}
                 <View style={styles.bankRow}>
                   <Ionicons name="card" size={20} color={currentColors.textMuted} />
-                  <Text style={[styles.bankLabel, { color: currentColors.textMuted }]}>CLABE:</Text>
-                  <Text style={[styles.bankValueClabe, { color: BRAND_GRADIENT[0] }]}>012 345 6789 0123 4567</Text>
+                  <Text style={[styles.bankLabel, { color: currentColors.textMuted }]}>Tarjeta:</Text>
+                  <Text style={[styles.bankValueClabe, { color: BRAND_GRADIENT[0] }]}>5204 1659 4321 2997</Text>
                 </View>
+
+                <View style={styles.bankRow}>
+                  <Ionicons name="list" size={20} color={currentColors.textMuted} />
+                  <Text style={[styles.bankLabel, { color: currentColors.textMuted }]}>CLABE:</Text>
+                  <Text style={[styles.bankValue, { color: currentColors.text, fontSize: 13, letterSpacing: 1 }]}>002190701908668214</Text>
+                </View>
+                
                 <View style={styles.bankRow}>
                   <Ionicons name="person" size={20} color={currentColors.textMuted} />
                   <Text style={[styles.bankLabel, { color: currentColors.textMuted }]}>Nombre:</Text>
@@ -705,6 +719,7 @@ export default function CoachDashboard() {
           </View>
         </Modal>
       )}
+
     </View>
   );
 }

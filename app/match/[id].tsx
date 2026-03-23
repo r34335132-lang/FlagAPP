@@ -16,7 +16,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { supabase } from "@/lib/supabase";
 import { BRAND_GRADIENT, Colors } from "@/constants/colors"; 
-import { useHeadToHead } from "@/hooks/useTeams"; // <-- IMPORTAMOS EL NUEVO HOOK
+import { useHeadToHead } from "@/hooks/useTeams"; 
 
 import ViewShot from "react-native-view-shot";
 import * as Sharing from "expo-sharing";
@@ -196,7 +196,7 @@ export default function MatchDetailScreen() {
                   <Image 
                     source={{ uri: homeTeam?.logo_url || "https://via.placeholder.com/100" }} 
                     style={styles.mainLogo} 
-                    resizeMode="contain" 
+                    resizeMode="cover" 
                   />
                 </View>
                 <Text style={styles.teamNameMain}>{game.home_team}</Text>
@@ -213,7 +213,7 @@ export default function MatchDetailScreen() {
                   <Image 
                     source={{ uri: awayTeam?.logo_url || "https://via.placeholder.com/100" }} 
                     style={styles.mainLogo} 
-                    resizeMode="contain" 
+                    resizeMode="cover" 
                   />
                 </View>
                 <Text style={styles.teamNameMain}>{game.away_team}</Text>
@@ -353,7 +353,11 @@ export default function MatchDetailScreen() {
                   
                   <View style={[styles.playerAvatarWrap, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.card }]}>
                     {player.photo_url && !player.photo_url.startsWith("blob:") ? (
-                      <Image source={{ uri: player.photo_url }} style={styles.playerAvatar} />
+                      <Image 
+                        source={{ uri: player.photo_url }} 
+                        style={styles.playerAvatar} 
+                        resizeMode="cover" 
+                      />
                     ) : (
                       <Ionicons name="person" size={20} color={currentColors.textMuted} />
                     )}
@@ -428,7 +432,7 @@ const styles = StyleSheet.create({
   teamBrand: { flex: 1, alignItems: 'center' },
   
   logoCircleFixed: { 
-    width: 80, height: 80, borderRadius: 40, backgroundColor: '#FFFFFF', padding: 8, elevation: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.2, shadowRadius: 8, justifyContent: 'center', alignItems: 'center', overflow: 'hidden'
+    width: 80, height: 80, borderRadius: 40, backgroundColor: '#FFFFFF', elevation: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.2, shadowRadius: 8, justifyContent: 'center', alignItems: 'center', overflow: 'hidden'
   },
   mainLogo: { width: '100%', height: '100%' },
   teamNameMain: { color: '#FFF', fontWeight: '900', fontSize: 14, marginTop: 12, textAlign: 'center', paddingHorizontal: 5 },

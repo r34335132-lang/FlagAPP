@@ -46,11 +46,11 @@ async function getPushToken() {
     return null;
   }
 
-  // Obtenemos el ID del proyecto de tu app.json
-  const projectId = Constants?.expoConfig?.extra?.eas?.projectId ?? Constants?.easConfig?.projectId;
+// Obtenemos el ID del proyecto de tu app.json o usamos el de respaldo
+  const projectId = Constants?.expoConfig?.extra?.eas?.projectId ?? Constants?.easConfig?.projectId ?? "4c04db27-74d0-42bc-a22a-39459fe0a67c";
   
   if (!projectId) {
-    console.warn("Falta el projectId en app.json. Ejecuta 'npx eas init' en tu terminal.");
+    console.warn("Falta el projectId en app.json.");
     return null; 
   }
 

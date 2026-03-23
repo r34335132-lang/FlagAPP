@@ -12,7 +12,9 @@ import {
   Linking,
   useColorScheme,
   Animated,
-  Easing
+  Easing,
+  Modal,
+  TouchableOpacity
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -47,8 +49,17 @@ const FadeInView = ({ children, delay = 0, style }: { children: any, delay?: num
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 2. HOOKS Y COMPONENTES DE UTILIDAD
+// 2. HOOKS Y UTILIDADES
 // ─────────────────────────────────────────────────────────────────────────────
+
+// Formatear la fecha para que se vea bonita en el filtro (ej. "Sáb, 22 Mar")
+const formatShortDate = (dateString: string) => {
+  if (!dateString) return "Fecha TBD";
+  const date = new Date(dateString);
+  const options: Intl.DateTimeFormatOptions = { weekday: 'short', day: 'numeric', month: 'short' };
+  let formatted = date.toLocaleDateString("es-ES", options);
+  return formatted.charAt(0).toUpperCase() + formatted.slice(1);
+};
 
 function useLiveTimer(game: any) {
   const [displayTime, setDisplayTime] = useState("");
@@ -135,88 +146,80 @@ const HeaderHome = ({ user, topPad, dateStr, onProfilePress }: any) => (
   </LinearGradient>
 );
 
-const AnnouncementBanner = () => {
+// Componente para una opción dentro del Modal
+const FilterOption = ({ label, isSelected, onPress }: any) => {
+  const theme = useColorScheme() ?? "light";
+  const currentColors = Colors[theme];
+  
+  return (
+    <Pressable
+      onPress={onPress}
+      style={[
+        styles.filterOptionModal,
+        {
+          backgroundColor: isSelected ? BRAND_GRADIENT[0] : currentColors.bgSecondary,
+          borderColor: isSelected ? BRAND_GRADIENT[0] : currentColors.border,
+        }
+      ]}
+    >
+      <Text style={[
+        styles.filterOptionTextModal,
+        { color: isSelected ? '#FFFFFF' : currentColors.text }
+      ]}>
+        {label}
+      </Text>
+    </Pressable>
+  );
+};
+
+// La tarjeta que aparece debajo del header mostrando los filtros activos
+const ActiveFiltersBar = ({ onOpenModal, activeDateLabel, activeCategory, activeField, isLoading }: any) => {
   const theme = useColorScheme() ?? "light";
   const currentColors = Colors[theme];
 
+  const FilterBadge = ({ icon, text }: { icon: string, text: string }) => (
+    <View style={[styles.filterBadge, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border }]}>
+      <Ionicons name={icon as any} size={14} color={BRAND_GRADIENT[0]} />
+      <Text style={[styles.filterBadgeText, { color: currentColors.text }]} numberOfLines={1}>{text}</Text>
+    </View>
+  );
+
   return (
-    <View style={styles.bannerWrapper}>
-      <View style={[styles.bannerContainerLight, { backgroundColor: currentColors.card, borderColor: currentColors.border }]}>
-        <View style={styles.bannerHeaderLight}>
-          <View style={styles.bannerTitleRow}>
-            <Ionicons name="american-football" size={24} color={BRAND_GRADIENT[0]} />
-            <Text style={[styles.bannerTitleLight, { color: currentColors.text }]}>Temporada 2026</Text>
-          </View>
-          <View style={[styles.badgeNew, { backgroundColor: theme === 'dark' ? 'rgba(239, 68, 68, 0.2)' : '#FEF2F2' }]}>
-            <Text style={styles.badgeNewText}>PRÓXIMO</Text>
-          </View>
+    <View style={styles.filterBarContainer}>
+      <View style={[styles.filterBarCard, { backgroundColor: currentColors.card, borderColor: currentColors.border }]}>
+        <View style={styles.filterBarMainRow}>
+          <Text style={[styles.filterBarTitle, { color: currentColors.text }]}>Visualizando Juegos</Text>
+          <TouchableOpacity 
+            style={[styles.filterIconButton, { backgroundColor: currentColors.bgSecondary }]} 
+            onPress={onOpenModal}
+            disabled={isLoading}
+          >
+            <Ionicons name="options-outline" size={18} color={BRAND_GRADIENT[0]} />
+            <Text style={[styles.filterIconButtonText, { color: BRAND_GRADIENT[0] }]}>Ajustar</Text>
+          </TouchableOpacity>
         </View>
         
-        <Text style={[styles.bannerSubLight, { color: currentColors.textSecondary }]}>Asegura el lugar de tu equipo en la mejor liga de Flag Football de Durango.</Text>
-        
-        <View style={[styles.bannerGrid, { backgroundColor: currentColors.bgSecondary }]}>
-          <View style={styles.bannerGridItem}>
-            <Text style={[styles.bannerGridLabel, { color: currentColors.textMuted }]}>KICKOFF</Text>
-            <Text style={[styles.bannerGridValue, { color: currentColors.text }]}>22 Marzo</Text>
-          </View>
-          <View style={styles.bannerGridItem}>
-            <Text style={[styles.bannerGridLabel, { color: currentColors.textMuted }]}>CIERRE INSC.</Text>
-            <Text style={[styles.bannerGridValue, { color: currentColors.text }]}>17 Marzo</Text>
-          </View>
-          <View style={styles.bannerGridItem}>
-            <Text style={[styles.bannerGridLabel, { color: currentColors.textMuted }]}>INSCRIPCIÓN</Text>
-            <Text style={[styles.bannerGridValue, { color: currentColors.text }]}>$1,900</Text>
-          </View>
-          <View style={styles.bannerGridItem}>
-            <Text style={[styles.bannerGridLabel, { color: currentColors.textMuted }]}>ARBITRAJE</Text>
-            <Text style={[styles.bannerGridValue, { color: currentColors.text }]}>$320 / jgo</Text>
-          </View>
+        <View style={styles.filterBadgesRow}>
+          <FilterBadge icon="calendar-outline" text={activeDateLabel} />
+          {activeCategory !== "TODAS" && <FilterBadge icon="trophy-outline" text={activeCategory} />}
+          {activeField !== "TODOS" && <FilterBadge icon="location-outline" text={`Campo ${activeField}`} />}
         </View>
       </View>
     </View>
   );
 };
 
-const LeagueNews = () => {
-  const theme = useColorScheme() ?? "light";
-  const currentColors = Colors[theme];
-
-  return (
-    <View style={styles.newsWrapper}>
-      <Text style={[styles.sectionTitleLabel, { color: currentColors.textMuted }]}>Avisos de Pretemporada</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.newsScroll}>
-        
-        <View style={[styles.newsCard, { backgroundColor: currentColors.card, borderColor: currentColors.border }]}>
-          <View style={[styles.newsIconWrap, { backgroundColor: theme === 'dark' ? 'rgba(59, 130, 246, 0.2)' : '#EFF6FF' }]}>
-            <Ionicons name="people" size={22} color="#3B82F6" />
-          </View>
-          <Text style={[styles.newsTitle, { color: currentColors.text }]}>Junta de Capitanes</Text>
-          <Text style={[styles.newsSub, { color: currentColors.textSecondary }]}>Afinando últimos detalles del reglamento y horarios.</Text>
-        </View>
-
-        <View style={[styles.newsCard, { backgroundColor: currentColors.card, borderColor: currentColors.border }]}>
-          <View style={[styles.newsIconWrap, { backgroundColor: theme === 'dark' ? 'rgba(16, 185, 129, 0.2)' : '#F0FDF4' }]}>
-            <Ionicons name="document-text" size={22} color="#10B981" />
-          </View>
-          <Text style={[styles.newsTitle, { color: currentColors.text }]}>Registro de Roster</Text>
-          <Text style={[styles.newsSub, { color: currentColors.textSecondary }]}>Recuerda subir las fotos y números de tus jugadores a la app.</Text>
-        </View>
-
-      </ScrollView>
-    </View>
-  );
-};
-
+// Tarjeta de Redes Sociales (Recuperada)
 const CommunityCard = () => {
   const theme = useColorScheme() ?? "light";
   const currentColors = Colors[theme];
 
   return (
-    <FadeInView delay={400} style={styles.communityWrapper}>
+    <FadeInView delay={300} style={styles.communityWrapper}>
       <View style={[styles.communityCard, { backgroundColor: currentColors.card, borderColor: currentColors.border }]}>
         <View style={styles.communityContent}>
           <Text style={[styles.communityTitle, { color: currentColors.text }]}>Únete a la Acción 📸</Text>
-          <Text style={[styles.communitySub, { color: currentColors.textSecondary }]}>Síguenos para no perderte las mejores fotos de cada jornada y noticias exclusivas.</Text>
+          <Text style={[styles.communitySub, { color: currentColors.textSecondary }]}>Síguenos para no perderte las mejores fotos de cada jornada y exclusivas.</Text>
         </View>
         <View style={styles.socialButtonsCol}>
           <Pressable 
@@ -243,7 +246,6 @@ const CommunityCard = () => {
 const MatchCard = ({ game, teams, isFeatured = false, index = 0 }: { game: any, teams: any[], isFeatured?: boolean, index?: number }) => {
   const theme = useColorScheme() ?? "light";
   const currentColors = Colors[theme];
-  
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
   if (!game) return null;
@@ -253,13 +255,8 @@ const MatchCard = ({ game, teams, isFeatured = false, index = 0 }: { game: any, 
   const isLive = ["en vivo", "en_vivo", "en curso"].includes(game.status?.toLowerCase() ?? "");
   const isFinished = ["finalizado", "final"].includes(game.status?.toLowerCase() ?? "");
 
-  const handlePressIn = () => {
-    Animated.spring(scaleAnim, { toValue: 0.96, useNativeDriver: true }).start();
-  };
-
-  const handlePressOut = () => {
-    Animated.spring(scaleAnim, { toValue: 1, friction: 4, tension: 40, useNativeDriver: true }).start();
-  };
+  const handlePressIn = () => { Animated.spring(scaleAnim, { toValue: 0.96, useNativeDriver: true }).start(); };
+  const handlePressOut = () => { Animated.spring(scaleAnim, { toValue: 1, friction: 4, tension: 40, useNativeDriver: true }).start(); };
 
   const TeamRow = ({ team, name, score, isWinner }: any) => (
     <View style={styles.teamRow}>
@@ -285,8 +282,7 @@ const MatchCard = ({ game, teams, isFeatured = false, index = 0 }: { game: any, 
     <FadeInView delay={index * 150}>
       <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
         <Pressable 
-          onPressIn={handlePressIn}
-          onPressOut={handlePressOut}
+          onPressIn={handlePressIn} onPressOut={handlePressOut}
           onPress={() => router.push({ pathname: "/match/[id]", params: { id: game.id } })}
           style={[
             styles.matchCard, 
@@ -313,13 +309,7 @@ const MatchCard = ({ game, teams, isFeatured = false, index = 0 }: { game: any, 
 
           <View style={[styles.cardFooter, { borderTopColor: currentColors.borderLight }]}>
             <Text style={[styles.footerText, { color: currentColors.textMuted }]}>
-              {(game.venue !== null && game.venue !== undefined && String(game.venue).trim() !== "" && String(game.venue) !== "null") 
-                ? game.venue 
-                : "Sede por definir"} 
-              {" "}• Campo{" "} 
-              {(game.field !== null && game.field !== undefined && String(game.field).trim() !== "" && String(game.field) !== "null") 
-                ? game.field 
-                : "TBD"}
+              {game.venue ? game.venue : "Sede TBD"} • Campo {game.field ? game.field : "TBD"}
             </Text>
           </View>
         </Pressable>
@@ -329,7 +319,7 @@ const MatchCard = ({ game, teams, isFeatured = false, index = 0 }: { game: any, 
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 4. PANTALLA PRINCIPAL DE LOS TABS
+// 4. PANTALLA PRINCIPAL
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function HomeScreen() {
@@ -341,6 +331,17 @@ export default function HomeScreen() {
 
   const theme = useColorScheme() ?? "light";
   const currentColors = Colors[theme];
+
+  // ESTADOS DEL MODAL Y FILTROS
+  const [isFilterModalVisible, setFilterModalVisible] = useState(false);
+  
+  const [activeDate, setActiveDate] = useState("PROXIMOS"); 
+  const [activeCategory, setActiveCategory] = useState("TODAS");
+  const [activeField, setActiveField] = useState("TODOS");
+
+  const [tempDate, setTempDate] = useState("PROXIMOS");
+  const [tempCategory, setTempCategory] = useState("TODAS");
+  const [tempField, setTempField] = useState("TODOS");
 
   const isLoading = gamesLoading || teamsLoading;
   const safeTeams = teams ?? [];
@@ -355,23 +356,102 @@ export default function HomeScreen() {
     useCallback(() => {
       AsyncStorage.getItem("userSession").then(res => {
         if (res) setUser(JSON.parse(res));
-        else setUser(null);
+        else setUser(null); // Asegurar que sea null si no hay sesión
       });
     }, [])
   );
 
+  // --- RESTAURAMOS LA FUNCIÓN PARA ENTRAR AL PERFIL ---
+  const handleProfilePress = () => {
+    if (!user) {
+      router.push("/login");
+    } else if (user.role === "coach") {
+      router.push("/(coach)/dashboard");
+    } else if (user.role === "admin") {
+      alert("Eres Administrador. Usa la versión web para gestionar la liga.");
+    } else {
+      router.push("/(player)/dashboard");
+    }
+  };
+
+  // Extraer Opciones Únicas
+  const availableDates = useMemo(() => {
+    if (!games) return [];
+    const dates = Array.from(new Set(games.map(g => g.game_date).filter(Boolean)));
+    return dates.sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+  }, [games]);
+
+  const availableCategories = useMemo(() => {
+    if (!games) return [];
+    const cats = Array.from(new Set(games.map(g => g.category?.replace("-", " ").toUpperCase() || "OTRA")));
+    return cats.filter(Boolean).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+  }, [games]);
+
+  const availableFields = useMemo(() => {
+    if (!games) return [];
+    const flds = Array.from(new Set(games.map(g => g.field ? String(g.field).toUpperCase() : "TBD")));
+    return flds.filter(f => f !== "TBD").sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+  }, [games]);
+
+  // Texto amigable para la barra de filtros
+  const activeDateLabel = useMemo(() => {
+    if (activeDate === "PROXIMOS") return "Próximos Juegos";
+    if (activeDate === "TODAS_LAS_FECHAS") return "Toda la Temporada";
+    return formatShortDate(activeDate);
+  }, [activeDate]);
+
+  const openFilterModal = () => {
+    setTempDate(activeDate);
+    setTempCategory(activeCategory);
+    setTempField(activeField);
+    setFilterModalVisible(true);
+  };
+
+  const applyFilters = () => {
+    setActiveDate(tempDate);
+    setActiveCategory(tempCategory);
+    setActiveField(tempField);
+    setFilterModalVisible(false);
+  };
+
+  const resetFilters = () => {
+    setTempDate("PROXIMOS");
+    setTempCategory("TODAS");
+    setTempField("TODOS");
+  };
+
+  // Filtrar y clasificar los juegos
   const { featuredGame, sections } = useMemo(() => {
     if (!games || games.length === 0) return { featuredGame: null, sections: [] };
 
-    let featGame = games.find(g => ["en vivo", "en_vivo", "en curso"].includes(g.status?.toLowerCase() ?? ""));
+    const filteredGames = games.filter(g => {
+      const gCat = g.category?.replace("-", " ").toUpperCase() || "OTRA";
+      const gField = g.field ? String(g.field).toUpperCase() : "TBD";
+      
+      const matchCat = activeCategory === "TODAS" || gCat === activeCategory;
+      const matchField = activeField === "TODOS" || gField === activeField;
+      
+      let matchDate = true;
+      if (activeDate === "PROXIMOS") {
+        matchDate = new Date(g.game_date).setHours(0,0,0,0) >= new Date().setHours(0,0,0,0);
+      } else if (activeDate !== "TODAS_LAS_FECHAS") {
+        matchDate = g.game_date === activeDate;
+      }
+      
+      return matchCat && matchField && matchDate;
+    });
+
+    if (filteredGames.length === 0) return { featuredGame: null, sections: [] };
+
+    let featGame = filteredGames.find(g => ["en vivo", "en_vivo", "en curso"].includes(g.status?.toLowerCase() ?? ""));
     if (!featGame) {
-      featGame = games
+      featGame = filteredGames
         .filter(g => ["programado", "proximo"].includes(g.status?.toLowerCase() ?? ""))
         .sort((a, b) => new Date(a.game_date).getTime() - new Date(b.game_date).getTime())[0];
     }
-    if (!featGame) featGame = games[0];
+    if (!featGame) featGame = filteredGames[0];
 
-    const restGames = games.filter(g => g.id !== featGame.id);
+    const restGames = filteredGames.filter(g => g.id !== featGame.id);
 
     const live = restGames.filter(g => ["en vivo", "en_vivo", "en curso"].includes(g.status?.toLowerCase() ?? ""));
     const upcoming = restGames.filter(g => ["programado", "proximo"].includes(g.status?.toLowerCase() ?? ""))
@@ -381,28 +461,20 @@ export default function HomeScreen() {
 
     const sects = [];
     if (live.length > 0) sects.push({ title: "🔴 EN VIVO AHORA", data: live, type: 'live' });
-    if (upcoming.length > 0) sects.push({ title: "PRÓXIMOS PARTIDOS", data: upcoming.slice(0, 4), type: 'upcoming' });
-    if (finished.length > 0) sects.push({ title: "RESULTADOS RECIENTES", data: finished.slice(0, 4), type: 'finished' });
+    if (upcoming.length > 0) sects.push({ title: "PRÓXIMOS PARTIDOS", data: upcoming, type: 'upcoming' });
+    if (finished.length > 0) sects.push({ title: "RESULTADOS", data: finished.slice(0, 10), type: 'finished' });
 
     return { featuredGame: featGame, sections: sects };
-  }, [games]);
-
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await Promise.all([refetchGames(), refetchTeams()]);
-    setRefreshing(false);
-  };
-
-  const handleProfilePress = () => {
-    if (!user) router.push("/login");
-    else if (user.role === "coach") router.push("/(coach)/dashboard");
-    else if (user.role === "admin") alert("Eres Administrador. Usa la versión web para gestionar la liga.");
-    else router.push("/(player)/dashboard");
-  };
+  }, [games, activeDate, activeCategory, activeField]);
 
   return (
     <View style={[styles.container, { backgroundColor: currentColors.bg }]}>
-      <HeaderHome user={user} topPad={topPad} dateStr={dateStr} onProfilePress={handleProfilePress} />
+      <HeaderHome 
+        user={user} 
+        topPad={topPad} 
+        dateStr={dateStr} 
+        onProfilePress={handleProfilePress} // <-- AQUÍ YA PASAMOS LA FUNCIÓN
+      />
 
       <SectionList
         sections={sections}
@@ -410,21 +482,24 @@ export default function HomeScreen() {
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
         stickySectionHeadersEnabled={false} 
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BRAND_GRADIENT[0]} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => refetchGames()} tintColor={BRAND_GRADIENT[0]} />}
         
         ListHeaderComponent={
           <>
-            <FadeInView delay={200}>
-              <AnnouncementBanner />
-              <LeagueNews />
-            </FadeInView>
-            
+            <ActiveFiltersBar 
+              onOpenModal={openFilterModal}
+              activeDateLabel={activeDateLabel}
+              activeCategory={activeCategory}
+              activeField={activeField}
+              isLoading={isLoading}
+            />
+
             <View style={styles.featuredContainer}>
               {isLoading ? (
                 <View style={{ gap: 16 }}>{[1].map((k) => <MatchCardSkeleton key={k} />)}</View>
               ) : (
                 featuredGame && (
-                  <FadeInView delay={300}>
+                  <FadeInView delay={100}>
                     <Text style={[styles.sectionTitleLabel, { color: currentColors.textMuted }]}>PARTIDO DESTACADO</Text>
                     <MatchCard game={featuredGame} teams={safeTeams} isFeatured={true} />
                   </FadeInView>
@@ -448,22 +523,68 @@ export default function HomeScreen() {
 
         ListEmptyComponent={
           !isLoading && !featuredGame ? (
-            <FadeInView delay={300}>
+            <FadeInView delay={200}>
               <View style={[styles.emptyCard, { backgroundColor: currentColors.card, borderColor: currentColors.border }]}>
                 <View style={[styles.emptyIconWrap, { backgroundColor: currentColors.bgSecondary }]}>
-                  <Ionicons name="barbell" size={40} color={currentColors.textMuted} />
+                  <Ionicons name="search" size={40} color={currentColors.textMuted} />
                 </View>
-                <Text style={[styles.emptyTitle, { color: currentColors.text }]}>¡Pretemporada en curso!</Text>
-                <Text style={[styles.emptySubtitle, { color: currentColors.textSecondary }]}>Los equipos se están preparando. Arma tus jugadas, la temporada inicia pronto.</Text>
+                <Text style={[styles.emptyTitle, { color: currentColors.text }]}>No se encontraron juegos</Text>
+                <Text style={[styles.emptySubtitle, { color: currentColors.textSecondary }]}>
+                  Prueba cambiar tus filtros para ver más juegos o el rol se publicará pronto.
+                </Text>
               </View>
             </FadeInView>
           ) : null
         }
-
-        ListFooterComponent={
-          <CommunityCard />
-        }
+        
+        ListFooterComponent={CommunityCard}
       />
+
+      {/* MODAL DE FILTROS */}
+      <Modal visible={isFilterModalVisible} animationType="slide" transparent={true} onRequestClose={() => setFilterModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: currentColors.bg }]}>
+            <View style={[styles.modalHeader, { borderBottomColor: currentColors.borderLight }]}>
+              <Text style={[styles.modalTitle, { color: currentColors.text }]}>Filtros Avanzados</Text>
+              <TouchableOpacity onPress={() => setFilterModalVisible(false)} style={styles.modalCloseBtn}>
+                <Ionicons name="close" size={24} color={currentColors.text} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalScroll}>
+              <Text style={[styles.filterGroupTitle, { color: currentColors.textMuted }]}>JORNADA O DÍA</Text>
+              <View style={styles.filterGroup}>
+                <FilterOption label="Próximos Juegos" isSelected={tempDate === "PROXIMOS"} onPress={() => setTempDate("PROXIMOS")} />
+                <FilterOption label="Ver Toda la Temporada" isSelected={tempDate === "TODAS_LAS_FECHAS"} onPress={() => setTempDate("TODAS_LAS_FECHAS")} />
+                {availableDates.map(date => <FilterOption key={date} label={formatShortDate(date)} isSelected={tempDate === date} onPress={() => setTempDate(date)} />)}
+              </View>
+
+              <Text style={[styles.filterGroupTitle, { color: currentColors.textMuted }]}>CATEGORÍA</Text>
+              <View style={styles.filterGroup}>
+                <FilterOption label="Todas" isSelected={tempCategory === "TODAS"} onPress={() => setTempCategory("TODAS")} />
+                {availableCategories.map(cat => <FilterOption key={cat} label={cat} isSelected={tempCategory === cat} onPress={() => setTempCategory(cat)} />)}
+              </View>
+
+              <Text style={[styles.filterGroupTitle, { color: currentColors.textMuted }]}>CAMPO</Text>
+              <View style={styles.filterGroup}>
+                <FilterOption label="Cualquier Campo" isSelected={tempField === "TODOS"} onPress={() => setTempField("TODOS")} />
+                {availableFields.map(fld => <FilterOption key={fld} label={`Campo ${fld}`} isSelected={tempField === fld} onPress={() => setTempField(fld)} />)}
+              </View>
+            </ScrollView>
+
+            <View style={[styles.modalFooter, { borderTopColor: currentColors.borderLight }]}>
+              <TouchableOpacity style={styles.resetBtn} onPress={resetFilters}>
+                <Text style={[styles.resetBtnText, { color: currentColors.textSecondary }]}>Restablecer</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.applyBtn} onPress={applyFilters}>
+                <LinearGradient colors={[BRAND_GRADIENT[0], BRAND_GRADIENT[1]]} style={styles.applyBtnGradient}>
+                  <Text style={styles.applyBtnText}>Ver Resultados</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -473,382 +594,130 @@ export default function HomeScreen() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  headerGradient: {
-    paddingBottom: 24, 
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
-  },
-  headerNav: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 24,
-    marginBottom: 16, 
-  },
-  iconBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "rgba(255,255,255,0.15)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  headerLogo: {
-    width: 130,
-    height: 40,
-    tintColor: "#FFFFFF",
-  },
-  greetingContainer: {
-    paddingHorizontal: 24,
-    alignItems: "center",
-  },
-  greetingText: {
-    color: "#FFFFFF",
-    fontSize: 24,
-    fontWeight: "900",
-    letterSpacing: -0.5,
-    marginBottom: 4,
-  },
-  dateText: {
-    color: "rgba(255,255,255,0.8)",
-    fontSize: 13,
-    fontWeight: "600",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
+  container: { flex: 1 },
+  headerGradient: { paddingBottom: 20, borderBottomLeftRadius: 24, borderBottomRightRadius: 24 },
+  headerNav: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 24, marginBottom: 12 },
+  iconBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(255,255,255,0.15)", alignItems: "center", justifyContent: "center" },
+  headerLogo: { width: 120, height: 36, tintColor: "#FFFFFF" },
+  greetingContainer: { paddingHorizontal: 24, alignItems: "center" },
+  greetingText: { color: "#FFFFFF", fontSize: 22, fontWeight: "900", letterSpacing: -0.5, marginBottom: 2 },
+  dateText: { color: "rgba(255,255,255,0.8)", fontSize: 12, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.5 },
 
-  bannerWrapper: {
+  // --- BARRA DE FILTROS ACTIVA (NUEVO DISEÑO INTEGRADO) ---
+  filterBarContainer: {
     paddingHorizontal: 16,
-    marginTop: 20,
-    marginBottom: 5,
+    marginTop: 15,
   },
-  bannerContainerLight: {
-    borderRadius: 20,
-    padding: 20,
-    borderWidth: 1,
-    borderLeftWidth: 4,
-    borderLeftColor: BRAND_GRADIENT[0],
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 2,
-  },
-  bannerHeaderLight: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  bannerTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  bannerTitleLight: {
-    fontSize: 20,
-    fontWeight: '900',
-    letterSpacing: -0.5,
-  },
-  badgeNew: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  badgeNewText: {
-    color: '#EF4444',
-    fontSize: 10,
-    fontWeight: '900',
-    letterSpacing: 1,
-  },
-  bannerSubLight: {
-    fontSize: 13,
-    marginBottom: 16,
-    lineHeight: 18,
-  },
-  bannerGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 15,
-    padding: 12,
-    borderRadius: 12,
-  },
-  bannerGridItem: {
-    width: '45%', 
-  },
-  bannerGridLabel: {
-    fontSize: 10,
-    fontWeight: '800',
-    marginBottom: 2,
-  },
-  bannerGridValue: {
-    fontSize: 13,
-    fontWeight: '900',
-  },
-
-  newsWrapper: {
-    marginTop: 20,
-    marginBottom: 10,
-  },
-  newsScroll: {
-    paddingHorizontal: 16,
-    gap: 12,
-  },
-  newsCard: {
-    width: 260,
+  filterBarCard: {
     padding: 16,
     borderRadius: 16,
     borderWidth: 1,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.03,
+    shadowOpacity: 0.02,
     shadowRadius: 5,
     elevation: 1,
   },
-  newsIconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 10,
-  },
-  newsTitle: {
-    fontSize: 14,
-    fontWeight: "800",
-    marginBottom: 4,
-  },
-  newsSub: {
-    fontSize: 12,
-    lineHeight: 18,
-  },
-
-  communityWrapper: {
-    paddingHorizontal: 16,
-    marginTop: 20,
-    marginBottom: 40,
-  },
-  communityCard: {
-    borderRadius: 20,
-    padding: 20,
+  filterBarMainRow: {
     flexDirection: 'row',
-    alignItems: "center",
-    borderWidth: 1,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.03,
-    shadowRadius: 10,
-    elevation: 2,
-  },
-  communityContent: {
-    flex: 1,
-    paddingRight: 15,
-  },
-  communityTitle: {
-    fontSize: 16,
-    fontWeight: "900",
-    marginBottom: 4,
-  },
-  communitySub: {
-    fontSize: 11,
-    lineHeight: 16,
-  },
-  socialButtonsCol: {
-    gap: 10,
-  },
-  socialBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 10,
-    width: 110,
-  },
-  socialBtnText: {
-    color: "#FFFFFF",
-    fontSize: 11,
-    fontWeight: "800",
-    marginLeft: 6,
-  },
-
-  listContent: {
-    paddingBottom: 100, 
-  },
-  featuredContainer: {
-    marginTop: 25, 
-    paddingHorizontal: 16,
-    marginBottom: 8,
-  },
-  
-  sectionTitleLabel: {
-    fontSize: 12,
-    fontWeight: "800",
-    letterSpacing: 1,
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 12,
-    paddingLeft: 20,
-    textTransform: "uppercase",
   },
-  
-  sectionHeader: {
-    marginTop: 15,
-  },
-  sectionTitleLive: {
-    color: "#EF4444", 
-  },
-
-  matchCard: {
-    borderRadius: 20,
-    marginHorizontal: 16,
-    marginBottom: 12,
-    padding: 16,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.04,
-    shadowRadius: 12,
-    elevation: 2,
-    borderWidth: 1,
-  },
-  featuredCard: {
-    padding: 20, 
-    marginHorizontal: 0,
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-    elevation: 4,
-    borderColor: BRAND_GRADIENT[0],
-    borderWidth: 1.5,
-  },
-  
-  cardHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: "800",
-  },
-  categoryText: {
-    fontSize: 11,
-    fontWeight: "700",
-    letterSpacing: 0.5,
-  },
-  
-  cardBody: {
-    gap: 12, 
-  },
-  teamDivider: {
-    height: 1,
-    marginLeft: 40, 
-  },
-  teamRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  teamInfo: {
-    flexDirection: "row",
-    alignItems: "center",
-    flex: 1,
-  },
-  logoContainer: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    borderWidth: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    overflow: "hidden",
-    marginRight: 12,
-  },
-  teamLogo: {
-    width: "100%",
-    height: "100%",
-  },
-  logoFallback: {
-    fontSize: 12,
-    fontWeight: "800",
-  },
-  teamName: {
+  filterBarTitle: {
     fontSize: 15,
-    fontWeight: "600",
-    flex: 1,
-    paddingRight: 16,
+    fontWeight: '800',
   },
-  teamNameWinner: {
-    fontWeight: "800",
+  filterIconButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
   },
-  scoreText: {
-    fontSize: 16,
-    fontWeight: "700",
-    width: 32,
-    textAlign: "right",
-  },
-  scoreTextWinner: {
-    fontWeight: "900",
-  },
-  
-  cardFooter: {
-    marginTop: 16,
-    paddingTop: 12,
-    borderTopWidth: 1,
-  },
-  footerText: {
+  filterIconButtonText: {
     fontSize: 11,
-    fontWeight: "600",
-    textTransform: "uppercase",
+    fontWeight: '800',
   },
-
-  liveBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
+  filterBadgesRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
   },
-  liveDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: "#EF4444",
-    marginRight: 6,
-  },
-  liveBadgeText: {
-    color: "#EF4444",
-    fontSize: 11,
-    fontWeight: "800",
-  },
-
-  emptyCard: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 48,
-    marginHorizontal: 16,
-    marginTop: 10,
-    borderRadius: 24,
+  filterBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 15,
     borderWidth: 1,
-    borderStyle: "dashed",
   },
-  emptyIconWrap: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 16,
+  filterBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    maxWidth: 120,
   },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: "900",
-    marginBottom: 6,
-  },
-  emptySubtitle: {
-    fontSize: 13,
-    textAlign: "center",
-    paddingHorizontal: 30,
-    lineHeight: 20,
-  }
+
+  listContent: { paddingBottom: 60 },
+  featuredContainer: { marginTop: 15, paddingHorizontal: 16, marginBottom: 5 },
+  sectionTitleLabel: { fontSize: 12, fontWeight: "800", letterSpacing: 1, marginBottom: 12, paddingLeft: 16, textTransform: "uppercase" },
+  sectionHeader: { marginTop: 15 },
+  sectionTitleLive: { color: "#EF4444" },
+
+  matchCard: { borderRadius: 20, marginHorizontal: 16, marginBottom: 12, padding: 16, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.04, shadowRadius: 12, elevation: 2, borderWidth: 1 },
+  featuredCard: { padding: 18, marginHorizontal: 0, shadowOpacity: 0.08, shadowRadius: 16, elevation: 4, borderColor: BRAND_GRADIENT[0], borderWidth: 1.5 },
+  cardHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
+  statusText: { fontSize: 12, fontWeight: "800" },
+  categoryText: { fontSize: 11, fontWeight: "700", letterSpacing: 0.5 },
+  cardBody: { gap: 12 },
+  teamDivider: { height: 1, marginLeft: 40 },
+  teamRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  teamInfo: { flexDirection: "row", alignItems: "center", flex: 1 },
+  logoContainer: { width: 28, height: 28, borderRadius: 14, borderWidth: 1, alignItems: "center", justifyContent: "center", overflow: "hidden", marginRight: 12 },
+  teamLogo: { width: "100%", height: "100%" },
+  logoFallback: { fontSize: 12, fontWeight: "800" },
+  teamName: { fontSize: 15, fontWeight: "600", flex: 1, paddingRight: 16 },
+  teamNameWinner: { fontWeight: "800" },
+  scoreText: { fontSize: 16, fontWeight: "700", width: 32, textAlign: "right" },
+  scoreTextWinner: { fontWeight: "900" },
+  cardFooter: { marginTop: 16, paddingTop: 10, borderTopWidth: 1 },
+  footerText: { fontSize: 11, fontWeight: "600", textTransform: "uppercase" },
+
+  liveBadge: { flexDirection: "row", alignItems: "center", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+  liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "#EF4444", marginRight: 6 },
+  liveBadgeText: { color: "#EF4444", fontSize: 11, fontWeight: "800" },
+
+  emptyCard: { alignItems: "center", justifyContent: "center", paddingVertical: 40, marginHorizontal: 16, marginTop: 10, borderRadius: 24, borderWidth: 1, borderStyle: "dashed" },
+  emptyIconWrap: { width: 60, height: 60, borderRadius: 30, alignItems: "center", justifyContent: "center", marginBottom: 12 },
+  emptyTitle: { fontSize: 17, fontWeight: "900", marginBottom: 4, textAlign: "center" },
+  emptySubtitle: { fontSize: 12, textAlign: "center", paddingHorizontal: 30, lineHeight: 18 },
+
+  // --- REDES SOCIALES (RECUPERADAS) ---
+  communityWrapper: { paddingHorizontal: 16, marginTop: 25, marginBottom: 30 },
+  communityCard: { borderRadius: 20, padding: 18, flexDirection: 'row', alignItems: "center", borderWidth: 1, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.01, shadowRadius: 5, elevation: 1 },
+  communityContent: { flex: 1, paddingRight: 12 },
+  communityTitle: { fontSize: 16, fontWeight: "900", marginBottom: 3 },
+  communitySub: { fontSize: 11, lineHeight: 16 },
+  socialButtonsCol: { gap: 8 },
+  socialBtn: { flexDirection: "row", alignItems: "center", justifyContent: 'center', paddingHorizontal: 14, paddingVertical: 7, borderRadius: 10, width: 105 },
+  socialBtnText: { color: "#FFFFFF", fontSize: 11, fontWeight: "800", marginLeft: 5 },
+
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  modalContent: { borderTopLeftRadius: 24, borderTopRightRadius: 24, height: '80%' },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 18, borderBottomWidth: 1 },
+  modalTitle: { fontSize: 17, fontWeight: '900' },
+  modalCloseBtn: { padding: 4 },
+  modalScroll: { padding: 18, paddingBottom: 30 },
+  filterGroupTitle: { fontSize: 11, fontWeight: '800', letterSpacing: 1, marginBottom: 10, marginTop: 10 },
+  filterGroup: { flexDirection: 'row', flexWrap: 'wrap', gap: 9, marginBottom: 18 },
+  filterOptionModal: { paddingHorizontal: 14, paddingVertical: 9, borderRadius: 12, borderWidth: 1 },
+  filterOptionTextModal: { fontSize: 12, fontWeight: '700' },
+  modalFooter: { flexDirection: 'row', padding: 18, borderTopWidth: 1, paddingBottom: Platform.OS === 'ios' ? 35 : 18 },
+  resetBtn: { paddingVertical: 12, paddingHorizontal: 16, justifyContent: 'center' },
+  resetBtnText: { fontSize: 13, fontWeight: '700' },
+  applyBtn: { flex: 1, borderRadius: 14, overflow: 'hidden' },
+  applyBtnGradient: { paddingVertical: 12, alignItems: 'center', justifyContent: 'center' },
+  applyBtnText: { color: '#FFF', fontSize: 14, fontWeight: '800' }
 });
