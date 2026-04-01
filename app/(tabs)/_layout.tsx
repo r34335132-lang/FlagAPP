@@ -2,19 +2,39 @@ import { Tabs } from "expo-router";
 import { Platform, StyleSheet, View, useColorScheme } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
-import React from "react";
-import { useSafeAreaInsets } from "react-native-safe-area-context"; // <-- 1. Importamos los "insets"
+import React, { useEffect, useState } from "react";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Colors } from "@/constants/colors"; 
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export default function TabLayout() {
   const isIOS = Platform.OS === "ios";
   const isWeb = Platform.OS === "web";
   
-  // 2. Calculamos los bordes seguros del dispositivo (incluyendo los botones de Android)
   const insets = useSafeAreaInsets();
-  
   const theme = useColorScheme() ?? "light";
   const currentColors = Colors[theme];
+
+  // Estado real conectado a tu sistema de login
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  // Verificamos quién inició sesión en cuanto carga la aplicación
+  useEffect(() => {
+    const checkUserRole = async () => {
+      try {
+        const userStr = await AsyncStorage.getItem("user");
+        if (userStr) {
+          const user = JSON.parse(userStr);
+          // Cambia "admin" por el nombre exacto del rol que usas en tu base de datos
+          setIsAdmin(user.role === "admin");
+        }
+      } catch (error) {
+        console.error("Error verificando la sesión del usuario:", error);
+      }
+    };
+
+    checkUserRole();
+  }, []);
 
   return (
     <Tabs
@@ -33,7 +53,6 @@ export default function TabLayout() {
           shadowOpacity: theme === "dark" ? 0.3 : 0.05, 
           shadowRadius: 10,
           
-          // 3. LA MAGIA: Sumamos el "insets.bottom" a la altura y al padding en Android
           height: isWeb ? 84 : (isIOS ? 88 : 65 + insets.bottom),
           paddingBottom: isIOS ? 28 : 10 + insets.bottom,
           paddingTop: 10,
@@ -79,6 +98,18 @@ export default function TabLayout() {
           title: "Estadísticas",
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? "bar-chart" : "bar-chart-outline"} size={24} color={color} />
+          ),
+        }}
+      />
+      
+      {/* 🔥 PESTAÑA DE ADMIN (Solo visible si isAdmin es true) 🔥 */}
+      <Tabs.Screen
+        name="admin"
+        options={{
+          title: "Admin",
+          href: isAdmin ? "/admin" : null, // Si es un jugador normal, esta pestaña desaparece
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? "settings" : "settings-outline"} size={24} color={color} />
           ),
         }}
       />

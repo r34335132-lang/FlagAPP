@@ -368,7 +368,8 @@ export default function HomeScreen() {
     } else if (user.role === "coach") {
       router.push("/(coach)/dashboard");
     } else if (user.role === "admin") {
-      alert("Eres Administrador. Usa la versión web para gestionar la liga.");
+      // 🔥 ¡Corregido! Ahora te manda directo a tu nueva pestaña
+      router.push("/admin"); 
     } else {
       router.push("/(player)/dashboard");
     }

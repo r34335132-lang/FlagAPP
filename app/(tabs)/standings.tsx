@@ -59,15 +59,41 @@ export default function StandingsScreen() {
   }, [selectedMainCat]);
 
   // ------------------------------------------------------------------
-  // LÓGICA DE DATOS
+  // LÓGICA DE DATOS (CON CONSOLE.LOGS PARA DEPURACIÓN)
   // ------------------------------------------------------------------
   const statsWithZeros = useMemo(() => {
     if (!teams) return stats || [];
+    
+    // 🔥 LOG 1: VER QUÉ ESTÁ LLEGANDO DE LA BASE DE DATOS 🔥
+    console.log("--- DEBUG CLASIFICACIÓN ---");
+    console.log("1. Stats recibidos de Supabase (useStats):", stats);
+    console.log("2. Equipos recibidos de Supabase (useTeams):", teams.map(t => t.name));
+
     const statsMap = new Map((stats || []).map((s: any) => [s.team_name || s.name, s]));
+    
     const allStats = teams.map((team: any) => {
-      if (statsMap.has(team.name)) return statsMap.get(team.name);
-      return { team_id: team.id, team_name: team.name, team_category: team.category, games_played: 0, wins: 0, losses: 0, draws: 0, points_for: 0, points_against: 0, points_difference: 0, points: 0 };
+      if (statsMap.has(team.name)) {
+        return statsMap.get(team.name);
+      } 
+      else {
+        // 🔥 LOG 2: AVISO SI UN EQUIPO NO ENCONTRÓ SUS PUNTOS 🔥
+        console.log(`⚠️ El equipo "${team.name}" no hizo match con las stats de la DB y se pondrá en 0.`);
+        return { 
+          team_id: team.id, 
+          team_name: team.name, 
+          team_category: team.category, 
+          games_played: 0, 
+          wins: 0, 
+          losses: 0, 
+          draws: 0, 
+          points_for: 0, 
+          points_against: 0, 
+          points_difference: 0, 
+          points: 0 
+        };
+      }
     });
+
     return allStats.sort((a, b) => {
       if (b.points !== a.points) return (b.points || 0) - (a.points || 0);
       if (b.points_difference !== a.points_difference) return (b.points_difference || 0) - (a.points_difference || 0);
@@ -144,10 +170,8 @@ export default function StandingsScreen() {
     }
   };
 
-  // Manejador del filtro principal
   const handleCategoryPress = (category: StatCategory) => {
     setActiveStatCategory(category);
-    // Auto-seleccionar el primer stat de la categoría elegida
     if (category === "ataque") setStatType("touchdowns_totales");
     if (category === "defensa") setStatType("sacks");
     if (category === "premios") setStatType("mvps");
@@ -218,11 +242,11 @@ export default function StandingsScreen() {
           </View>
         )}
 
-        {/* --- NUEVO FILTRO ACORDEÓN PARA ESTADÍSTICAS --- */}
+        {/* --- FILTRO ACORDEÓN PARA ESTADÍSTICAS --- */}
         {viewMode === "players" && (
           <View style={[styles.filterContainer, { backgroundColor: currentColors.card, borderTopColor: currentColors.border }]}>
             
-            {/* 1. Botones Principales (Ataque, Defensa, Premios) */}
+            {/* Botones Principales */}
             <View style={styles.filterMainRow}>
               <Pressable 
                 style={[styles.filterMainBtn, activeStatCategory === "ataque" && [styles.filterMainBtnActive, { backgroundColor: theme === 'dark' ? '#1E3A8A' : '#EFF6FF', borderColor: '#3B82F6' }]]} 
@@ -246,7 +270,7 @@ export default function StandingsScreen() {
               </Pressable>
             </View>
 
-            {/* 2. Sub-opciones basadas en la categoría seleccionada */}
+            {/* Sub-opciones */}
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterSubScroll}>
               {activeStatCategory === "ataque" && (
                 <>
@@ -268,7 +292,6 @@ export default function StandingsScreen() {
                 </>
               )}
             </ScrollView>
-
           </View>
         )}
       </View>
@@ -400,7 +423,6 @@ const styles = StyleSheet.create({
   subChip: { paddingHorizontal: 16, paddingVertical: 6, borderRadius: 16, borderWidth: 1 },
   subChipText: { fontSize: 12, fontWeight: "700" },
 
-  // ESTILOS NUEVOS PARA EL FILTRO ACORDEÓN
   filterContainer: { paddingTop: 15, paddingBottom: 5, borderTopWidth: 1 },
   filterMainRow: { flexDirection: "row", paddingHorizontal: 20, gap: 10, marginBottom: 12 },
   filterMainBtn: { flex: 1, alignItems: "center", paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: "transparent" },

@@ -2,7 +2,7 @@ import React, { useState, useCallback } from "react";
 import {
   View, Text, StyleSheet, ScrollView, Pressable,
   ActivityIndicator, Image, Modal, TextInput, Alert,
-  RefreshControl, useColorScheme, KeyboardAvoidingView, Platform // <-- IMPORTAMOS KeyboardAvoidingView y Platform
+  RefreshControl, useColorScheme, KeyboardAvoidingView, Platform
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useFocusEffect } from "expo-router";
@@ -275,7 +275,12 @@ export default function PlayerDashboard() {
   return (
     <View style={[styles.container, { backgroundColor: currentColors.bg }]}>
       <View style={[styles.header, { paddingTop: insets.top + 10, backgroundColor: currentColors.card, borderBottomColor: currentColors.border }]}>
-        <Text style={[styles.headerTitle, { color: currentColors.text }]}>Mi Perfil</Text>
+        <View style={styles.headerLeft}>
+          <Pressable onPress={() => router.push('/')} style={styles.homeIcon}>
+            <Ionicons name="home-outline" size={24} color={currentColors.text} />
+          </Pressable>
+          <Text style={[styles.headerTitle, { color: currentColors.text }]}>Mi Perfil</Text>
+        </View>
         <Pressable onPress={handleLogout} style={styles.logoutIcon}>
           <Ionicons name="log-out-outline" size={26} color="#EF4444" />
         </Pressable>
@@ -509,6 +514,8 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   loading: { flex: 1, justifyContent: "center", alignItems: "center" },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 20, paddingBottom: 15, borderBottomWidth: 1 },
+  headerLeft: { flexDirection: "row", alignItems: "center" },
+  homeIcon: { marginRight: 15, padding: 5 },
   headerTitle: { fontSize: 26, fontWeight: "900", letterSpacing: -1 },
   logoutIcon: { padding: 5 },
   scrollContent: { padding: 20, paddingBottom: 100 },

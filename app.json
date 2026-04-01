@@ -2,7 +2,7 @@
   "expo": {
     "name": "FlagDurango",
     "slug": "flagdurango",
-    "version": "1.0.4",
+    "version": "1.0.5",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "flagdurango",
@@ -18,7 +18,7 @@
       "color": "#0A0E1A"
     },
     "ios": {
-      "buildNumber": "7",
+      "buildNumber": "11",
       "supportsTablet": false,
       "bundleIdentifier": "com.flagdurango.app",
       "infoPlist": {
@@ -29,7 +29,7 @@
     },
     "android": {
       "package": "com.flagdurango.app",
-      "versionCode": 5,
+      "versionCode": 8,
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#0A0E1A",

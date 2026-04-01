@@ -57,14 +57,17 @@ export default function LoginScreen() {
 
       // Guardamos la sesión
       if (data.user) {
+        // 🔥 Guardamos como "user" para que el _layout.tsx lo detecte y muestre la pestaña
+        await AsyncStorage.setItem("user", JSON.stringify(data.user));
+        // Por si alguna otra pantalla vieja tuya usa "userSession", lo guardamos doble por seguridad
         await AsyncStorage.setItem("userSession", JSON.stringify(data.user));
         
         // Redirigimos según el rol
         if (data.user.role === "coach") {
           router.replace("/(coach)/dashboard");
         } else if (data.user.role === "admin") {
-          Alert.alert("Eres Admin", "Por favor usa la versión web para administrar.");
-          router.replace("/");
+          // 🔥 ¡MAGIA! Ahora el admin entra directo a la app a su pestaña secreta
+          router.replace("/admin");
         } else {
           router.replace("/(player)/dashboard");
         }
