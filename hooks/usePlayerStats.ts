@@ -5,7 +5,7 @@ export function usePlayerStats() {
   return useQuery({
     queryKey: ["player_stats"],
     queryFn: async () => {
-      // 1. Descargamos a los jugadores junto con su historial de partidos y sus premios
+      // 1. Descargamos a los jugadores (¡AHORA HASTA 5000 REGISTROS!)
       const { data, error } = await supabase
         .from("players")
         .select(`
@@ -30,7 +30,8 @@ export function usePlayerStats() {
           mvps (
             id
           )
-        `);
+        `)
+        .limit(5000); // <--- ESTA ES LA MAGIA QUE ARREGLA A LOS JUGADORES FALTANTES
 
       if (error) {
         console.error("Error fetching player stats:", error);
@@ -69,7 +70,7 @@ export function usePlayerStats() {
         // --- PREMIOS ---
         const totalMVPs = player.mvps?.length || 0;
 
-        // 3. Devolvemos al jugador con las llaves exactas que espera nuestra UI en standings.tsx
+        // 3. Devolvemos al jugador con sus sumas totales listas
         return {
           ...player,
           touchdowns_totales: totalTDs,

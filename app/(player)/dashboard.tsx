@@ -1,8 +1,8 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useMemo } from "react";
 import {
   View, Text, StyleSheet, ScrollView, Pressable,
   ActivityIndicator, Image, Modal, TextInput, Alert,
-  RefreshControl, useColorScheme, KeyboardAvoidingView, Platform
+  RefreshControl, useColorScheme, KeyboardAvoidingView, Platform, useWindowDimensions
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useFocusEffect } from "expo-router";
@@ -18,30 +18,34 @@ const BASE_URL = "https://www.flagdurango.com.mx";
 export default function PlayerDashboard() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  
+  // 🔥 Medidas para Tablets
+  const { width } = useWindowDimensions();
+  const isTablet = width >= 768;
 
   const theme = useColorScheme() ?? "light";
   const currentColors = Colors[theme];
+  const isDark = theme === "dark";
   
   const [user, setUser] = useState<any>(null);
   const [playerInfo, setPlayerInfo] = useState<any>(null);
   const [playerTeams, setPlayerTeams] = useState<any[]>([]);
+  const [gameStats, setGameStats] = useState<any[]>([]); // Estadísticas reales de la API
+  const [mvpCount, setMvpCount] = useState<number>(0); // 🔥 Conteo real de MVPs
   const [joinRequests, setJoinRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   
   const [refreshing, setRefreshing] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
 
-  // --- Modales ---
   const [showJoinModal, setShowJoinModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
 
-  // --- Formulario de Unión ---
   const [availableTeams, setAvailableTeams] = useState<any[]>([]);
   const [selectedTeamId, setSelectedTeamId] = useState<number | null>(null);
   const [joinPosition, setJoinPosition] = useState("");
   const [joinJersey, setJoinJersey] = useState("");
 
-  // --- Formulario de Edición de Perfil ---
   const [editPhone, setEditPhone] = useState("");
   const [editBlood, setEditBlood] = useState("");
   const [editEmergencyName, setEditEmergencyName] = useState("");
@@ -66,7 +70,7 @@ export default function PlayerDashboard() {
       const parsedUser = JSON.parse(sessionData);
       setUser(parsedUser);
 
-      // 1. Llamar a API de Perfil
+      // 1. Obtener Perfil y Equipos
       const profileRes = await fetch(`${BASE_URL}/api/player/profile?user_id=${parsedUser.id}`);
       const profileJson = await profileRes.json();
 
@@ -82,13 +86,42 @@ export default function PlayerDashboard() {
         setEditEmergencyPhone(profileJson.data.emergency_phone || "");
         setEditSeasons(profileJson.data.seasons_played?.toString() || "0"); 
         setEditSince(profileJson.data.playing_since || "");                
+        
+        // 2. 🔥 OBTENER ESTADÍSTICAS REALES Y MVPs 🔥
+        try {
+          const statsRes = await fetch(`${BASE_URL}/api/player-stats?player_id=${profileJson.data.id}`);
+          
+          const contentType = statsRes.headers.get("content-type");
+          if (statsRes.ok && contentType && contentType.includes("application/json")) {
+            const statsJson = await statsRes.json();
+            if (statsJson.success) {
+              setGameStats(statsJson.data || []);
+            }
+          }
+
+          // Consultar a Supabase el número exacto de MVPs
+          const { count, error: mvpError } = await supabase
+            .from("mvps")
+            .select("*", { count: 'exact', head: true })
+            .eq("player_id", profileJson.data.id);
+            
+          if (!mvpError && count !== null) {
+            setMvpCount(count);
+          }
+
+        } catch (err) {
+          console.log("No se pudieron cargar las estadísticas", err);
+        }
       }
 
-      // 2. Llamar a API de Solicitudes
+      // 3. API Solicitudes
       const reqRes = await fetch(`${BASE_URL}/api/team-join-requests?player_user_id=${parsedUser.id}`);
-      const reqJson = await reqRes.json();
-      if (reqJson.success) {
-        setJoinRequests(reqJson.data || []);
+      const contentTypeReq = reqRes.headers.get("content-type");
+      if (reqRes.ok && contentTypeReq && contentTypeReq.includes("application/json")) {
+         const reqJson = await reqRes.json();
+         if (reqJson.success) {
+           setJoinRequests(reqJson.data || []);
+         }
       }
 
     } catch (e) {
@@ -103,6 +136,16 @@ export default function PlayerDashboard() {
     await loadDashboardData();
     setRefreshing(false);
   }, []);
+
+  // 🔥 SUMATORIA REAL DESDE LA TABLA 'player_game_stats' CON PASES QB 🔥
+  const totals = useMemo(() => {
+    return gameStats.reduce((acc, curr) => ({
+      tds: acc.tds + (Number(curr.touchdowns_totales) || 0),
+      passes: acc.passes + (Number(curr.pases_completos) || 0), // <-- AQUI SUMAMOS LOS PASES
+      ints: acc.ints + (Number(curr.intercepciones) || 0),
+      sacks: acc.sacks + (Number(curr.sacks) || 0),
+    }), { tds: 0, passes: 0, ints: 0, sacks: 0 });
+  }, [gameStats]);
 
   const handlePickImage = async () => {
     try {
@@ -233,10 +276,10 @@ export default function PlayerDashboard() {
   const handleDeleteAccount = () => {
     Alert.alert(
       "⚠️ Eliminar Cuenta",
-      "¿Estás seguro? Esta acción desactivará tu cuenta y no podrás iniciar sesión. Tu historial en los partidos se mantendrá por los registros de la liga.",
+      "¿Estás seguro? Esta acción desactivará tu cuenta y no podrás iniciar sesión. Tu historial en los partidos se mantendrá.",
       [
         { text: "Cancelar", style: "cancel" },
-        { text: "Sí, Eliminar Cuenta", style: "destructive", onPress: async () => {
+        { text: "Sí, Eliminar", style: "destructive", onPress: async () => {
           try {
             const res = await fetch(`${BASE_URL}/api/auth/delete-account`, {
               method: "POST",
@@ -269,12 +312,14 @@ export default function PlayerDashboard() {
   }
 
   const myCategories = playerTeams.map(pt => pt.team?.category);
-  const mainColor = playerTeams.length > 0 && playerTeams[0].team?.color1 ? playerTeams[0].team.color1 : "#1E293B";
+  const mainColor = playerTeams.length > 0 && playerTeams[0].team?.color1 ? playerTeams[0].team.color1 : BRAND_GRADIENT[0];
   const hasPhoto = playerInfo?.photo_url && !playerInfo.photo_url.startsWith('blob:');
 
   return (
     <View style={[styles.container, { backgroundColor: currentColors.bg }]}>
-      <View style={[styles.header, { paddingTop: insets.top + 10, backgroundColor: currentColors.card, borderBottomColor: currentColors.border }]}>
+      
+      {/* HEADER DE LA PANTALLA */}
+      <View style={[styles.header, { paddingTop: insets.top + 10, backgroundColor: currentColors.card, borderBottomColor: currentColors.borderLight }]}>
         <View style={styles.headerLeft}>
           <Pressable onPress={() => router.push('/')} style={styles.homeIcon}>
             <Ionicons name="home-outline" size={24} color={currentColors.text} />
@@ -289,146 +334,191 @@ export default function PlayerDashboard() {
       <ScrollView 
         contentContainerStyle={styles.scrollContent} 
         showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl 
-            refreshing={refreshing} 
-            onRefresh={onRefresh} 
-            tintColor={BRAND_GRADIENT[0]} 
-            colors={[BRAND_GRADIENT[0]]} 
-          />
-        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BRAND_GRADIENT[0]} colors={[BRAND_GRADIENT[0]]} />}
       >
-        
-        {/* --- GAFETE DIGITAL (Versión Limpia sin QR) --- */}
-        {playerInfo && (
-          <View style={[styles.qrCard, { borderColor: mainColor, backgroundColor: theme === 'dark' ? '#1E293B' : '#FFFFFF' }]}>
-            <LinearGradient colors={[mainColor, "#0F172A"]} style={styles.qrHeader}>
-              <Text style={styles.qrTeamName}>FLAG DURANGO PASSPORT</Text>
-            </LinearGradient>
-            
-            <View style={styles.qrBody}>
-              <Pressable style={[styles.playerPhotoRing, { backgroundColor: theme === 'dark' ? '#0F172A' : '#F1F5F9', borderColor: theme === 'dark' ? '#1E293B' : '#FFFFFF' }]} onPress={handlePickImage} disabled={uploadingImage}>
-                {uploadingImage ? (
-                  <ActivityIndicator color={mainColor} size="small" />
-                ) : hasPhoto ? (
-                  <Image source={{ uri: playerInfo.photo_url }} style={styles.playerPhoto} resizeMode="cover" />
-                ) : (
-                  <Ionicons name="person" size={45} color={theme === 'dark' ? '#475569' : '#CBD5E1'} />
-                )}
-                <View style={[styles.cameraBadge, { backgroundColor: mainColor, borderColor: theme === 'dark' ? '#1E293B' : '#FFFFFF' }]}>
-                  <Ionicons name="camera" size={14} color="#FFF" />
-                </View>
-              </Pressable>
-
-              <Text style={[styles.playerName, { color: theme === 'dark' ? '#F8FAFC' : '#0F172A' }]}>{playerInfo.name}</Text>
+        <View style={styles.contentWrapper}>
+          
+          {/* --- GAFETE DIGITAL --- */}
+          {playerInfo && (
+            <View style={[styles.qrCard, { borderColor: isDark ? currentColors.borderLight : mainColor, backgroundColor: isDark ? currentColors.card : '#FFFFFF' }]}>
+              <LinearGradient colors={[mainColor, isDark ? "#0F172A" : `${mainColor}99`]} style={styles.qrHeader}>
+                <Text style={styles.qrTeamName}>LIGA FLAG DURANGO PASSPORT</Text>
+              </LinearGradient>
               
-              <View style={styles.autoSaveBadge}>
-                <Ionicons name="cloud-done-outline" size={12} color="#94A3B8" />
-                <Text style={styles.autoSaveText}>Sincronizado</Text>
+              <View style={styles.qrBody}>
+                <Pressable style={[styles.playerPhotoRing, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.card }]} onPress={handlePickImage} disabled={uploadingImage}>
+                  {uploadingImage ? (
+                    <ActivityIndicator color={mainColor} size="small" />
+                  ) : hasPhoto ? (
+                    <Image source={{ uri: playerInfo.photo_url }} style={styles.playerPhoto} resizeMode="cover" />
+                  ) : (
+                    <Ionicons name="person" size={50} color={currentColors.textMuted} />
+                  )}
+                  <View style={[styles.cameraBadge, { backgroundColor: mainColor, borderColor: currentColors.card }]}>
+                    <Ionicons name="camera" size={14} color="#FFF" />
+                  </View>
+                </Pressable>
+
+                <Text style={[styles.playerName, { color: currentColors.text }]}>{playerInfo.name}</Text>
+                
+                <View style={styles.autoSaveBadge}>
+                  <Ionicons name="shield-checkmark" size={14} color={BRAND_GRADIENT[0]} />
+                  <Text style={[styles.autoSaveText, { color: currentColors.textSecondary }]}>Jugador Verificado Oficial</Text>
+                </View>
+              </View>
+              
+              <Pressable style={styles.editProfileBtn} onPress={() => setShowEditModal(true)}>
+                <Ionicons name="create-outline" size={16} color="#FFF" />
+                <Text style={styles.editProfileText}>Editar Mi Información</Text>
+              </Pressable>
+            </View>
+          )}
+
+          {/* --- 🔥 RENDIMIENTO GLOBAL (BENTO BOX COMPLETO) 🔥 --- */}
+          <Text style={[styles.sectionTitle, { color: currentColors.text }]}>Rendimiento de Temporada</Text>
+          <View style={[styles.globalStatsCard, { backgroundColor: currentColors.card, borderColor: currentColors.borderLight, shadowColor: isDark ? '#000' : '#475569' }]}>
+            
+            <View style={styles.statsGridRow}>
+              {/* TOUCHDOWNS */}
+              <View style={styles.statGridBox}>
+                <View style={[styles.statGridIconWrap, { backgroundColor: isDark ? 'rgba(59, 130, 246, 0.15)' : '#EFF6FF' }]}>
+                  <Ionicons name="american-football" size={24} color="#3B82F6" />
+                </View>
+                <Text style={[styles.statGridValue, { color: currentColors.text }]}>{totals.tds}</Text>
+                <Text style={[styles.statGridLabel, { color: currentColors.textSecondary }]}>ANOTACIONES</Text>
               </View>
 
-              {/* Stats Rápidas en el Gafete */}
-              <View style={[styles.badgeStatsRow, { backgroundColor: theme === 'dark' ? '#0F172A' : '#F8FAFC', borderColor: theme === 'dark' ? '#334155' : '#E2E8F0' }]}>
-                <View style={styles.badgeStat}>
-                  <Text style={[styles.badgeStatValue, { color: theme === 'dark' ? '#F8FAFC' : '#0F172A' }]}>{playerInfo.seasons_played || 0}</Text>
-                  <Text style={styles.badgeStatLabel}>TEMPS</Text>
+              {/* PASES QB */}
+              <View style={styles.statGridBox}>
+                <View style={[styles.statGridIconWrap, { backgroundColor: isDark ? 'rgba(139, 92, 246, 0.15)' : '#F5F3FF' }]}>
+                  <Ionicons name="send" size={22} color="#8B5CF6" />
                 </View>
-                <View style={[styles.badgeStatDivider, { backgroundColor: theme === 'dark' ? '#334155' : '#E2E8F0' }]} />
-                <View style={styles.badgeStat}>
-                  <Text style={[styles.badgeStatValue, { color: theme === 'dark' ? '#F8FAFC' : '#0F172A' }]}>{playerInfo.blood_type || "N/R"}</Text>
-                  <Text style={styles.badgeStatLabel}>SANGRE</Text>
-                </View>
-              </View>
-
-              {/* ID DIGITAL LIMPIO */}
-              <View style={styles.digitalIdContainer}>
-                <Ionicons name="shield-checkmark-outline" size={24} color="#94A3B8" />
-                <Text style={styles.digitalIdText}>Gafete Oficial • Liga Flag Durango</Text>
+                <Text style={[styles.statGridValue, { color: currentColors.text }]}>{totals.passes}</Text>
+                <Text style={[styles.statGridLabel, { color: currentColors.textSecondary }]}>PASES QB</Text>
               </View>
             </View>
-            
-            <Pressable style={styles.editProfileBtn} onPress={() => setShowEditModal(true)}>
-              <Ionicons name="create-outline" size={16} color="#FFF" />
-              <Text style={styles.editProfileText}>Editar Info y Temporadas</Text>
+
+            <View style={[styles.statsGridRow, { marginTop: 15 }]}>
+              {/* INTERCEPCIONES */}
+              <View style={styles.statGridBox}>
+                <View style={[styles.statGridIconWrap, { backgroundColor: isDark ? 'rgba(16, 185, 129, 0.15)' : '#ECFDF5' }]}>
+                  <Ionicons name="magnet" size={24} color="#10B981" />
+                </View>
+                <Text style={[styles.statGridValue, { color: currentColors.text }]}>{totals.ints}</Text>
+                <Text style={[styles.statGridLabel, { color: currentColors.textSecondary }]}>INTERCEP.</Text>
+              </View>
+
+              {/* SACKS */}
+              <View style={styles.statGridBox}>
+                <View style={[styles.statGridIconWrap, { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : '#FEF2F2' }]}>
+                  <Ionicons name="close-circle" size={24} color="#EF4444" />
+                </View>
+                <Text style={[styles.statGridValue, { color: currentColors.text }]}>{totals.sacks}</Text>
+                <Text style={[styles.statGridLabel, { color: currentColors.textSecondary }]}>SACKS</Text>
+              </View>
+            </View>
+
+            {/* MVP (Ocupa todo el ancho) */}
+            <View style={[styles.statsGridRow, { marginTop: 15 }]}>
+              <View style={styles.statGridBox}>
+                <View style={[styles.statGridIconWrap, { backgroundColor: isDark ? 'rgba(245, 158, 11, 0.15)' : '#FFFBEB' }]}>
+                  <Ionicons name="trophy" size={24} color="#F59E0B" />
+                </View>
+                <Text style={[styles.statGridValue, { color: currentColors.text }]}>{mvpCount}</Text>
+                <Text style={[styles.statGridLabel, { color: currentColors.textSecondary }]}>PREMIOS MVP</Text>
+              </View>
+            </View>
+
+          </View>
+
+          {/* --- EQUIPOS DEL JUGADOR --- */}
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionTitle, { color: currentColors.text, marginBottom: 0 }]}>Mis Equipos</Text>
+            <Pressable style={[styles.addBtn, { backgroundColor: BRAND_GRADIENT[0] }]} onPress={openJoinModal}>
+              <Ionicons name="add" size={16} color="#FFF" />
+              <Text style={styles.addBtnText}>Unirme a otro</Text>
             </Pressable>
           </View>
-        )}
 
-        <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: currentColors.text }]}>Mis Equipos</Text>
-          <Pressable style={styles.addBtn} onPress={openJoinModal}>
-            <Ionicons name="add" size={16} color="#FFF" />
-            <Text style={styles.addBtnText}>Unirme a otro</Text>
-          </Pressable>
-        </View>
-
-        {playerTeams.length === 0 ? (
-          <View style={[styles.emptyCard, { backgroundColor: currentColors.card, borderColor: currentColors.border }]}>
-            <Text style={[styles.emptyText, { color: currentColors.textMuted }]}>Sin equipo actualmente.</Text>
-          </View>
-        ) : (
-          playerTeams.map((pt, idx) => (
-            <View key={idx} style={[styles.teamCard, { backgroundColor: currentColors.card, borderColor: currentColors.border }]}>
-              <View style={styles.teamCardInfo}>
-                <Text style={[styles.teamCardName, { color: currentColors.text }]}>{pt.team?.name}</Text>
-                <Text style={[styles.teamCardCat, { color: currentColors.textSecondary }]}>{pt.team?.category}</Text>
-              </View>
-              <View style={[styles.teamCardStats, { backgroundColor: currentColors.bgSecondary }]}>
-                <Text style={styles.teamCardJersey}>#{pt.jersey_number}</Text>
-                <Text style={[styles.teamCardPos, { color: currentColors.textMuted }]}>{pt.position}</Text>
-              </View>
+          {playerTeams.length === 0 ? (
+            <View style={[styles.emptyCard, { backgroundColor: currentColors.card, borderColor: currentColors.borderLight }]}>
+              <Ionicons name="shield-outline" size={32} color={currentColors.textMuted} style={{marginBottom: 8}}/>
+              <Text style={[styles.emptyText, { color: currentColors.textSecondary }]}>Aún no te has unido a ningún equipo oficial.</Text>
             </View>
-          ))
-        )}
-
-        {joinRequests.length > 0 && (
-          <>
-            <Text style={[styles.sectionTitle, { marginTop: 25, color: currentColors.text }]}>Estatus de Solicitudes</Text>
-            {joinRequests.map(req => (
-              <View key={req.id} style={[styles.requestCard, { backgroundColor: currentColors.card, borderColor: currentColors.border }]}>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.reqTeamName, { color: currentColors.text }]}>{req.teams?.name}</Text>
-                  <Text style={[styles.reqCatName, { color: currentColors.textSecondary }]}>{req.teams?.category}</Text>
+          ) : (
+            playerTeams.map((pt, idx) => (
+              <View key={idx} style={[styles.teamCard, { backgroundColor: currentColors.card, borderColor: currentColors.borderLight, shadowColor: isDark ? '#000' : '#475569' }]}>
+                <View style={[styles.teamCardLogo, { borderColor: currentColors.borderLight }]}>
+                  {pt.team?.logo_url ? (
+                     <Image source={{uri: pt.team.logo_url}} style={styles.teamLogoImg} resizeMode="contain" />
+                  ) : (
+                     <Text style={[styles.fallbackTeamText, { color: currentColors.textMuted }]}>{pt.team?.name?.substring(0,2).toUpperCase()}</Text>
+                  )}
                 </View>
-                <View style={[
-                  styles.statusBadge, 
-                  req.status === 'accepted' ? (theme === 'dark' ? {backgroundColor: '#064E3B'} : styles.badgeGreen) : 
-                  req.status === 'rejected' ? (theme === 'dark' ? {backgroundColor: '#7F1D1D'} : styles.badgeRed) : 
-                  (theme === 'dark' ? {backgroundColor: '#78350F'} : styles.badgeYellow)
-                ]}>
-                  <Text style={[styles.statusText, { 
-                    color: req.status === 'accepted' ? (theme === 'dark' ? '#34D399' : '#0F172A') : 
-                            req.status === 'rejected' ? (theme === 'dark' ? '#FCA5A5' : '#0F172A') : 
-                            (theme === 'dark' ? '#FDE68A' : '#0F172A')
-                  }]}>{req.status.toUpperCase()}</Text>
+
+                <View style={styles.teamCardInfo}>
+                  <Text style={[styles.teamCardName, { color: currentColors.text }]}>{pt.team?.name}</Text>
+                  <Text style={[styles.teamCardCat, { color: currentColors.textSecondary }]}>{pt.team?.category?.replace("-", " ").toUpperCase()}</Text>
+                </View>
+                
+                <View style={[styles.teamCardStats, { backgroundColor: `${BRAND_GRADIENT[0]}15`, borderColor: `${BRAND_GRADIENT[0]}30` }]}>
+                  <Text style={[styles.teamCardJersey, { color: BRAND_GRADIENT[0] }]}>#{pt.jersey_number}</Text>
+                  <Text style={[styles.teamCardPos, { color: currentColors.textSecondary }]}>{pt.position}</Text>
                 </View>
               </View>
-            ))}
-          </>
-        )}
+            ))
+          )}
 
-        <Pressable 
-          style={[styles.deleteAccountBtn, { backgroundColor: theme === 'dark' ? 'rgba(239,68,68,0.1)' : "#FEF2F2", borderColor: theme === 'dark' ? 'rgba(239,68,68,0.3)' : "#FECACA" }]} 
-          onPress={handleDeleteAccount}
-        >
-          <Ionicons name="warning-outline" size={18} color="#EF4444" />
-          <Text style={styles.deleteAccountText}>Eliminar Mi Cuenta</Text>
-        </Pressable>
+          {/* --- SOLICITUDES --- */}
+          {joinRequests.length > 0 && (
+            <>
+              <Text style={[styles.sectionTitle, { marginTop: 25, color: currentColors.text }]}>Estatus de Solicitudes</Text>
+              {joinRequests.map(req => (
+                <View key={req.id} style={[styles.requestCard, { backgroundColor: currentColors.card, borderColor: currentColors.borderLight }]}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.reqTeamName, { color: currentColors.text }]}>{req.teams?.name}</Text>
+                    <Text style={[styles.reqCatName, { color: currentColors.textSecondary }]}>{req.teams?.category?.replace("-", " ").toUpperCase()}</Text>
+                  </View>
+                  <View style={[
+                    styles.statusBadge, 
+                    req.status === 'accepted' ? (isDark ? {backgroundColor: '#064E3B'} : styles.badgeGreen) : 
+                    req.status === 'rejected' ? (isDark ? {backgroundColor: '#7F1D1D'} : styles.badgeRed) : 
+                    (isDark ? {backgroundColor: '#78350F'} : styles.badgeYellow)
+                  ]}>
+                    <Text style={[styles.statusText, { 
+                      color: req.status === 'accepted' ? (isDark ? '#34D399' : '#047857') : 
+                             req.status === 'rejected' ? (isDark ? '#FCA5A5' : '#B91C1C') : 
+                             (isDark ? '#FDE68A' : '#B45309')
+                    }]}>{req.status.toUpperCase()}</Text>
+                  </View>
+                </View>
+              ))}
+            </>
+          )}
 
+          <Pressable 
+            style={[styles.deleteAccountBtn, { backgroundColor: isDark ? 'rgba(239,68,68,0.1)' : "#FEF2F2", borderColor: isDark ? 'rgba(239,68,68,0.3)' : "#FECACA" }]} 
+            onPress={handleDeleteAccount}
+          >
+            <Ionicons name="warning-outline" size={18} color="#EF4444" />
+            <Text style={styles.deleteAccountText}>Eliminar Mi Cuenta</Text>
+          </Pressable>
+
+        </View>
       </ScrollView>
 
       {/* ─────────────────────────────────────────────────────────────
-          MODAL: BUSCAR EQUIPO CON KEYBOARD AVOIDING VIEW
+          MODAL: BUSCAR EQUIPO CON KEYBOARD AVOIDING VIEW Y RESPONSIVE
       ────────────────────────────────────────────────────────────── */}
       <Modal visible={showJoinModal} animationType="slide" transparent={true}>
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
           <View style={styles.modalOverlay}>
-            <View style={[styles.modalContent, { backgroundColor: currentColors.card }]}>
+            <View style={[styles.modalContent, { backgroundColor: currentColors.card }, isTablet && styles.modalTablet]}>
               <View style={styles.modalHeader}>
                 <Text style={[styles.modalTitle, { color: currentColors.text }]}>Inscribirse en Equipo</Text>
-                <Pressable onPress={() => setShowJoinModal(false)}><Ionicons name="close" size={24} color={currentColors.textMuted} /></Pressable>
+                <Pressable style={styles.modalCloseBtn} onPress={() => setShowJoinModal(false)}><Ionicons name="close" size={24} color={currentColors.text} /></Pressable>
               </View>
-              <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 300 }} keyboardShouldPersistTaps="handled">
+              <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: isTablet ? 400 : 300 }} keyboardShouldPersistTaps="handled">
                 <View style={styles.teamList}>
                   {availableTeams.map(t => {
                     const isBlocked = myCategories.includes(t.category);
@@ -440,14 +530,14 @@ export default function PlayerDashboard() {
                         style={[
                           styles.teamItem, 
                           { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.borderLight },
-                          isSelected && [styles.teamItemActive, { backgroundColor: theme === 'dark' ? 'rgba(59,130,246,0.2)' : '#EFF6FF', borderColor: BRAND_GRADIENT[0] }], 
+                          isSelected && [styles.teamItemActive, { backgroundColor: isDark ? 'rgba(59,130,246,0.15)' : '#EFF6FF', borderColor: BRAND_GRADIENT[0] }], 
                           isBlocked && styles.teamItemBlocked
                         ]}
                         onPress={() => setSelectedTeamId(t.id)}
                       >
                         <View style={{ flex: 1 }}>
                           <Text style={[styles.teamItemText, { color: currentColors.text }, isSelected && styles.teamItemTextActive]}>{t.name}</Text>
-                          <Text style={[styles.teamItemCatText, { color: currentColors.textSecondary }]}>{t.category}</Text>
+                          <Text style={[styles.teamItemCatText, { color: currentColors.textSecondary }]}>{t.category?.replace("-", " ").toUpperCase()}</Text>
                         </View>
                         {isBlocked && <Ionicons name="lock-closed" size={16} color="#EF4444" />}
                       </Pressable>
@@ -455,57 +545,64 @@ export default function PlayerDashboard() {
                   })}
                 </View>
                 <View style={[styles.divider, { backgroundColor: currentColors.borderLight }]} />
+                
+                <Text style={[styles.inputTitle, { color: currentColors.textMuted }]}>Datos del Campo</Text>
                 <View style={styles.rowInputs}>
-                  <View style={styles.inputGroup}><Text style={[styles.inputTitle, { color: currentColors.textMuted }]}>Posición</Text>
-                    <TextInput style={[styles.modalInput, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border, color: currentColors.text }]} value={joinPosition} onChangeText={setJoinPosition} autoCapitalize="characters" />
+                  <View style={styles.inputGroup}>
+                    <TextInput style={[styles.modalInputLeft, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.borderLight, color: currentColors.text }]} placeholderTextColor={currentColors.textMuted} placeholder="Posición (Ej. QB)" value={joinPosition} onChangeText={setJoinPosition} autoCapitalize="characters" />
                   </View>
-                  <View style={styles.inputGroup}><Text style={[styles.inputTitle, { color: currentColors.textMuted }]}>Jersey #</Text>
-                    <TextInput style={[styles.modalInput, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border, color: currentColors.text }]} value={joinJersey} onChangeText={setJoinJersey} keyboardType="numeric" maxLength={2} />
+                  <View style={styles.inputGroup}>
+                    <TextInput style={[styles.modalInputLeft, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.borderLight, color: currentColors.text }]} placeholderTextColor={currentColors.textMuted} placeholder="Jersey (Ej. 10)" value={joinJersey} onChangeText={setJoinJersey} keyboardType="numeric" maxLength={2} />
                   </View>
                 </View>
               </ScrollView>
-              <Pressable style={[styles.submitBtn, { backgroundColor: BRAND_GRADIENT[0] }]} onPress={handleJoinTeam}><Text style={styles.submitBtnText}>Enviar Solicitud</Text></Pressable>
+              <Pressable style={[styles.submitBtn, { backgroundColor: BRAND_GRADIENT[0] }]} onPress={handleJoinTeam}>
+                <Text style={styles.submitBtnText}>Enviar Solicitud al Coach</Text>
+              </Pressable>
             </View>
           </View>
         </KeyboardAvoidingView>
       </Modal>
 
       {/* ─────────────────────────────────────────────────────────────
-          MODAL: EDITAR PERFIL CON KEYBOARD AVOIDING VIEW
+          MODAL: EDITAR PERFIL CON KEYBOARD AVOIDING VIEW Y RESPONSIVE
       ────────────────────────────────────────────────────────────── */}
       <Modal visible={showEditModal} animationType="fade" transparent={true}>
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
           <View style={styles.modalOverlay}>
-            <View style={[styles.modalContent, { backgroundColor: currentColors.card }]}>
+            <View style={[styles.modalContent, { backgroundColor: currentColors.card }, isTablet && styles.modalTablet]}>
               <View style={styles.modalHeader}>
-                <Text style={[styles.modalTitle, { color: currentColors.text }]}>Información de Perfil</Text>
-                <Pressable onPress={() => setShowEditModal(false)}><Ionicons name="close" size={24} color={currentColors.textMuted} /></Pressable>
+                <Text style={[styles.modalTitle, { color: currentColors.text }]}>Información Privada</Text>
+                <Pressable style={styles.modalCloseBtn} onPress={() => setShowEditModal(false)}><Ionicons name="close" size={24} color={currentColors.text} /></Pressable>
               </View>
               <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                 
-                <Text style={[styles.inputTitle, { color: currentColors.textMuted }]}>Experiencia en la liga</Text>
+                <Text style={[styles.inputTitle, { color: currentColors.textMuted }]}>Experiencia en Flag Football</Text>
                 <View style={styles.rowInputs}>
                    <View style={{flex: 1}}>
-                      <TextInput style={[styles.modalInputLeft, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border, color: currentColors.text }]} placeholderTextColor={currentColors.textMuted} placeholder="Temporadas" value={editSeasons} onChangeText={setEditSeasons} keyboardType="numeric" />
+                      <TextInput style={[styles.modalInputLeft, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.borderLight, color: currentColors.text }]} placeholderTextColor={currentColors.textMuted} placeholder="Temporadas Jugadas" value={editSeasons} onChangeText={setEditSeasons} keyboardType="numeric" />
                    </View>
                    <View style={{flex: 1}}>
-                      <TextInput style={[styles.modalInputLeft, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border, color: currentColors.text }]} placeholderTextColor={currentColors.textMuted} placeholder="Año de Inicio" value={editSince} onChangeText={setEditSince} keyboardType="numeric" maxLength={4} />
+                      <TextInput style={[styles.modalInputLeft, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.borderLight, color: currentColors.text }]} placeholderTextColor={currentColors.textMuted} placeholder="Año de Inicio (Ej. 2018)" value={editSince} onChangeText={setEditSince} keyboardType="numeric" maxLength={4} />
                    </View>
                 </View>
 
-                <Text style={[styles.inputTitle, { color: currentColors.textMuted }]}>Datos de Salud</Text>
-                <TextInput style={[styles.modalInputLeft, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border, color: currentColors.text }]} placeholderTextColor={currentColors.textMuted} placeholder="Tipo de Sangre" value={editBlood} onChangeText={setEditBlood} />
-                <TextInput style={[styles.modalInputLeft, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border, color: currentColors.text }]} placeholderTextColor={currentColors.textMuted} placeholder="Teléfono Personal" value={editPhone} onChangeText={setEditPhone} keyboardType="phone-pad" />
+                <Text style={[styles.inputTitle, { color: currentColors.textMuted }]}>Datos de Salud y Personales</Text>
+                <TextInput style={[styles.modalInputLeft, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.borderLight, color: currentColors.text }]} placeholderTextColor={currentColors.textMuted} placeholder="Tipo de Sangre (Opcional)" value={editBlood} onChangeText={setEditBlood} />
+                <TextInput style={[styles.modalInputLeft, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.borderLight, color: currentColors.text }]} placeholderTextColor={currentColors.textMuted} placeholder="Teléfono Personal" value={editPhone} onChangeText={setEditPhone} keyboardType="phone-pad" />
                 
-                <Text style={[styles.inputTitle, { color: currentColors.textMuted }]}>Contacto Emergencia</Text>
-                <TextInput style={[styles.modalInputLeft, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border, color: currentColors.text }]} placeholderTextColor={currentColors.textMuted} placeholder="Nombre Contacto" value={editEmergencyName} onChangeText={setEditEmergencyName} />
-                <TextInput style={[styles.modalInputLeft, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border, color: currentColors.text }]} placeholderTextColor={currentColors.textMuted} placeholder="Tel. Emergencia" value={editEmergencyPhone} onChangeText={setEditEmergencyPhone} keyboardType="phone-pad" />
+                <Text style={[styles.inputTitle, { color: currentColors.textMuted }]}>Contacto de Emergencia</Text>
+                <TextInput style={[styles.modalInputLeft, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.borderLight, color: currentColors.text }]} placeholderTextColor={currentColors.textMuted} placeholder="Nombre del Contacto" value={editEmergencyName} onChangeText={setEditEmergencyName} />
+                <TextInput style={[styles.modalInputLeft, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.borderLight, color: currentColors.text }]} placeholderTextColor={currentColors.textMuted} placeholder="Teléfono de Emergencia" value={editEmergencyPhone} onChangeText={setEditEmergencyPhone} keyboardType="phone-pad" />
               </ScrollView>
-              <Pressable style={[styles.submitBtn, { backgroundColor: BRAND_GRADIENT[0] }]} onPress={handleEditProfile}><Text style={styles.submitBtnText}>Guardar Cambios</Text></Pressable>
+              <Pressable style={[styles.submitBtn, { backgroundColor: BRAND_GRADIENT[0] }]} onPress={handleEditProfile}>
+                <Text style={styles.submitBtnText}>Guardar Perfil</Text>
+              </Pressable>
             </View>
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
     </View>
   );
 }
@@ -513,76 +610,93 @@ export default function PlayerDashboard() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   loading: { flex: 1, justifyContent: "center", alignItems: "center" },
-  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 20, paddingBottom: 15, borderBottomWidth: 1 },
+  contentWrapper: { width: "100%", maxWidth: 800, alignSelf: "center" },
+  
+  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 20, paddingBottom: 15, borderBottomWidth: 1, elevation: 4, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 5 },
   headerLeft: { flexDirection: "row", alignItems: "center" },
   homeIcon: { marginRight: 15, padding: 5 },
-  headerTitle: { fontSize: 26, fontWeight: "900", letterSpacing: -1 },
+  headerTitle: { fontSize: 26, fontWeight: "900", letterSpacing: -0.5 },
   logoutIcon: { padding: 5 },
+  
   scrollContent: { padding: 20, paddingBottom: 100 },
-  qrCard: { borderRadius: 24, borderWidth: 2, elevation: 8, shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.15, shadowRadius: 20, overflow: "hidden", marginBottom: 25 },
-  qrHeader: { paddingVertical: 14, alignItems: "center" },
-  qrTeamName: { color: "#FFFFFF", fontSize: 14, fontWeight: "900", letterSpacing: 2 },
-  qrBody: { alignItems: "center", padding: 20 },
-  playerPhotoRing: { width: 84, height: 84, borderRadius: 42, justifyContent: "center", alignItems: "center", borderWidth: 3, elevation: 5, marginTop: -45, marginBottom: 10 },
-  playerPhoto: { width: "100%", height: "100%", borderRadius: 42 },
-  cameraBadge: { position: "absolute", bottom: 0, right: -4, width: 26, height: 26, borderRadius: 13, justifyContent: "center", alignItems: "center", borderWidth: 2 },
-  playerName: { fontSize: 22, fontWeight: "900", marginBottom: 5 },
-  autoSaveBadge: { flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 12 },
-  autoSaveText: { fontSize: 10, fontWeight: "700", textTransform: "uppercase" },
+  
+  // --- Gafete Premium ---
+  qrCard: { borderRadius: 28, borderWidth: 1, elevation: 8, shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.1, shadowRadius: 20, overflow: "hidden", marginBottom: 30 },
+  qrHeader: { paddingVertical: 18, alignItems: "center" },
+  qrTeamName: { color: "#FFFFFF", fontSize: 14, fontWeight: "900", letterSpacing: 2.5 },
+  qrBody: { alignItems: "center", padding: 25 },
+  playerPhotoRing: { width: 94, height: 94, borderRadius: 47, justifyContent: "center", alignItems: "center", borderWidth: 4, elevation: 5, marginTop: -50, marginBottom: 15 },
+  playerPhoto: { width: "100%", height: "100%", borderRadius: 47 },
+  cameraBadge: { position: "absolute", bottom: -2, right: -6, width: 30, height: 30, borderRadius: 15, justifyContent: "center", alignItems: "center", borderWidth: 3 },
+  playerName: { fontSize: 26, fontWeight: "900", marginBottom: 6, textAlign: 'center', letterSpacing: -0.5 },
+  autoSaveBadge: { flexDirection: "row", alignItems: "center", gap: 5, marginBottom: 18 },
+  autoSaveText: { fontSize: 11, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5 },
 
-  badgeStatsRow: { flexDirection: "row", borderRadius: 12, padding: 10, marginBottom: 20, borderWidth: 1 },
-  badgeStat: { alignItems: "center", minWidth: 65 },
-  badgeStatValue: { fontSize: 16, fontWeight: "900" },
-  badgeStatLabel: { fontSize: 8, fontWeight: "800", color: "#94A3B8" },
-  badgeStatDivider: { width: 1, height: 20, marginHorizontal: 15 },
+  // --- STATS GLOBALES (BENTO BOX) ---
+  globalStatsCard: { borderRadius: 28, borderWidth: 1, padding: 24, marginBottom: 30, elevation: 3, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.05, shadowRadius: 12 },
+  statsGridRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 15 },
+  statGridBox: { flex: 1, alignItems: 'center' },
+  statGridIconWrap: { width: 48, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center', marginBottom: 10 },
+  statGridValue: { fontSize: 26, fontWeight: '900', letterSpacing: -1, marginBottom: 2 },
+  statGridLabel: { fontSize: 10, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
 
-  digitalIdContainer: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 5, marginBottom: 10 },
-  digitalIdText: { fontSize: 12, color: "#94A3B8", fontWeight: "700", textTransform: 'uppercase', letterSpacing: 0.5 },
+  digitalIdContainer: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10 },
+  digitalIdText: { fontSize: 11, fontWeight: "800", textTransform: 'uppercase', letterSpacing: 1 },
 
-  editProfileBtn: { backgroundColor: "#1E293B", flexDirection: "row", justifyContent: "center", alignItems: "center", paddingVertical: 12, gap: 8 },
-  editProfileText: { color: "#FFFFFF", fontSize: 12, fontWeight: "800" },
-  sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
-  sectionTitle: { fontSize: 17, fontWeight: "900" },
-  addBtn: { flexDirection: "row", backgroundColor: BRAND_GRADIENT[0], paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10, alignItems: "center", gap: 4 },
-  addBtnText: { color: "#FFF", fontSize: 11, fontWeight: "800" },
-  emptyCard: { padding: 20, borderRadius: 16, alignItems: "center", borderWidth: 1, borderStyle: "dashed" },
-  emptyText: { fontSize: 13 },
-  teamCard: { flexDirection: "row", padding: 15, borderRadius: 16, marginBottom: 10, alignItems: "center", borderWidth: 1 },
+  editProfileBtn: { backgroundColor: "#1E293B", flexDirection: "row", justifyContent: "center", alignItems: "center", paddingVertical: 16, gap: 8 },
+  editProfileText: { color: "#FFFFFF", fontSize: 13, fontWeight: "800", letterSpacing: 0.5 },
+  
+  sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 15 },
+  sectionTitle: { fontSize: 18, fontWeight: "900", letterSpacing: -0.5, marginBottom: 15 },
+  addBtn: { flexDirection: "row", paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12, alignItems: "center", gap: 4, elevation: 2 },
+  addBtnText: { color: "#FFF", fontSize: 12, fontWeight: "900", letterSpacing: 0.5 },
+  emptyCard: { padding: 25, borderRadius: 20, alignItems: "center", borderWidth: 1, borderStyle: "dashed" },
+  emptyText: { fontSize: 13, fontWeight: '600' },
+  
+  // --- Tarjetas de Equipos ---
+  teamCard: { flexDirection: "row", padding: 16, borderRadius: 24, marginBottom: 15, alignItems: "center", borderWidth: 1, elevation: 2 },
+  teamCardLogo: { width: 54, height: 54, borderRadius: 14, borderWidth: 1, justifyContent: 'center', alignItems: 'center', marginRight: 15, padding: 5, backgroundColor: '#FFFFFF' },
+  teamLogoImg: { width: '100%', height: '100%' },
+  fallbackTeamText: { fontSize: 16, fontWeight: '900' },
   teamCardInfo: { flex: 1 },
-  teamCardName: { fontSize: 16, fontWeight: "800" },
-  teamCardCat: { fontSize: 11 },
-  teamCardStats: { alignItems: "center", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10 },
-  teamCardJersey: { fontSize: 16, fontWeight: "900", color: BRAND_GRADIENT[0] },
-  teamCardPos: { fontSize: 10, fontWeight: "800" },
-  requestCard: { flexDirection: "row", padding: 15, borderRadius: 16, marginBottom: 10, alignItems: "center", borderWidth: 1 },
-  reqTeamName: { fontSize: 15, fontWeight: "800" },
-  reqCatName: { fontSize: 11 },
-  statusBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
+  teamCardName: { fontSize: 18, fontWeight: "900", marginBottom: 2, letterSpacing: -0.3 },
+  teamCardCat: { fontSize: 11, fontWeight: '700', letterSpacing: 0.5 },
+  teamCardStats: { alignItems: "center", paddingHorizontal: 14, paddingVertical: 8, borderRadius: 14, borderWidth: 1 },
+  teamCardJersey: { fontSize: 18, fontWeight: "900" },
+  teamCardPos: { fontSize: 10, fontWeight: "800", marginTop: 2, letterSpacing: 0.5 },
+  
+  requestCard: { flexDirection: "row", padding: 18, borderRadius: 20, marginBottom: 12, alignItems: "center", borderWidth: 1, elevation: 1 },
+  reqTeamName: { fontSize: 16, fontWeight: "900", marginBottom: 2 },
+  reqCatName: { fontSize: 11, fontWeight: '700', letterSpacing: 0.5 },
+  statusBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
   badgeYellow: { backgroundColor: "#FEF3C7" },
   badgeGreen: { backgroundColor: "#D1FAE5" },
   badgeRed: { backgroundColor: "#FEE2E2" },
-  statusText: { fontSize: 10, fontWeight: "800" },
+  statusText: { fontSize: 10, fontWeight: "900", letterSpacing: 0.5 },
   
-  deleteAccountBtn: { marginTop: 40, padding: 16, borderRadius: 16, borderWidth: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
-  deleteAccountText: { color: "#EF4444", fontSize: 14, fontWeight: "800" },
+  deleteAccountBtn: { marginTop: 40, padding: 18, borderRadius: 20, borderWidth: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10 },
+  deleteAccountText: { color: "#EF4444", fontSize: 14, fontWeight: "900" },
 
-  modalOverlay: { flex: 1, backgroundColor: "rgba(0, 0, 0, 0.5)", justifyContent: "flex-end" },
-  modalContent: { borderTopLeftRadius: 30, borderTopRightRadius: 30, padding: 25 },
-  modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 20 },
-  modalTitle: { fontSize: 19, fontWeight: "900" },
-  teamList: { gap: 8 },
-  teamItem: { flexDirection: "row", padding: 12, borderRadius: 12, marginBottom: 5, borderWidth: 1 },
-  teamItemActive: {},
+  // --- Modales Adaptados ---
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0, 0, 0, 0.65)", justifyContent: "flex-end" },
+  modalContent: { borderTopLeftRadius: 36, borderTopRightRadius: 36, padding: 30, paddingBottom: Platform.OS === 'ios' ? 45 : 30 },
+  modalTablet: { width: 500, alignSelf: 'center', borderRadius: 36, marginBottom: 'auto', marginTop: 'auto' }, 
+  
+  modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 25 },
+  modalTitle: { fontSize: 22, fontWeight: "900", letterSpacing: -0.5 },
+  modalCloseBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(150,150,150,0.1)', justifyContent: 'center', alignItems: 'center' },
+  teamList: { gap: 10 },
+  teamItem: { flexDirection: "row", padding: 16, borderRadius: 18, marginBottom: 5, borderWidth: 1, alignItems: 'center' },
+  teamItemActive: { elevation: 2 },
   teamItemBlocked: { opacity: 0.4 },
-  teamItemText: { fontSize: 14, fontWeight: "700" },
+  teamItemText: { fontSize: 16, fontWeight: "800", marginBottom: 2 },
   teamItemTextActive: { color: BRAND_GRADIENT[0] },
-  teamItemCatText: { fontSize: 10 },
-  divider: { height: 1, marginVertical: 15 },
-  rowInputs: { flexDirection: "row", gap: 10, marginBottom: 10 },
+  teamItemCatText: { fontSize: 11, fontWeight: '700', letterSpacing: 0.5 },
+  divider: { height: 1, marginVertical: 20 },
+  rowInputs: { flexDirection: "row", gap: 15, marginBottom: 15 },
   inputGroup: { flex: 1 },
-  inputTitle: { fontSize: 10, fontWeight: "700", marginBottom: 5, textTransform: "uppercase" },
-  modalInput: { borderWidth: 1, borderRadius: 10, padding: 12, fontSize: 16, fontWeight: "700", textAlign: "center" },
-  modalInputLeft: { borderWidth: 1, borderRadius: 12, padding: 14, marginBottom: 12, fontSize: 14 },
-  submitBtn: { padding: 16, borderRadius: 14, alignItems: "center", marginTop: 10 },
-  submitBtnText: { color: "#FFFFFF", fontSize: 15, fontWeight: "800" },
+  inputTitle: { fontSize: 11, fontWeight: "800", marginBottom: 8, textTransform: "uppercase", letterSpacing: 1 },
+  modalInputLeft: { borderWidth: 1, borderRadius: 16, padding: 16, marginBottom: 15, fontSize: 15, fontWeight: '600' },
+  submitBtn: { padding: 18, borderRadius: 18, alignItems: "center", marginTop: 15, elevation: 4 },
+  submitBtnText: { color: "#FFFFFF", fontSize: 16, fontWeight: "900", letterSpacing: 0.5 },
 });

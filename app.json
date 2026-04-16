@@ -2,8 +2,8 @@
   "expo": {
     "name": "FlagDurango",
     "slug": "flagdurango",
-    "version": "1.0.5",
-    "orientation": "portrait",
+    "version": "1.0.6",
+    "orientation": "default",
     "icon": "./assets/images/icon.png",
     "scheme": "flagdurango",
     "userInterfaceStyle": "automatic",
@@ -18,8 +18,8 @@
       "color": "#0A0E1A"
     },
     "ios": {
-      "buildNumber": "11",
-      "supportsTablet": false,
+      "buildNumber": "12",
+      "supportsTablet": true,
       "bundleIdentifier": "com.flagdurango.app",
       "infoPlist": {
         "NSCameraUsageDescription": "Esta app requiere acceso a la cámara para que puedas tomar una foto para tu gafete oficial o logo de equipo.",
@@ -29,7 +29,7 @@
     },
     "android": {
       "package": "com.flagdurango.app",
-      "versionCode": 8,
+      "versionCode": 9,
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#0A0E1A",
@@ -73,7 +73,7 @@
         "origin": "https://replit.com/"
       },
       "eas": {
-        "projectId": "4c04db27-74d0-42bc-a22a-39459fe0a67c"
+        "projectId": "322affb9-38e3-4291-8c1e-ba51e46e6ad2"
       }
     }
   }

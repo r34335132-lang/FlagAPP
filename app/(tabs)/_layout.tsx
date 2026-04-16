@@ -1,5 +1,5 @@
 import { Tabs } from "expo-router";
-import { Platform, StyleSheet, View, useColorScheme } from "react-native";
+import { Platform, StyleSheet, View, useColorScheme, useWindowDimensions } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import React, { useEffect, useState } from "react";
@@ -8,6 +8,10 @@ import { Colors } from "@/constants/colors";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export default function TabLayout() {
+  // 🔥 1. Obtenemos las dimensiones de la pantalla
+  const { width } = useWindowDimensions();
+  const isTablet = width >= 768; // Detectamos si es una tablet
+
   const isIOS = Platform.OS === "ios";
   const isWeb = Platform.OS === "web";
   
@@ -45,7 +49,16 @@ export default function TabLayout() {
         tabBarStyle: {
           position: "absolute",
           backgroundColor: isIOS ? "transparent" : currentColors.card, 
-          borderTopWidth: 1,
+          
+          // 🔥 2. AJUSTES DINÁMICOS PARA TABLET VS TELÉFONO 🔥
+          alignSelf: isTablet ? "center" : "auto",
+          width: isTablet ? 600 : "100%", // Limita el ancho en tablets
+          maxWidth: "100%",
+          bottom: isTablet ? 20 : 0, // Flota la barra en tablets
+          borderRadius: isTablet ? 25 : 0, // Redondea completamente los bordes en tablets
+          overflow: "hidden", // Importante para que el fondo (Blur) respete los bordes redondeados
+
+          borderTopWidth: isTablet ? 0 : 1, // Ocultamos la línea superior si está flotando
           borderTopColor: currentColors.border, 
           elevation: 10,
           shadowColor: "#000",
@@ -53,8 +66,9 @@ export default function TabLayout() {
           shadowOpacity: theme === "dark" ? 0.3 : 0.05, 
           shadowRadius: 10,
           
-          height: isWeb ? 84 : (isIOS ? 88 : 65 + insets.bottom),
-          paddingBottom: isIOS ? 28 : 10 + insets.bottom,
+          // 3. Ajustamos altura y padding considerando si está flotando o no
+          height: isWeb ? 84 : (isIOS && !isTablet ? 88 : 65 + (isTablet ? 0 : insets.bottom)),
+          paddingBottom: isTablet ? 10 : (isIOS ? 28 : 10 + insets.bottom),
           paddingTop: 10,
         },
         tabBarBackground: () =>

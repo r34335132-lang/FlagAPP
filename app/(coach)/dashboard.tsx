@@ -8,7 +8,8 @@ import {
   Easing,
   Modal,
   Linking,
-  KeyboardAvoidingView
+  KeyboardAvoidingView,
+  useWindowDimensions
 } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -37,17 +38,14 @@ const CATEGORIES = [
   { id: "teens", label: "Teens" },
 ];
 
-// ─────────────────────────────────────────────────────────────────────────────
-// COMPONENTE ANIMADO
-// ─────────────────────────────────────────────────────────────────────────────
 const FadeInView = ({ children, delay = 0 }: { children: any, delay?: number }) => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(15)).current;
 
   useEffect(() => {
     Animated.parallel([
-      Animated.timing(fadeAnim, { toValue: 1, duration: 500, delay, useNativeDriver: true, easing: Easing.out(Easing.cubic) }),
-      Animated.timing(slideAnim, { toValue: 0, duration: 500, delay, useNativeDriver: true, easing: Easing.out(Easing.cubic) })
+      Animated.timing(fadeAnim, { toValue: 1, duration: 400, delay, useNativeDriver: true, easing: Easing.out(Easing.cubic) }),
+      Animated.timing(slideAnim, { toValue: 0, duration: 400, delay, useNativeDriver: true, easing: Easing.out(Easing.cubic) })
     ]).start();
   }, [children]);
 
@@ -60,8 +58,12 @@ const FadeInView = ({ children, delay = 0 }: { children: any, delay?: number }) 
 
 export default function CoachDashboard() {
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const isTablet = width >= 768;
+
   const theme = useColorScheme() ?? "light";
   const currentColors = Colors[theme];
+  const isDark = theme === "dark";
 
   const [user, setUser] = useState<any>(null);
   const [coachPhoto, setCoachPhoto] = useState<string | null>(null);
@@ -76,22 +78,23 @@ export default function CoachDashboard() {
   const [uploading, setUploading] = useState(false);
   const [activeTab, setActiveTab] = useState<"equipos" | "crear" | "solicitudes" | "perfil">("equipos");
 
-  const [teamForm, setTeamForm] = useState({ 
-    name: "", category: "", captain_name: "", captain_phone: ""
-  });
+  const [teamForm, setTeamForm] = useState({ name: "", category: "", captain_name: "", captain_phone: "" });
   const [tempLogoUri, setTempLogoUri] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
 
   const [champForm, setChampForm] = useState({
-    team_id: null as number | null,
-    title: "",
-    year: "",
-    tournament: "",
-    position: "1er Lugar"
+    team_id: null as number | null, title: "", year: "", tournament: "", position: "1er Lugar"
   });
   const [savingChamp, setSavingChamp] = useState(false);
   
   const [paymentTeam, setPaymentTeam] = useState<any>(null);
+
+  // Estados de edición de jugadores
+  const [editingPlayer, setEditingPlayer] = useState<any>(null);
+  const [editPlayerName, setEditPlayerName] = useState("");
+  const [editPlayerPosition, setEditPlayerPosition] = useState("");
+  const [editPlayerJersey, setEditPlayerJersey] = useState("");
+  const [savingPlayer, setSavingPlayer] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -109,30 +112,17 @@ export default function CoachDashboard() {
 
   useEffect(() => {
     if (!user) return;
-
     const subscription = supabase
       .channel('coach-new-requests')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'team_join_requests',
-          filter: `coach_user_id=eq.${user.id}`
-        },
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'team_join_requests', filter: `coach_user_id=eq.${user.id}` },
         (payload) => {
-          Alert.alert(
-            "🔔 ¡Nueva Solicitud!", 
-            `El jugador ${payload.new.player_name} ha enviado una solicitud para unirse a tu equipo.`
-          );
+          Alert.alert("🔔 ¡Nueva Solicitud!", `El jugador ${payload.new.player_name} ha enviado una solicitud.`);
           loadCoachData(user);
         }
       )
       .subscribe();
-
-    return () => {
-      supabase.removeChannel(subscription);
-    };
+      
+    return () => { supabase.removeChannel(subscription); };
   }, [user]);
 
   const safeJsonParse = async (response: Response) => {
@@ -201,33 +191,18 @@ export default function CoachDashboard() {
   };
 
   const handlePickImage = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.5,
-    });
-
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 0.5 });
     if (!result.canceled && result.assets[0]) {
       setUploading(true);
       try {
         const uploadData = await uploadImageToServer(result.assets[0].uri, 'coaches');
         if (uploadData?.success) {
-          const { error } = await supabase
-            .from('teams')
-            .update({ coach_photo_url: uploadData.url })
-            .eq('coach_id', user.id);
-
+          const { error } = await supabase.from('teams').update({ coach_photo_url: uploadData.url }).eq('coach_id', user.id);
           if (error) throw error;
-          
           setCoachPhoto(uploadData.url);
           Alert.alert("Éxito", "Foto de perfil actualizada.");
         }
-      } catch (e) {
-        Alert.alert("Error", "No se pudo subir la foto.");
-      } finally {
-        setUploading(false);
-      }
+      } catch (e) { Alert.alert("Error", "No se pudo subir la foto."); } finally { setUploading(false); }
     }
   };
 
@@ -316,21 +291,13 @@ export default function CoachDashboard() {
         const uploadData = await uploadImageToServer(tempLogoUri, 'team_logos');
         if (uploadData?.success) finalLogoUrl = uploadData.url;
       }
-
       const res = await fetch(`${API_BASE}/teams`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
-          ...teamForm, 
-          logo_url: finalLogoUrl,
-          coach_id: user.id, 
-          coach_name: user.username,
-          coach_photo_url: coachPhoto, 
-          color1: BRAND_GRADIENT[0],
-          color2: BRAND_GRADIENT[1]
+          ...teamForm, logo_url: finalLogoUrl, coach_id: user.id, coach_name: user.username,
+          coach_photo_url: coachPhoto, color1: BRAND_GRADIENT[0], color2: BRAND_GRADIENT[1]
         }),
       });
-
       const jsonRes = await safeJsonParse(res);
       if (jsonRes?.success) {
         Alert.alert("¡Éxito!", "Equipo creado.");
@@ -342,11 +309,45 @@ export default function CoachDashboard() {
     } finally { setCreating(false); }
   };
 
+  const openEditPlayerModal = (player: any) => {
+    setEditingPlayer(player);
+    setEditPlayerName(player.name);
+    setEditPlayerPosition(player.position || "");
+    setEditPlayerJersey(player.jersey_number ? String(player.jersey_number) : "");
+  };
+
+  const handleUpdatePlayer = async () => {
+    if (!editPlayerName.trim()) return Alert.alert("Error", "El nombre es obligatorio.");
+    setSavingPlayer(true);
+    try {
+      const res = await fetch(`${API_BASE}/players/${editingPlayer.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: editPlayerName.trim(),
+          position: editPlayerPosition.trim(),
+          jersey_number: parseInt(editPlayerJersey) || 0
+        })
+      });
+      const data = await safeJsonParse(res);
+      if (data?.success) {
+        Alert.alert("Éxito", "Jugador actualizado correctamente.");
+        setEditingPlayer(null);
+        loadCoachData(user); 
+      } else {
+        Alert.alert("Error", data?.message || "No se pudo actualizar el jugador.");
+      }
+    } catch (e) {
+      Alert.alert("Error", "Error de conexión con el servidor.");
+    } finally {
+      setSavingPlayer(false);
+    }
+  };
+
   const handleRequest = async (requestId: number, status: string) => {
     try {
       await fetch(`${API_BASE}/team-join-requests`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        method: "PUT", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: requestId, status, coach_user_id: user.id }),
       });
       loadCoachData(user);
@@ -354,32 +355,21 @@ export default function CoachDashboard() {
   };
 
   const handleDeleteAccount = () => {
-    Alert.alert(
-      "⚠️ Eliminar Cuenta de Coach",
-      "Esta acción desactivará tu cuenta. No perderás tus campeonatos pero ya no podrás gestionar tus equipos.",
-      [
-        { text: "Cancelar", style: "cancel" },
-        { text: "Sí, Eliminar", style: "destructive", onPress: async () => {
-          try {
-            const res = await fetch(`${API_BASE}/auth/delete-account`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ user_id: user.id })
-            });
-            const data = await safeJsonParse(res);
-            if (data?.success) {
-              await AsyncStorage.removeItem("userSession");
-              router.replace("/login");
-              Alert.alert("Cuenta Eliminada", "Has sido dado de baja del sistema.");
-            } else {
-              Alert.alert("Error", data?.message || "No se pudo eliminar.");
-            }
-          } catch(e) {
-            Alert.alert("Error", "Fallo de conexión.");
+    Alert.alert("⚠️ Eliminar Cuenta de Coach", "Esta acción desactivará tu cuenta. No perderás tus campeonatos pero ya no podrás gestionar tus equipos.", [
+      { text: "Cancelar", style: "cancel" },
+      { text: "Sí, Eliminar", style: "destructive", onPress: async () => {
+        try {
+          const res = await fetch(`${API_BASE}/auth/delete-account`, {
+            method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ user_id: user.id })
+          });
+          const data = await safeJsonParse(res);
+          if (data?.success) {
+            await AsyncStorage.removeItem("userSession");
+            router.replace("/login");
           }
-        }}
-      ]
-    );
+        } catch(e) { Alert.alert("Error", "Fallo de conexión."); }
+      }}
+    ]);
   };
 
   const handleLogout = async () => {
@@ -399,259 +389,330 @@ export default function CoachDashboard() {
   return (
     <View style={[styles.container, { backgroundColor: currentColors.bg }]}>
       
-      {/* HEADER DEL COACH */}
       <LinearGradient colors={[BRAND_GRADIENT[0], BRAND_GRADIENT[1]]} style={[styles.header, { paddingTop: topPad }]}>
-        <View style={styles.headerRow}>
-          <Pressable onPress={() => router.replace("/(tabs)/")}><Ionicons name="home" size={24} color="#FFF" /></Pressable>
-          <Text style={styles.headerTitle}>Panel de Coach</Text>
-          <Pressable onPress={handleLogout}><Ionicons name="log-out-outline" size={26} color="#FFF" /></Pressable>
-        </View>
-
-        <View style={styles.coachHeaderCard}>
-          <Pressable onPress={handlePickImage} style={styles.avatarContainer}>
-             {coachPhoto ? (
-               <Image source={{ uri: coachPhoto }} style={styles.avatarImg} />
-             ) : (
-               <Ionicons name="camera" size={22} color="#FFF" />
-             )}
-             {uploading && <ActivityIndicator style={styles.loader} color="#FFF" />}
-          </Pressable>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.welcomeText}>{user?.username}</Text>
-            <Text style={styles.coachStatsText}>{teams.length} Equipos | {championships.length} Copas</Text>
+        <View style={styles.contentWrapper}>
+          <View style={styles.headerRow}>
+            <Pressable onPress={() => router.replace("/(tabs)/")}><Ionicons name="home" size={24} color="#FFF" /></Pressable>
+            <Text style={styles.headerTitle}>Panel de Coach</Text>
+            <Pressable onPress={handleLogout}><Ionicons name="log-out-outline" size={26} color="#FFF" /></Pressable>
           </View>
-          <Pressable style={styles.eyeBtn} onPress={() => router.push(`/coach/${user?.id}`)}>
-             <Ionicons name="eye" size={20} color="#FFF" />
-          </Pressable>
+
+          <View style={styles.coachHeaderCard}>
+            <Pressable onPress={handlePickImage} style={styles.avatarContainer}>
+              {coachPhoto ? <Image source={{ uri: coachPhoto }} style={styles.avatarImg} /> : <Ionicons name="camera" size={24} color="#FFF" />}
+              {uploading && <ActivityIndicator style={styles.loader} color="#FFF" />}
+            </Pressable>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.welcomeText}>{user?.username}</Text>
+              <Text style={styles.coachStatsText}>{teams.length} Equipos | {championships.length} Copas</Text>
+            </View>
+            <Pressable style={styles.eyeBtn} onPress={() => router.push(`/coach/${user?.id}`)}>
+              <Ionicons name="eye" size={20} color="#FFF" />
+            </Pressable>
+          </View>
         </View>
       </LinearGradient>
 
-      {/* MENÚ DE TABS */}
-      <View style={[styles.tabsRow, { backgroundColor: currentColors.card, shadowColor: theme === 'dark' ? '#000' : '#0F172A' }]}>
-        <TabButton title="Mis Equipos" icon="shield" active={activeTab === "equipos"} onPress={() => setActiveTab("equipos")} currentColors={currentColors} />
-        <TabButton title="Nuevo" icon="add-circle" active={activeTab === "crear"} onPress={() => setActiveTab("crear")} currentColors={currentColors} />
-        <TabButton title="Inbox" icon="mail" active={activeTab === "solicitudes"} badge={requests.length} onPress={() => setActiveTab("solicitudes")} currentColors={currentColors} />
-        <TabButton title="Perfil" icon="trophy" active={activeTab === "perfil"} onPress={() => setActiveTab("perfil")} currentColors={currentColors} />
+      <View style={[styles.tabsRow, { backgroundColor: currentColors.card, shadowColor: isDark ? '#000' : '#0F172A' }]}>
+        <View style={[styles.contentWrapper, { flexDirection: 'row' }]}>
+          <TabButton title="Equipos" icon="shield" active={activeTab === "equipos"} onPress={() => setActiveTab("equipos")} currentColors={currentColors} />
+          <TabButton title="Nuevo" icon="add-circle" active={activeTab === "crear"} onPress={() => setActiveTab("crear")} currentColors={currentColors} />
+          <TabButton title="Inbox" icon="mail" active={activeTab === "solicitudes"} badge={requests.length} onPress={() => setActiveTab("solicitudes")} currentColors={currentColors} />
+          <TabButton title="Perfil" icon="trophy" active={activeTab === "perfil"} onPress={() => setActiveTab("perfil")} currentColors={currentColors} />
+        </View>
       </View>
 
-      <KeyboardAvoidingView 
-        behavior={Platform.OS === "ios" ? "padding" : "height"} 
-        style={{ flex: 1 }}
-      >
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
         <ScrollView 
           style={styles.body} 
           contentContainerStyle={{ paddingBottom: 60 }} 
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BRAND_GRADIENT[0]} colors={[BRAND_GRADIENT[0]]} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BRAND_GRADIENT[0]} />}
         >
-          {loading && !refreshing && !teams.length && !championships.length ? (
-            <ActivityIndicator size="large" color={BRAND_GRADIENT[0]} style={{ marginTop: 40 }} />
-          ) : (
-            <FadeInView>
-              {/* PESTAÑA: MIS EQUIPOS */}
-              {activeTab === "equipos" && (
-                <View>
-                  {teams.length === 0 ? (
-                    <View style={[styles.emptyBox, { borderColor: currentColors.border }]}>
-                      <Ionicons name="shield-half" size={48} color={currentColors.textMuted} />
-                      <Text style={[styles.emptyTitle, { color: currentColors.textMuted }]}>Sin Equipos</Text>
-                    </View>
-                  ) : (
-                    teams.map((team, index) => (
-                      <FadeInView key={team.id} delay={index * 100}>
-                        <View style={[styles.teamCard, { backgroundColor: currentColors.card, borderColor: currentColors.border, shadowColor: theme === 'dark' ? '#000' : '#0F172A' }]}>
-                          
-                          <View style={[styles.teamHeader, { borderBottomColor: currentColors.borderLight }]}>
-                            <Pressable onPress={() => handleUpdateExistingTeamLogo(team.id)} style={styles.teamLogoWrapper}>
-                              {team.logo_url ? (
-                                <Image source={{ uri: team.logo_url }} style={styles.teamMiniLogo} />
-                              ) : (
-                                <View style={[styles.teamLogoPlaceholder, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border }]}>
-                                  <Ionicons name="camera" size={16} color={currentColors.textMuted} />
+          <View style={styles.contentWrapper}>
+            {loading && !refreshing && !teams.length && !championships.length ? (
+              <ActivityIndicator size="large" color={BRAND_GRADIENT[0]} style={{ marginTop: 50 }} />
+            ) : (
+              <FadeInView>
+                
+                {activeTab === "equipos" && (
+                  <View>
+                    {teams.length === 0 ? (
+                      <View style={[styles.emptyBox, { borderColor: currentColors.borderLight, backgroundColor: currentColors.card }]}>
+                        <Ionicons name="shield-half" size={48} color={currentColors.textMuted} />
+                        <Text style={[styles.emptyTitle, { color: currentColors.text }]}>Sin Equipos</Text>
+                        <Text style={{color: currentColors.textSecondary}}>Inscribe tu primer equipo en la pestaña "Nuevo".</Text>
+                      </View>
+                    ) : (
+                      teams.map((team, index) => (
+                        <FadeInView key={team.id} delay={index * 100}>
+                          <View style={[styles.teamCard, { backgroundColor: currentColors.card, borderColor: currentColors.borderLight, shadowColor: isDark ? '#000' : '#475569' }]}>
+                            
+                            <View style={[styles.teamHeader, { borderBottomColor: currentColors.borderLight }]}>
+                              <Pressable onPress={() => handleUpdateExistingTeamLogo(team.id)} style={styles.teamLogoWrapper}>
+                                {team.logo_url ? (
+                                  <Image source={{ uri: team.logo_url }} style={styles.teamMiniLogo} />
+                                ) : (
+                                  <View style={[styles.teamLogoPlaceholder, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.borderLight }]}>
+                                    <Ionicons name="image" size={18} color={currentColors.textMuted} />
+                                  </View>
+                                )}
+                                <View style={styles.editIconBadge}><Ionicons name="pencil" size={10} color="#FFF" /></View>
+                              </Pressable>
+
+                              <View style={{ flex: 1 }}>
+                                <Text style={[styles.teamName, { color: currentColors.text }]}>{team.name}</Text>
+                                <Text style={[styles.teamCat, { color: currentColors.textSecondary }]}>{team.category.replace("-", " ").toUpperCase()}</Text>
+                              </View>
+
+                              <View style={[styles.statusBadge, team.paid ? (isDark ? {backgroundColor: '#064E3B'} : styles.bgGreen) : (isDark ? {backgroundColor: '#78350F'} : styles.bgYellow)]}>
+                                <Text style={[styles.statusText, { color: team.paid ? (isDark ? '#34D399' : '#0F172A') : (isDark ? '#FDE68A' : '#0F172A') }]}>{team.paid ? "PAGADO" : "DEUDA"}</Text>
+                              </View>
+                            </View>
+
+                            {!team.paid && (
+                              <Pressable 
+                                style={[styles.payBtn, { backgroundColor: isDark ? 'rgba(245, 158, 11, 0.1)' : '#FFFBEB', borderColor: '#F59E0B' }]}
+                                onPress={() => setPaymentTeam(team)}
+                              >
+                                <Ionicons name="card" size={18} color="#F59E0B" />
+                                <Text style={styles.payBtnText}>Pagar Inscripción del Equipo</Text>
+                              </Pressable>
+                            )}
+
+                            <Text style={[styles.rosterTitle, { color: currentColors.text }]}>Roster ({players.filter(p => p.team_id === team.id).length})</Text>
+                            
+                            <View style={styles.rosterList}>
+                              {players.filter(p => p.team_id === team.id).map(player => (
+                                <View key={player.id} style={[styles.playerRow, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.borderLight }]}>
+                                  <View style={styles.playerRowLeft}>
+                                    <View style={[styles.playerJerseyCircle, { backgroundColor: currentColors.card, borderColor: currentColors.borderLight }]}>
+                                      <Text style={[styles.playerJerseyText, { color: currentColors.text }]}>{player.jersey_number || "00"}</Text>
+                                    </View>
+                                    <View>
+                                      <Text style={[styles.playerRowName, { color: currentColors.text }]} numberOfLines={1}>{player.name}</Text>
+                                      <Text style={[styles.playerRowPos, { color: currentColors.textMuted }]}>{player.position || "Jugador"}</Text>
+                                    </View>
+                                  </View>
+                                  <Pressable 
+                                    style={[styles.editPlayerBtn, { backgroundColor: currentColors.card, borderColor: currentColors.borderLight }]}
+                                    onPress={() => openEditPlayerModal(player)}
+                                  >
+                                    <Ionicons name="pencil" size={16} color={BRAND_GRADIENT[0]} />
+                                  </Pressable>
                                 </View>
-                              )}
-                              <View style={styles.editIconBadge}><Ionicons name="pencil" size={8} color="#FFF" /></View>
-                            </Pressable>
-
-                            <View style={{ flex: 1 }}>
-                              <Text style={[styles.teamName, { color: currentColors.text }]}>{team.name}</Text>
-                              <Text style={[styles.teamCat, { color: currentColors.textSecondary }]}>{team.category.replace("-", " ").toUpperCase()}</Text>
+                              ))}
                             </View>
 
-                            <View style={[styles.statusBadge, team.paid ? (theme === 'dark' ? {backgroundColor: '#064E3B'} : styles.bgGreen) : (theme === 'dark' ? {backgroundColor: '#78350F'} : styles.bgYellow)]}>
-                              <Text style={[styles.statusText, { color: team.paid ? (theme === 'dark' ? '#34D399' : '#0F172A') : (theme === 'dark' ? '#FDE68A' : '#0F172A') }]}>{team.paid ? "PAGADO" : "DEUDA"}</Text>
-                            </View>
                           </View>
+                        </FadeInView>
+                      ))
+                    )}
+                  </View>
+                )}
 
-                          {/* BOTÓN DE PAGO DINÁMICO */}
-                          {!team.paid && (
-                            <Pressable 
-                              style={[styles.payBtn, { backgroundColor: theme === 'dark' ? 'rgba(245, 158, 11, 0.1)' : '#FFFBEB', borderColor: '#F59E0B' }]}
-                              onPress={() => setPaymentTeam(team)}
-                            >
-                              <Ionicons name="card" size={18} color="#F59E0B" />
-                              <Text style={styles.payBtnText}>Pagar Inscripción</Text>
-                            </Pressable>
-                          )}
-
-                          <Text style={[styles.rosterTitle, { color: currentColors.text }]}>Roster ({players.filter(p => p.team_id === team.id).length})</Text>
-                          {players.filter(p => p.team_id === team.id).map(player => (
-                            <View key={player.id} style={[styles.playerRow, { borderBottomColor: currentColors.bgSecondary }]}>
-                              <Text style={[styles.playerName, { color: currentColors.textSecondary }]}>{player.name}</Text>
-                              <Text style={[styles.playerPos, { color: currentColors.textMuted }]}>#{player.jersey_number} {player.position}</Text>
-                            </View>
-                          ))}
-                        </View>
-                      </FadeInView>
-                    ))
-                  )}
-                </View>
-              )}
-
-              {/* PESTAÑA: CREAR EQUIPO */}
-              {activeTab === "crear" && (
-                <View style={[styles.formCard, { backgroundColor: currentColors.card, borderColor: currentColors.border, shadowColor: theme === 'dark' ? '#000' : '#0F172A' }]}>
-                  <Text style={[styles.cardTitle, { color: currentColors.text }]}>Nuevo Equipo</Text>
-                  
-                  <Text style={[styles.label, { color: currentColors.textMuted }]}>Logo del Equipo</Text>
-                  <Pressable onPress={async () => {
-                    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 0.5 });
-                    if (!res.canceled) setTempLogoUri(res.assets[0].uri);
-                  }} style={[styles.logoPicker, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border }]}>
-                    {tempLogoUri ? <Image source={{ uri: tempLogoUri }} style={styles.logoPreview} /> : 
-                    <View style={styles.logoPickerInner}><Ionicons name="image-outline" size={32} color={currentColors.textMuted} /><Text style={[styles.logoPickerText, { color: currentColors.textMuted }]}>Seleccionar Logo</Text></View>}
-                  </Pressable>
-
-                  <Text style={[styles.label, { color: currentColors.textMuted }]}>Nombre del Equipo</Text>
-                  <TextInput style={[styles.input, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border, color: currentColors.text }]} placeholder="Nombre" placeholderTextColor={currentColors.textMuted} value={teamForm.name} onChangeText={(t) => setTeamForm({...teamForm, name: t})} />
-                  
-                  <Text style={[styles.label, { color: currentColors.textMuted }]}>Categoría</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll}>
-                    {CATEGORIES.map(cat => (
-                      <Pressable key={cat.id} style={[styles.catChip, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border }, teamForm.category === cat.id && styles.catChipActive]} onPress={() => setTeamForm({...teamForm, category: cat.id})}>
-                        <Text style={[styles.catChipText, { color: currentColors.textSecondary }, teamForm.category === cat.id && {color:'#FFF'}]}>{cat.label}</Text>
-                      </Pressable>
-                    ))}
-                  </ScrollView>
-
-                  <Text style={[styles.label, { color: currentColors.textMuted }]}>Nombre del Capitán</Text>
-                  <TextInput style={[styles.input, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border, color: currentColors.text }]} placeholder="Nombre" placeholderTextColor={currentColors.textMuted} value={teamForm.captain_name} onChangeText={(t) => setTeamForm({...teamForm, captain_name: t})} />
-                  <Text style={[styles.label, { color: currentColors.textMuted }]}>Teléfono del Capitán</Text>
-                  <TextInput style={[styles.input, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border, color: currentColors.text }]} placeholder="618..." placeholderTextColor={currentColors.textMuted} keyboardType="phone-pad" value={teamForm.captain_phone} onChangeText={(t) => setTeamForm({...teamForm, captain_phone: t})} />
-
-                  <Pressable style={styles.submitBtn} onPress={handleCreateTeam} disabled={creating}>
-                    {creating ? <ActivityIndicator color="#FFF" /> : <Text style={styles.submitBtnText}>Inscribir Equipo</Text>}
-                  </Pressable>
-                </View>
-              )}
-
-              {/* PESTAÑA: SOLICITUDES */}
-              {activeTab === "solicitudes" && (
-                <View>
-                  {requests.length === 0 ? (
-                    <View style={[styles.emptyBox, { borderColor: currentColors.border }]}>
-                      <Ionicons name="mail-open" size={48} color={currentColors.textMuted} />
-                      <Text style={[styles.emptyTitle, { color: currentColors.textMuted }]}>Bandeja Limpia</Text>
-                      <Text style={[styles.emptySub, { color: currentColors.textMuted }]}>No tienes solicitudes pendientes.</Text>
-                    </View>
-                  ) : (
-                    requests.map(req => (
-                      <View key={req.id} style={[styles.requestCard, { backgroundColor: currentColors.card, borderColor: currentColors.border }]}>
-                        <View style={{ flex: 1 }}>
-                          <Text style={[styles.reqName, { color: currentColors.text }]}>{req.player_name}</Text>
-                          <Text style={[styles.reqInfo, { color: currentColors.textSecondary }]}>Se une a: <Text style={{fontWeight:'700'}}>{req.teams?.name}</Text></Text>
-                          <Text style={[styles.reqInfo, { color: currentColors.textSecondary }]}>Posición: {req.position} | Jersey: #{req.jersey_number}</Text>
-                        </View>
-                        <View style={styles.reqActions}>
-                          <Pressable style={[styles.actionBtn, { backgroundColor: "#EF4444" }]} onPress={() => handleRequest(req.id, "rejected")}>
-                            <Ionicons name="close" size={20} color="#FFF" />
-                          </Pressable>
-                          <Pressable style={[styles.actionBtn, { backgroundColor: "#10B981" }]} onPress={() => handleRequest(req.id, "accepted")}>
-                            <Ionicons name="checkmark" size={20} color="#FFF" />
-                          </Pressable>
-                        </View>
-                      </View>
-                    ))
-                  )}
-                </View>
-              )}
-
-              {/* PESTAÑA: PERFIL Y CAMPEONATOS */}
-              {activeTab === "perfil" && (
-                <View>
-                  <Text style={[styles.cardTitle, {marginLeft: 5, color: currentColors.text }]}>Mis Campeonatos</Text>
-                  {championships.length === 0 ? (
-                    <View style={[styles.emptyBox, {marginBottom: 20, borderColor: currentColors.border }]}>
-                      <Ionicons name="trophy-outline" size={40} color={currentColors.textMuted} />
-                      <Text style={[styles.emptySub, { color: currentColors.textMuted }]}>Aún no has registrado campeonatos.</Text>
-                    </View>
-                  ) : (
-                    championships.map(champ => (
-                      <View key={champ.id} style={[styles.champCard, { backgroundColor: currentColors.card, borderColor: theme === 'dark' ? '#78350F' : '#F59E0B40' }]}>
-                        <View style={[styles.champIcon, { backgroundColor: theme === 'dark' ? '#78350F' : '#FEF3C7' }]}><Ionicons name="trophy" size={24} color={theme === 'dark' ? '#FDE68A' : "#F59E0B"} /></View>
-                        <View style={{flex: 1}}>
-                          <Text style={[styles.champTitle, { color: currentColors.text }]}>{champ.title} ({champ.year})</Text>
-                          <Text style={[styles.champSub, { color: currentColors.textSecondary }]}>{champ.tournament} • {champ.position}</Text>
-                        </View>
-                        <Pressable onPress={() => handleDeleteChampionship(champ.id)} style={[styles.deleteBtn, { backgroundColor: theme === 'dark' ? 'rgba(239,68,68,0.2)' : '#FEF2F2' }]}>
-                          <Ionicons name="trash" size={18} color="#EF4444" />
-                        </Pressable>
-                      </View>
-                    ))
-                  )}
-
-                  <View style={[styles.formCard, { backgroundColor: currentColors.card, borderColor: currentColors.border, shadowColor: theme === 'dark' ? '#000' : '#0F172A' }]}>
-                    <Text style={[styles.cardTitle, { color: currentColors.text }]}>Registrar Trofeo</Text>
+                {activeTab === "crear" && (
+                  <View style={[styles.formCard, { backgroundColor: currentColors.card, borderColor: currentColors.borderLight, shadowColor: isDark ? '#000' : '#0F172A' }]}>
+                    <Text style={[styles.cardTitle, { color: currentColors.text }]}>Inscribir Nuevo Equipo</Text>
                     
-                    <Text style={[styles.label, { color: currentColors.textMuted }]}>Selecciona el Equipo Ganador</Text>
+                    <Text style={[styles.label, { color: currentColors.textMuted }]}>Logo del Equipo</Text>
+                    <Pressable onPress={async () => {
+                      const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 0.5 });
+                      if (!res.canceled) setTempLogoUri(res.assets[0].uri);
+                    }} style={[styles.logoPicker, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.borderLight }]}>
+                      {tempLogoUri ? <Image source={{ uri: tempLogoUri }} style={styles.logoPreview} /> : 
+                      <View style={styles.logoPickerInner}><Ionicons name="image-outline" size={32} color={currentColors.textMuted} /><Text style={[styles.logoPickerText, { color: currentColors.textMuted }]}>Seleccionar Logo</Text></View>}
+                    </Pressable>
+
+                    <Text style={[styles.label, { color: currentColors.textMuted }]}>Nombre del Equipo</Text>
+                    <TextInput style={[styles.input, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.borderLight, color: currentColors.text }]} placeholder="Ej. Cuervos" placeholderTextColor={currentColors.textMuted} value={teamForm.name} onChangeText={(t) => setTeamForm({...teamForm, name: t})} />
+                    
+                    <Text style={[styles.label, { color: currentColors.textMuted }]}>Categoría</Text>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll}>
-                      {teams.map(t => (
-                        <Pressable key={t.id} style={[styles.catChip, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border }, champForm.team_id === t.id && styles.catChipActive]} onPress={() => setChampForm({...champForm, team_id: t.id})}>
-                          <Text style={[styles.catChipText, { color: currentColors.textSecondary }, champForm.team_id === t.id && {color:'#FFF'}]}>{t.name}</Text>
+                      {CATEGORIES.map(cat => (
+                        <Pressable key={cat.id} style={[styles.catChip, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.borderLight }, teamForm.category === cat.id && styles.catChipActive]} onPress={() => setTeamForm({...teamForm, category: cat.id})}>
+                          <Text style={[styles.catChipText, { color: currentColors.textSecondary }, teamForm.category === cat.id && {color:'#FFF'}]}>{cat.label}</Text>
                         </Pressable>
                       ))}
                     </ScrollView>
 
-                    <Text style={[styles.label, { color: currentColors.textMuted }]}>Título (Ej. Campeón Invicto)</Text>
-                    <TextInput style={[styles.input, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border, color: currentColors.text }]} placeholderTextColor={currentColors.textMuted} placeholder="Escribe el título" value={champForm.title} onChangeText={(t) => setChampForm({...champForm, title: t})} />
+                    <Text style={[styles.label, { color: currentColors.textMuted }]}>Nombre del Capitán</Text>
+                    <TextInput style={[styles.input, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.borderLight, color: currentColors.text }]} placeholder="Nombre" placeholderTextColor={currentColors.textMuted} value={teamForm.captain_name} onChangeText={(t) => setTeamForm({...teamForm, captain_name: t})} />
+                    <Text style={[styles.label, { color: currentColors.textMuted }]}>Teléfono del Capitán</Text>
+                    <TextInput style={[styles.input, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.borderLight, color: currentColors.text }]} placeholder="618..." placeholderTextColor={currentColors.textMuted} keyboardType="phone-pad" value={teamForm.captain_phone} onChangeText={(t) => setTeamForm({...teamForm, captain_phone: t})} />
 
-                    <View style={{flexDirection: 'row', gap: 10}}>
-                      <View style={{flex: 1}}>
-                        <Text style={[styles.label, { color: currentColors.textMuted }]}>Torneo / Liga</Text>
-                        <TextInput style={[styles.input, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border, color: currentColors.text }]} placeholderTextColor={currentColors.textMuted} placeholder="Ej. Flag Durango" value={champForm.tournament} onChangeText={(t) => setChampForm({...champForm, tournament: t})} />
-                      </View>
-                      <View style={{flex: 1}}>
-                        <Text style={[styles.label, { color: currentColors.textMuted }]}>Año</Text>
-                        <TextInput style={[styles.input, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border, color: currentColors.text }]} placeholderTextColor={currentColors.textMuted} placeholder="Ej. 2026" keyboardType="numeric" maxLength={4} value={champForm.year} onChangeText={(t) => setChampForm({...champForm, year: t})} />
-                      </View>
-                    </View>
-
-                    <Pressable style={styles.submitBtn} onPress={handleAddChampionship} disabled={savingChamp}>
-                      {savingChamp ? <ActivityIndicator color="#FFF" /> : <Text style={styles.submitBtnText}>Agregar Campeonato</Text>}
+                    <Pressable style={styles.submitBtn} onPress={handleCreateTeam} disabled={creating}>
+                      <LinearGradient colors={[BRAND_GRADIENT[0], BRAND_GRADIENT[1]]} style={styles.submitBtnGradient}>
+                        {creating ? <ActivityIndicator color="#FFF" /> : <Text style={styles.submitBtnText}>Inscribir Equipo</Text>}
+                      </LinearGradient>
                     </Pressable>
                   </View>
+                )}
 
-                  {/* BOTÓN ELIMINAR CUENTA */}
-                  <Pressable style={[styles.deleteAccountBtn, { backgroundColor: theme === 'dark' ? 'rgba(239,68,68,0.1)' : "#FEF2F2", borderColor: theme === 'dark' ? 'rgba(239,68,68,0.3)' : "#FECACA" }]} onPress={handleDeleteAccount}>
-                    <Ionicons name="warning-outline" size={18} color="#EF4444" />
-                    <Text style={styles.deleteAccountText}>Eliminar Mi Cuenta</Text>
-                  </Pressable>
+                {activeTab === "solicitudes" && (
+                  <View>
+                    {requests.length === 0 ? (
+                      <View style={[styles.emptyBox, { borderColor: currentColors.borderLight, backgroundColor: currentColors.card }]}>
+                        <Ionicons name="mail-open" size={48} color={currentColors.textMuted} />
+                        <Text style={[styles.emptyTitle, { color: currentColors.text }]}>Bandeja Limpia</Text>
+                        <Text style={[styles.emptySub, { color: currentColors.textSecondary }]}>No tienes solicitudes pendientes de jugadores.</Text>
+                      </View>
+                    ) : (
+                      requests.map(req => (
+                        <View key={req.id} style={[styles.requestCard, { backgroundColor: currentColors.card, borderColor: currentColors.borderLight, shadowColor: isDark ? '#000' : '#475569' }]}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={[styles.reqName, { color: currentColors.text }]}>{req.player_name}</Text>
+                            <Text style={[styles.reqInfo, { color: currentColors.textSecondary }]}>Solicita unirse a: <Text style={{fontWeight:'800', color: currentColors.text}}>{req.teams?.name}</Text></Text>
+                            <Text style={[styles.reqInfo, { color: currentColors.textMuted, marginTop: 4 }]}>Pos: {req.position} | Jersey: #{req.jersey_number}</Text>
+                          </View>
+                          <View style={styles.reqActions}>
+                            <Pressable style={[styles.actionBtn, { backgroundColor: isDark ? 'rgba(239,68,68,0.2)' : "#FEE2E2", borderColor: '#EF4444' }]} onPress={() => handleRequest(req.id, "rejected")}>
+                              <Ionicons name="close" size={20} color="#EF4444" />
+                            </Pressable>
+                            <Pressable style={[styles.actionBtn, { backgroundColor: isDark ? 'rgba(16,185,129,0.2)' : "#D1FAE5", borderColor: '#10B981' }]} onPress={() => handleRequest(req.id, "accepted")}>
+                              <Ionicons name="checkmark" size={20} color="#10B981" />
+                            </Pressable>
+                          </View>
+                        </View>
+                      ))
+                    )}
+                  </View>
+                )}
 
-                </View>
-              )}
-            </FadeInView>
-          )}
+                {activeTab === "perfil" && (
+                  <View>
+                    <Text style={[styles.cardTitle, {marginLeft: 5, color: currentColors.text, marginBottom: 15 }]}>Mis Campeonatos</Text>
+                    {championships.length === 0 ? (
+                      <View style={[styles.emptyBox, {marginBottom: 20, borderColor: currentColors.borderLight, backgroundColor: currentColors.card }]}>
+                        <Ionicons name="trophy-outline" size={45} color={currentColors.textMuted} />
+                        <Text style={[styles.emptySub, { color: currentColors.textSecondary, marginTop: 10 }]}>Aún no has registrado campeonatos.</Text>
+                      </View>
+                    ) : (
+                      championships.map(champ => (
+                        <View key={champ.id} style={[styles.champCard, { backgroundColor: currentColors.card, borderColor: isDark ? '#78350F' : '#FDE68A', shadowColor: isDark ? '#000' : '#475569' }]}>
+                          <View style={[styles.champIcon, { backgroundColor: isDark ? '#78350F' : '#FEF3C7' }]}><Ionicons name="trophy" size={24} color={isDark ? '#FDE68A' : "#F59E0B"} /></View>
+                          <View style={{flex: 1}}>
+                            <Text style={[styles.champTitle, { color: currentColors.text }]}>{champ.title} ({champ.year})</Text>
+                            <Text style={[styles.champSub, { color: currentColors.textSecondary }]}>{champ.tournament} • {champ.position}</Text>
+                          </View>
+                          <Pressable onPress={() => handleDeleteChampionship(champ.id)} style={[styles.deleteBtn, { backgroundColor: isDark ? 'rgba(239,68,68,0.2)' : '#FEF2F2' }]}>
+                            <Ionicons name="trash" size={18} color="#EF4444" />
+                          </Pressable>
+                        </View>
+                      ))
+                    )}
+
+                    <View style={[styles.formCard, { backgroundColor: currentColors.card, borderColor: currentColors.borderLight, shadowColor: isDark ? '#000' : '#0F172A', marginTop: 10 }]}>
+                      <Text style={[styles.cardTitle, { color: currentColors.text }]}>Registrar Trofeo</Text>
+                      
+                      <Text style={[styles.label, { color: currentColors.textMuted }]}>Selecciona el Equipo Ganador</Text>
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll}>
+                        {teams.map(t => (
+                          <Pressable key={t.id} style={[styles.catChip, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.borderLight }, champForm.team_id === t.id && styles.catChipActive]} onPress={() => setChampForm({...champForm, team_id: t.id})}>
+                            <Text style={[styles.catChipText, { color: currentColors.textSecondary }, champForm.team_id === t.id && {color:'#FFF'}]}>{t.name}</Text>
+                          </Pressable>
+                        ))}
+                      </ScrollView>
+
+                      <Text style={[styles.label, { color: currentColors.textMuted }]}>Título (Ej. Campeón Invicto)</Text>
+                      <TextInput style={[styles.input, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.borderLight, color: currentColors.text }]} placeholderTextColor={currentColors.textMuted} placeholder="Escribe el título" value={champForm.title} onChangeText={(t) => setChampForm({...champForm, title: t})} />
+
+                      <View style={{flexDirection: 'row', gap: 10}}>
+                        <View style={{flex: 1}}>
+                          <Text style={[styles.label, { color: currentColors.textMuted }]}>Torneo / Liga</Text>
+                          <TextInput style={[styles.input, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.borderLight, color: currentColors.text }]} placeholderTextColor={currentColors.textMuted} placeholder="Ej. Flag Durango" value={champForm.tournament} onChangeText={(t) => setChampForm({...champForm, tournament: t})} />
+                        </View>
+                        <View style={{flex: 1}}>
+                          <Text style={[styles.label, { color: currentColors.textMuted }]}>Año</Text>
+                          <TextInput style={[styles.input, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.borderLight, color: currentColors.text }]} placeholderTextColor={currentColors.textMuted} placeholder="Ej. 2026" keyboardType="numeric" maxLength={4} value={champForm.year} onChangeText={(t) => setChampForm({...champForm, year: t})} />
+                        </View>
+                      </View>
+
+                      <Pressable style={[styles.submitBtn, { backgroundColor: BRAND_GRADIENT[0], marginTop: 5, padding: 14 }]} onPress={handleAddChampionship} disabled={savingChamp}>
+                        {savingChamp ? <ActivityIndicator color="#FFF" /> : <Text style={styles.submitBtnText}>Agregar Campeonato</Text>}
+                      </Pressable>
+                    </View>
+
+                    <Pressable style={[styles.deleteAccountBtn, { backgroundColor: isDark ? 'rgba(239,68,68,0.1)' : "#FEF2F2", borderColor: isDark ? 'rgba(239,68,68,0.3)' : "#FECACA" }]} onPress={handleDeleteAccount}>
+                      <Ionicons name="warning-outline" size={18} color="#EF4444" />
+                      <Text style={styles.deleteAccountText}>Eliminar Mi Cuenta</Text>
+                    </Pressable>
+
+                  </View>
+                )}
+              </FadeInView>
+            )}
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* ─────────────────────────────────────────────────────────────────────────────
-          MODAL DE PAGO
-      ───────────────────────────────────────────────────────────────────────────── */}
+      {/* MODAL DE EDICIÓN DE JUGADOR */}
+      {editingPlayer && (
+        <Modal transparent visible={!!editingPlayer} animationType="fade">
+          <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
+            <View style={styles.modalOverlay}>
+              <View style={[styles.modalContent, { backgroundColor: currentColors.card, borderColor: currentColors.borderLight }, isTablet && styles.modalTablet]}>
+                <View style={styles.modalHeader}>
+                  <Text style={[styles.modalTitle, { color: currentColors.text }]}>Editar Jugador</Text>
+                  <Pressable onPress={() => setEditingPlayer(null)} style={styles.modalCloseBtn}>
+                    <Ionicons name="close" size={24} color={currentColors.textMuted} />
+                  </Pressable>
+                </View>
+
+                <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                  <Text style={[styles.label, { color: currentColors.textMuted }]}>Nombre Completo</Text>
+                  <TextInput 
+                    style={[styles.input, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.borderLight, color: currentColors.text }]} 
+                    value={editPlayerName} 
+                    onChangeText={setEditPlayerName} 
+                    placeholderTextColor={currentColors.textMuted}
+                  />
+
+                  <View style={styles.rowInputs}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.label, { color: currentColors.textMuted }]}>Posición</Text>
+                      <TextInput 
+                        style={[styles.input, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.borderLight, color: currentColors.text }]} 
+                        value={editPlayerPosition} 
+                        onChangeText={setEditPlayerPosition} 
+                        placeholder="Ej. QB, WR"
+                        placeholderTextColor={currentColors.textMuted}
+                        autoCapitalize="characters"
+                      />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.label, { color: currentColors.textMuted }]}>Número (Jersey)</Text>
+                      <TextInput 
+                        style={[styles.input, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.borderLight, color: currentColors.text }]} 
+                        value={editPlayerJersey} 
+                        onChangeText={setEditPlayerJersey} 
+                        keyboardType="numeric"
+                        maxLength={2}
+                        placeholderTextColor={currentColors.textMuted}
+                      />
+                    </View>
+                  </View>
+                </ScrollView>
+
+                <Pressable 
+                  style={[styles.submitBtn, { backgroundColor: BRAND_GRADIENT[0], padding: 16 }]} 
+                  onPress={handleUpdatePlayer} 
+                  disabled={savingPlayer}
+                >
+                  {savingPlayer ? <ActivityIndicator color="#FFF" /> : <Text style={styles.submitBtnText}>Guardar Cambios</Text>}
+                </Pressable>
+              </View>
+            </View>
+          </KeyboardAvoidingView>
+        </Modal>
+      )}
+
+      {/* MODAL DE PAGO */}
       {paymentTeam && (
         <Modal transparent visible={!!paymentTeam} animationType="fade">
           <View style={styles.modalOverlay}>
-            <View style={[styles.modalContent, { backgroundColor: currentColors.card, borderColor: currentColors.border }]}>
+            <View style={[styles.modalContent, { backgroundColor: currentColors.card, borderColor: currentColors.borderLight }, isTablet && styles.modalTablet]}>
               <View style={styles.modalHeader}>
                 <Text style={[styles.modalTitle, { color: currentColors.text }]}>Instrucciones de Pago</Text>
                 <Pressable onPress={() => setPaymentTeam(null)} style={styles.modalCloseBtn}>
@@ -663,10 +724,8 @@ export default function CoachDashboard() {
                 Para liberar a tu equipo y permitirles jugar, realiza el pago de inscripción a la siguiente cuenta:
               </Text>
 
-              <View style={[styles.bankBox, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.border }]}>
-                
-                {/* FILA DEL MONTO A PAGAR (DESTACADA) */}
-                <View style={[styles.bankRow, { marginBottom: 15, paddingBottom: 15, borderBottomWidth: 1, borderBottomColor: currentColors.border }]}>
+              <View style={[styles.bankBox, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.borderLight }]}>
+                <View style={[styles.bankRow, { marginBottom: 15, paddingBottom: 15, borderBottomWidth: 1, borderBottomColor: currentColors.borderLight }]}>
                   <Ionicons name="cash-outline" size={24} color="#10B981" />
                   <Text style={[styles.bankLabel, { color: currentColors.textMuted, width: 90 }]}>Monto total:</Text>
                   <Text style={[styles.bankValueClabe, { color: "#10B981", fontSize: 22 }]}>$1,900.00</Text>
@@ -678,7 +737,6 @@ export default function CoachDashboard() {
                   <Text style={[styles.bankValue, { color: currentColors.text }]}>CitiBanamex</Text>
                 </View>
 
-                {/* FILA DE LA TARJETA NUEVA */}
                 <View style={styles.bankRow}>
                   <Ionicons name="card" size={20} color={currentColors.textMuted} />
                   <Text style={[styles.bankLabel, { color: currentColors.textMuted }]}>Tarjeta:</Text>
@@ -698,7 +756,7 @@ export default function CoachDashboard() {
                 </View>
               </View>
 
-              <View style={[styles.referenceBox, { backgroundColor: theme === 'dark' ? 'rgba(59, 130, 246, 0.1)' : '#EFF6FF', borderColor: '#3B82F6' }]}>
+              <View style={[styles.referenceBox, { backgroundColor: isDark ? 'rgba(59, 130, 246, 0.15)' : '#EFF6FF', borderColor: '#3B82F6' }]}>
                 <View style={{flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 5}}>
                   <Ionicons name="information-circle" size={18} color="#3B82F6" />
                   <Text style={[styles.refLabel, { color: '#3B82F6' }]}>CONCEPTO DE PAGO OBLIGATORIO:</Text>
@@ -708,10 +766,7 @@ export default function CoachDashboard() {
                 </Text>
               </View>
 
-              <Pressable 
-                style={styles.whatsappBtn} 
-                onPress={sendWhatsAppProof}
-              >
+              <Pressable style={styles.whatsappBtn} onPress={sendWhatsAppProof}>
                 <Ionicons name="logo-whatsapp" size={20} color="#FFF" />
                 <Text style={styles.whatsappBtnText}>Enviar Comprobante al Admin</Text>
               </Pressable>
@@ -726,9 +781,9 @@ export default function CoachDashboard() {
 
 function TabButton({ title, icon, active, onPress, badge, currentColors }: any) {
   return (
-    <Pressable style={[styles.tabBtn, active && styles.tabBtnActive]} onPress={onPress}>
+    <Pressable style={[styles.tabBtn, active && { backgroundColor: BRAND_GRADIENT[0] }]} onPress={onPress}>
       <Ionicons name={icon} size={18} color={active ? "#FFF" : currentColors.textMuted} />
-      <Text style={[styles.tabText, { color: currentColors.textMuted }, active && styles.tabTextActive]}>{title}</Text>
+      <Text style={[styles.tabText, { color: active ? "#FFF" : currentColors.textMuted }]}>{title}</Text>
       {badge > 0 && <View style={styles.badgeWrap}><Text style={styles.badgeText}>{badge}</Text></View>}
     </Pressable>
   );
@@ -736,99 +791,107 @@ function TabButton({ title, icon, active, onPress, badge, currentColors }: any) 
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  contentWrapper: { width: "100%", maxWidth: 800, alignSelf: "center" },
+  
   header: { paddingBottom: 25, paddingHorizontal: 20 },
   headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 20 },
-  headerTitle: { color: "#FFF", fontSize: 17, fontWeight: "800" },
-  coachHeaderCard: { flexDirection: "row", alignItems: "center", gap: 15 },
-  avatarContainer: { width: 50, height: 50, borderRadius: 25, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center', overflow: 'hidden', borderWidth: 1, borderColor: '#FFF' },
+  headerTitle: { color: "#FFF", fontSize: 18, fontWeight: "900", letterSpacing: -0.5 },
+  coachHeaderCard: { flexDirection: "row", alignItems: "center", gap: 16 },
+  avatarContainer: { width: 56, height: 56, borderRadius: 28, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center', overflow: 'hidden', borderWidth: 2, borderColor: '#FFF' },
   avatarImg: { width: '100%', height: '100%' },
-  welcomeText: { color: "#FFF", fontSize: 20, fontWeight: "900" },
-  coachStatsText: { color: "rgba(255,255,255,0.7)", fontSize: 12, fontWeight: "700" },
-  eyeBtn: { backgroundColor: 'rgba(255,255,255,0.2)', padding: 10, borderRadius: 12 },
+  welcomeText: { color: "#FFF", fontSize: 22, fontWeight: "900", letterSpacing: -0.5 },
+  coachStatsText: { color: "rgba(255,255,255,0.8)", fontSize: 13, fontWeight: "700", marginTop: 2 },
+  eyeBtn: { backgroundColor: 'rgba(255,255,255,0.2)', padding: 12, borderRadius: 14 },
   
-  tabsRow: { flexDirection: "row", padding: 8, elevation: 4 },
-  tabBtn: { flex: 1, alignItems: "center", paddingVertical: 10, borderRadius: 12, gap: 4 },
-  tabBtnActive: { backgroundColor: BRAND_GRADIENT[0] },
-  tabText: { fontSize: 11, fontWeight: "700", textAlign: 'center' },
-  tabTextActive: { color: "#FFF" },
-  badgeWrap: { position: 'absolute', top: 5, right: 10, backgroundColor: "#EF4444", borderRadius: 10, paddingHorizontal: 5 },
+  tabsRow: { flexDirection: "row", paddingVertical: 10, elevation: 4 },
+  tabBtn: { flex: 1, alignItems: "center", paddingVertical: 12, borderRadius: 14, gap: 4, marginHorizontal: 4 },
+  tabText: { fontSize: 11, fontWeight: "800", textAlign: 'center', textTransform: 'uppercase', letterSpacing: 0.5 },
+  badgeWrap: { position: 'absolute', top: 6, right: 12, backgroundColor: "#EF4444", borderRadius: 10, paddingHorizontal: 6, paddingVertical: 2 },
   badgeText: { color: "#FFF", fontSize: 10, fontWeight: "900" },
   
-  body: { padding: 16 },
+  body: { padding: 16, paddingTop: 20 },
   
-  teamCard: { padding: 20, borderRadius: 20, marginBottom: 16, elevation: 2, borderWidth: 1 },
-  teamHeader: { flexDirection: "row", alignItems: 'center', gap: 12, borderBottomWidth: 1, paddingBottom: 15, marginBottom: 15 },
+  teamCard: { padding: 22, borderRadius: 28, marginBottom: 20, elevation: 3, borderWidth: 1 },
+  teamHeader: { flexDirection: "row", alignItems: 'center', gap: 15, borderBottomWidth: 1, paddingBottom: 18, marginBottom: 15 },
   teamLogoWrapper: { position: 'relative' },
-  teamMiniLogo: { width: 45, height: 45, borderRadius: 10 },
-  teamLogoPlaceholder: { width: 45, height: 45, borderRadius: 10, justifyContent: 'center', alignItems: 'center', borderStyle: 'dashed', borderWidth: 1 },
-  editIconBadge: { position: 'absolute', bottom: -2, right: -2, backgroundColor: BRAND_GRADIENT[0], width: 16, height: 16, borderRadius: 8, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#FFF' },
-  teamName: { fontSize: 18, fontWeight: "900" },
-  teamCat: { fontSize: 11, fontWeight: "700" },
-  statusBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
+  teamMiniLogo: { width: 50, height: 50, borderRadius: 12 },
+  teamLogoPlaceholder: { width: 50, height: 50, borderRadius: 12, justifyContent: 'center', alignItems: 'center', borderStyle: 'dashed', borderWidth: 1 },
+  editIconBadge: { position: 'absolute', bottom: -5, right: -5, backgroundColor: BRAND_GRADIENT[0], width: 22, height: 22, borderRadius: 11, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#FFF' },
+  teamName: { fontSize: 19, fontWeight: "900", letterSpacing: -0.5 },
+  teamCat: { fontSize: 12, fontWeight: "800", marginTop: 2, letterSpacing: 0.5 },
+  statusBadge: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
   bgGreen: { backgroundColor: "#D1FAE5" },
   bgYellow: { backgroundColor: "#FEF3C7" },
-  statusText: { fontSize: 10, fontWeight: "800" },
+  statusText: { fontSize: 10, fontWeight: "900", letterSpacing: 0.5 },
   
-  payBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 12, borderRadius: 12, borderWidth: 1, marginBottom: 15, gap: 8 },
-  payBtnText: { fontSize: 13, fontWeight: '800', textTransform: 'uppercase' },
+  payBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 14, borderRadius: 14, borderWidth: 1, marginBottom: 20, gap: 8 },
+  payBtnText: { fontSize: 13, fontWeight: '900', textTransform: 'uppercase' },
 
-  rosterTitle: { fontSize: 13, fontWeight: "800", marginBottom: 10 },
-  playerRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 8, borderBottomWidth: 1 },
-  playerName: { fontSize: 14, fontWeight: "700" },
-  playerPos: { fontSize: 12 },
+  rosterTitle: { fontSize: 14, fontWeight: "900", marginBottom: 12, letterSpacing: -0.5 },
+  rosterList: { gap: 8 },
   
-  formCard: { padding: 20, borderRadius: 20, elevation: 2, borderWidth: 1, marginBottom: 20 },
-  cardTitle: { fontSize: 18, fontWeight: "900", marginBottom: 20 },
-  logoPicker: { width: '100%', height: 120, borderRadius: 16, borderStyle: 'dashed', borderWidth: 2, justifyContent: 'center', alignItems: 'center', marginBottom: 20, overflow: 'hidden' },
+  playerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: 'center', padding: 12, borderRadius: 16, borderWidth: 1 },
+  playerRowLeft: { flexDirection: 'row', alignItems: 'center', flex: 1, gap: 12 },
+  playerJerseyCircle: { width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center', borderWidth: 1 },
+  playerJerseyText: { fontSize: 14, fontWeight: '900' },
+  playerRowName: { fontSize: 15, fontWeight: "800" },
+  playerRowPos: { fontSize: 11, fontWeight: "700", textTransform: 'uppercase', marginTop: 2 },
+  editPlayerBtn: { width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center', borderWidth: 1 },
+  
+  formCard: { padding: 25, borderRadius: 28, elevation: 3, borderWidth: 1, marginBottom: 25 },
+  cardTitle: { fontSize: 20, fontWeight: "900", marginBottom: 20, letterSpacing: -0.5 },
+  logoPicker: { width: '100%', height: 120, borderRadius: 20, borderStyle: 'dashed', borderWidth: 2, justifyContent: 'center', alignItems: 'center', marginBottom: 20, overflow: 'hidden' },
   logoPickerInner: { alignItems: 'center' },
-  logoPickerText: { fontSize: 12, fontWeight: '700', marginTop: 5 },
+  logoPickerText: { fontSize: 12, fontWeight: '800', marginTop: 6 },
   logoPreview: { width: '100%', height: '100%', resizeMode: 'cover' },
-  label: { fontSize: 11, fontWeight: "800", textTransform: "uppercase", marginBottom: 8 },
-  input: { borderRadius: 12, padding: 15, marginBottom: 15, borderWidth: 1, fontWeight: '600' },
+  label: { fontSize: 11, fontWeight: "800", textTransform: "uppercase", marginBottom: 8, letterSpacing: 0.5 },
+  input: { borderRadius: 16, padding: 16, marginBottom: 18, borderWidth: 1, fontWeight: '600', fontSize: 15 },
   categoryScroll: { marginBottom: 20 },
-  catChip: { paddingHorizontal: 15, paddingVertical: 10, borderRadius: 20, marginRight: 10, borderWidth: 1 },
+  catChip: { paddingHorizontal: 16, paddingVertical: 12, borderRadius: 20, marginRight: 10, borderWidth: 1 },
   catChipActive: { backgroundColor: BRAND_GRADIENT[0], borderColor: BRAND_GRADIENT[0] },
-  catChipText: { fontSize: 12, fontWeight: "700" },
-  submitBtn: { backgroundColor: "#0F172A", padding: 16, borderRadius: 12, alignItems: "center" },
-  submitBtnText: { color: "#FFF", fontWeight: "800" },
+  catChipText: { fontSize: 13, fontWeight: "800" },
+  submitBtn: { borderRadius: 16, overflow: 'hidden', marginTop: 5 },
+  submitBtnGradient: { padding: 18, alignItems: "center" },
+  submitBtnText: { color: "#FFF", fontWeight: "900", fontSize: 15, letterSpacing: 0.5 },
   
-  emptyBox: { alignItems: 'center', padding: 40, borderStyle: 'dashed', borderWidth: 2, borderRadius: 20 },
-  emptyTitle: { fontWeight: '800', marginTop: 10, fontSize: 16 },
-  emptySub: { fontSize: 13, textAlign: 'center', marginTop: 5 },
+  emptyBox: { alignItems: 'center', padding: 40, borderStyle: 'dashed', borderWidth: 2, borderRadius: 28, marginTop: 20 },
+  emptyTitle: { fontWeight: '900', marginTop: 12, fontSize: 18 },
+  emptySub: { fontSize: 14, textAlign: 'center', marginTop: 6, fontWeight: '500' },
   
-  requestCard: { flexDirection: "row", alignItems: "center", padding: 16, borderRadius: 16, marginBottom: 12, borderWidth: 1 },
-  reqName: { fontSize: 16, fontWeight: "800", marginBottom: 4 },
-  reqInfo: { fontSize: 13 },
+  requestCard: { flexDirection: "row", alignItems: "center", padding: 18, borderRadius: 20, marginBottom: 12, borderWidth: 1, elevation: 2 },
+  reqName: { fontSize: 17, fontWeight: "900", marginBottom: 4 },
+  reqInfo: { fontSize: 13, fontWeight: '500' },
   reqActions: { flexDirection: "row", gap: 10, paddingLeft: 10 },
-  actionBtn: { width: 42, height: 42, borderRadius: 21, alignItems: "center", justifyContent: "center" },
+  actionBtn: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center", borderWidth: 1 },
   loader: { position: 'absolute' },
   
-  champCard: { flexDirection: 'row', alignItems: 'center', padding: 15, borderRadius: 16, marginBottom: 10, borderWidth: 1 },
-  champIcon: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center', marginRight: 15 },
-  champTitle: { fontSize: 15, fontWeight: '800' },
-  champSub: { fontSize: 12, fontWeight: '600', marginTop: 2 },
-  deleteBtn: { padding: 10, borderRadius: 10 },
+  champCard: { flexDirection: 'row', alignItems: 'center', padding: 18, borderRadius: 20, marginBottom: 12, borderWidth: 1, elevation: 2 },
+  champIcon: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', marginRight: 16 },
+  champTitle: { fontSize: 16, fontWeight: '900', letterSpacing: -0.3 },
+  champSub: { fontSize: 12, fontWeight: '700', marginTop: 3 },
+  deleteBtn: { padding: 12, borderRadius: 14 },
   
-  deleteAccountBtn: { marginTop: 10, padding: 16, borderRadius: 16, borderWidth: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
-  deleteAccountText: { color: "#EF4444", fontSize: 14, fontWeight: "800" },
+  deleteAccountBtn: { marginTop: 20, padding: 18, borderRadius: 20, borderWidth: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
+  deleteAccountText: { color: "#EF4444", fontSize: 14, fontWeight: "900" },
 
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 20 },
-  modalContent: { width: '100%', borderRadius: 24, padding: 25, borderWidth: 1, elevation: 10, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 20 },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 },
-  modalTitle: { fontSize: 20, fontWeight: '900' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'center', alignItems: 'center', padding: 20 },
+  modalContent: { width: '100%', borderRadius: 36, padding: 30, borderWidth: 1, elevation: 15, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 20 },
+  modalTablet: { maxWidth: 500, alignSelf: 'center' },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  modalTitle: { fontSize: 22, fontWeight: '900', letterSpacing: -0.5 },
   modalCloseBtn: { padding: 5 },
-  modalText: { fontSize: 14, lineHeight: 20, marginBottom: 20 },
+  modalText: { fontSize: 14, lineHeight: 22, marginBottom: 25, fontWeight: '500' },
   
-  bankBox: { padding: 15, borderRadius: 16, borderWidth: 1, marginBottom: 20 },
-  bankRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
-  bankLabel: { fontSize: 12, fontWeight: '700', width: 65, marginLeft: 8 },
-  bankValue: { fontSize: 14, fontWeight: '800', flex: 1 },
-  bankValueClabe: { fontSize: 16, fontWeight: '900', flex: 1, letterSpacing: 1 },
+  rowInputs: { flexDirection: "row", gap: 15, marginBottom: 15 },
 
-  referenceBox: { padding: 15, borderRadius: 16, borderWidth: 1, marginBottom: 25 },
-  refLabel: { fontSize: 11, fontWeight: '800', textTransform: 'uppercase' },
-  refValue: { fontSize: 16, fontWeight: '900', marginTop: 5, textAlign: 'center' },
-
-  whatsappBtn: { backgroundColor: '#25D366', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 16, borderRadius: 14, gap: 8 },
-  whatsappBtnText: { color: '#FFF', fontSize: 15, fontWeight: '800' }
+  bankBox: { padding: 20, borderRadius: 20, borderWidth: 1, marginBottom: 25 },
+  bankRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
+  bankLabel: { fontSize: 12, fontWeight: '800', width: 70, marginLeft: 8, textTransform: 'uppercase' },
+  bankValue: { fontSize: 15, fontWeight: '800', flex: 1 },
+  bankValueClabe: { fontSize: 17, fontWeight: '900', flex: 1, letterSpacing: 1 },
+  referenceBox: { padding: 18, borderRadius: 20, borderWidth: 1, marginBottom: 25 },
+  refLabel: { fontSize: 11, fontWeight: '900', textTransform: 'uppercase' },
+  refValue: { fontSize: 17, fontWeight: '900', marginTop: 6, textAlign: 'center' },
+  whatsappBtn: { backgroundColor: '#25D366', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 18, borderRadius: 16, gap: 8, elevation: 3 },
+  whatsappBtnText: { color: '#FFF', fontSize: 15, fontWeight: '900' }
 });

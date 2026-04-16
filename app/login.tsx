@@ -11,19 +11,24 @@ import {
   Image,
   ScrollView,
   Alert,
-  useColorScheme
+  useColorScheme,
+  useWindowDimensions // <-- Importamos para responsividad
 } from "react-native";
 import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { BRAND_GRADIENT, Colors } from "@/constants/colors"; // <-- Importamos paleta dinámica
+import { BRAND_GRADIENT, Colors } from "@/constants/colors"; 
 
-// 👇 Cambia esto por tu IP local si pruebas en tu PC
 const BASE_URL = "https://www.flagdurango.com.mx"; 
 
 export default function LoginScreen() {
   const router = useRouter();
+  
+  // 🔥 Detección de Tablet 🔥
+  const { width } = useWindowDimensions();
+  const isTablet = width >= 768;
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -55,18 +60,13 @@ export default function LoginScreen() {
         throw new Error(data.message || "Credenciales inválidas");
       }
 
-      // Guardamos la sesión
       if (data.user) {
-        // 🔥 Guardamos como "user" para que el _layout.tsx lo detecte y muestre la pestaña
         await AsyncStorage.setItem("user", JSON.stringify(data.user));
-        // Por si alguna otra pantalla vieja tuya usa "userSession", lo guardamos doble por seguridad
         await AsyncStorage.setItem("userSession", JSON.stringify(data.user));
         
-        // Redirigimos según el rol
         if (data.user.role === "coach") {
           router.replace("/(coach)/dashboard");
         } else if (data.user.role === "admin") {
-          // 🔥 ¡MAGIA! Ahora el admin entra directo a la app a su pestaña secreta
           router.replace("/admin");
         } else {
           router.replace("/(player)/dashboard");
@@ -81,7 +81,12 @@ export default function LoginScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: currentColors.bg }]}>
-      <LinearGradient colors={[BRAND_GRADIENT[0], BRAND_GRADIENT[1]]} style={styles.topBackground}>
+      
+      {/* Fondo Superior (Gradiente) */}
+      <LinearGradient 
+        colors={[BRAND_GRADIENT[0], BRAND_GRADIENT[1]]} 
+        style={[styles.topBackground, isTablet && { height: "50%" }]}
+      >
         <Image 
           source={{ uri: "https://www.flagdurango.com.mx/images/logo-flag-durango.png" }} 
           style={styles.logo} 
@@ -90,11 +95,34 @@ export default function LoginScreen() {
       </LinearGradient>
 
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.keyboardView}>
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        {/* 🔥 Si es tablet, centramos el contenido verticalmente. Si es celular, lo empujamos abajo 🔥 */}
+        <ScrollView 
+          contentContainerStyle={[styles.scrollContent, isTablet && { justifyContent: 'center' }]} 
+          showsVerticalScrollIndicator={false} 
+          keyboardShouldPersistTaps="handled"
+        >
           
           <View style={[
             styles.card, 
-            { backgroundColor: currentColors.card, shadowColor: theme === 'dark' ? '#000' : '#0F172A' }
+            { 
+              backgroundColor: currentColors.bg, 
+              shadowColor: theme === 'dark' ? '#000' : '#334155',
+              borderColor: currentColors.borderLight
+            },
+            // 🔥 Magia Responsiva: Limita el ancho y redondea todo en tablets 🔥
+            isTablet && {
+              maxWidth: 480,
+              width: "100%",
+              alignSelf: 'center',
+              borderRadius: 36,
+              borderWidth: 1,
+              minHeight: 'auto',
+              paddingVertical: 50,
+              elevation: 10,
+              shadowOpacity: 0.15,
+              shadowRadius: 30,
+              shadowOffset: { width: 0, height: 10 }
+            }
           ]}>
             
             <View style={styles.header}>
@@ -103,6 +131,7 @@ export default function LoginScreen() {
             </View>
 
             <View style={styles.form}>
+              
               <View style={styles.inputGroup}>
                 <Text style={[styles.label, { color: currentColors.textMuted }]}>Usuario o Correo</Text>
                 <View style={[styles.inputContainer, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.borderLight }]}>
@@ -131,13 +160,23 @@ export default function LoginScreen() {
                     secureTextEntry={!showPassword}
                   />
                   <Pressable onPress={() => setShowPassword(!showPassword)} style={styles.eyeIcon}>
-                    <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={20} color={currentColors.textMuted} />
+                    <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={22} color={currentColors.textMuted} />
                   </Pressable>
                 </View>
               </View>
 
-              <Pressable style={styles.loginBtn} onPress={handleLogin} disabled={loading}>
-                {loading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.loginBtnText}>Iniciar Sesión</Text>}
+              <Pressable 
+                style={({ pressed }) => [styles.loginBtn, { opacity: pressed ? 0.8 : 1 }]} 
+                onPress={handleLogin} 
+                disabled={loading}
+              >
+                <LinearGradient 
+                  colors={[BRAND_GRADIENT[0], BRAND_GRADIENT[1]]} 
+                  start={{x: 0, y: 0}} end={{x: 1, y: 1}} 
+                  style={styles.loginBtnGradient}
+                >
+                  {loading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.loginBtnText}>Iniciar Sesión</Text>}
+                </LinearGradient>
               </Pressable>
 
               <View style={styles.footerLinks}>
@@ -147,46 +186,72 @@ export default function LoginScreen() {
                 </Pressable>
               </View>
               
-              <Pressable onPress={() => router.push("/forgot-password")} style={{ marginTop: 15, alignItems: "center" }}>
-               <Text style={{ color: BRAND_GRADIENT[0], fontWeight: "700" }}>¿Olvidaste tu contraseña?</Text>
+              <Pressable onPress={() => router.push("/forgot-password")} style={{ marginTop: 5, alignItems: "center" }}>
+               <Text style={[styles.forgotText, { color: currentColors.textSecondary }]}>¿Olvidaste tu contraseña?</Text>
               </Pressable>
 
               <Pressable style={styles.backBtn} onPress={() => router.back()}>
-                <Ionicons name="arrow-back" size={16} color={currentColors.textMuted} />
+                <View style={[styles.backBtnCircle, { backgroundColor: currentColors.bgSecondary }]}>
+                  <Ionicons name="arrow-back" size={16} color={currentColors.text} />
+                </View>
                 <Text style={[styles.backBtnText, { color: currentColors.textSecondary }]}>Volver al Inicio</Text>
               </Pressable>
+
             </View>
           </View>
-
         </ScrollView>
       </KeyboardAvoidingView>
     </View>
   );
 }
 
-// Retiramos colores fijos para que actúen los dinámicos
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  
   topBackground: { height: "45%", width: "100%", position: "absolute", top: 0, justifyContent: "center", alignItems: "center", paddingBottom: 50 },
   logo: { width: 220, height: 80, tintColor: "#FFFFFF" },
+  
   keyboardView: { flex: 1 },
   scrollContent: { flexGrow: 1, justifyContent: "flex-end" },
-  card: { borderTopLeftRadius: 32, borderTopRightRadius: 32, padding: 30, paddingTop: 40, minHeight: "65%", shadowOpacity: 0.1, shadowRadius: 20, elevation: 15 },
-  header: { marginBottom: 30 },
-  title: { fontSize: 26, fontWeight: "900", letterSpacing: -0.5 },
-  subtitle: { fontSize: 14, marginTop: 6, fontWeight: "500" },
-  form: { gap: 20 },
-  inputGroup: { gap: 8 },
-  label: { fontSize: 11, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.5 },
-  inputContainer: { flexDirection: "row", alignItems: "center", borderWidth: 1, borderRadius: 14, paddingHorizontal: 16, height: 54 },
+  
+  // Diseño de la tarjeta base (Celular)
+  card: { 
+    borderTopLeftRadius: 40, 
+    borderTopRightRadius: 40, 
+    padding: 32, 
+    paddingTop: 45, 
+    minHeight: "70%", 
+    shadowOpacity: 0.1, 
+    shadowRadius: 20, 
+    elevation: 15,
+    borderWidth: 1,
+    borderBottomWidth: 0 // Evita borde abajo en celulares
+  },
+  
+  header: { marginBottom: 35, alignItems: 'center' },
+  title: { fontSize: 26, fontWeight: "900", letterSpacing: -0.5, marginBottom: 8 },
+  subtitle: { fontSize: 14, fontWeight: "600", textAlign: 'center' },
+  
+  form: { gap: 22 },
+  inputGroup: { gap: 10 },
+  label: { fontSize: 12, fontWeight: "800", textTransform: "uppercase", letterSpacing: 1, marginLeft: 4 },
+  inputContainer: { flexDirection: "row", alignItems: "center", borderWidth: 1, borderRadius: 20, paddingHorizontal: 18, height: 60 },
   inputIcon: { marginRight: 12 },
-  input: { flex: 1, fontSize: 15, fontWeight: "500" },
-  eyeIcon: { padding: 5 },
-  loginBtn: { backgroundColor: BRAND_GRADIENT[0], height: 54, borderRadius: 14, justifyContent: "center", alignItems: "center", marginTop: 10, shadowColor: BRAND_GRADIENT[0], shadowOpacity: 0.3, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 5 },
-  loginBtnText: { color: "#FFFFFF", fontSize: 16, fontWeight: "800" },
-  footerLinks: { flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 6, marginTop: 10 },
-  footerText: { fontSize: 14, fontWeight: "500" },
-  linkText: { color: BRAND_GRADIENT[0], fontSize: 14, fontWeight: "800" },
-  backBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 20 },
-  backBtnText: { fontSize: 14, fontWeight: "700" },
+  input: { flex: 1, fontSize: 16, fontWeight: "600", height: "100%" },
+  eyeIcon: { padding: 5, paddingRight: 0 },
+  
+  // Botón Principal
+  loginBtn: { borderRadius: 20, marginTop: 10, overflow: 'hidden', elevation: 4, shadowColor: BRAND_GRADIENT[0], shadowOpacity: 0.3, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } },
+  loginBtnGradient: { height: 60, justifyContent: "center", alignItems: "center" },
+  loginBtnText: { color: "#FFFFFF", fontSize: 16, fontWeight: "900", letterSpacing: 0.5 },
+  
+  footerLinks: { flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 6, marginTop: 15 },
+  footerText: { fontSize: 14, fontWeight: "600" },
+  linkText: { color: BRAND_GRADIENT[0], fontSize: 14, fontWeight: "900" },
+  forgotText: { fontSize: 13, fontWeight: "700" },
+  
+  // Botón Volver
+  backBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, marginTop: 25 },
+  backBtnCircle: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  backBtnText: { fontSize: 14, fontWeight: "800" },
 });

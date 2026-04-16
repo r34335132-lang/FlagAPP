@@ -12,17 +12,22 @@ import {
   ScrollView,
   Alert,
   Linking,
-  useColorScheme
+  useColorScheme,
+  useWindowDimensions
 } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { BRAND_GRADIENT, Colors } from "@/constants/colors"; // <-- Paleta dinámica
+import { BRAND_GRADIENT, Colors } from "@/constants/colors"; 
 
 const BASE_URL = "https://www.flagdurango.com.mx";
 
 export default function RegisterScreen() {
   const router = useRouter();
+  
+  // 🔥 Detección de Tablet 🔥
+  const { width } = useWindowDimensions();
+  const isTablet = width >= 768;
   
   // Estados Generales
   const [role, setRole] = useState<"player" | "coach">("player");
@@ -96,7 +101,12 @@ export default function RegisterScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: currentColors.bg }]}>
-      <LinearGradient colors={[BRAND_GRADIENT[0], BRAND_GRADIENT[1]]} style={styles.topBackground}>
+      
+      {/* Fondo Superior (Gradiente) */}
+      <LinearGradient 
+        colors={[BRAND_GRADIENT[0], BRAND_GRADIENT[1]]} 
+        style={[styles.topBackground, isTablet && { height: "50%" }]}
+      >
         <Image 
           source={{ uri: "https://www.flagdurango.com.mx/images/logo-flag-durango.png" }} 
           style={styles.logo} 
@@ -105,18 +115,42 @@ export default function RegisterScreen() {
       </LinearGradient>
 
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.keyboardView}>
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        <ScrollView 
+          contentContainerStyle={[styles.scrollContent, isTablet && { justifyContent: 'center' }]} 
+          showsVerticalScrollIndicator={false} 
+          keyboardShouldPersistTaps="handled"
+        >
           
           <View style={[
             styles.card, 
-            { backgroundColor: currentColors.card, shadowColor: theme === 'dark' ? '#000' : '#0F172A' }
+            { 
+              backgroundColor: currentColors.bg, 
+              shadowColor: theme === 'dark' ? '#000' : '#334155',
+              borderColor: currentColors.borderLight
+            },
+            // 🔥 Magia Responsiva para Tablets 🔥
+            isTablet && {
+              maxWidth: 480,
+              width: "100%",
+              alignSelf: 'center',
+              borderRadius: 36,
+              borderWidth: 1,
+              minHeight: 'auto',
+              paddingVertical: 50,
+              elevation: 10,
+              shadowOpacity: 0.15,
+              shadowRadius: 30,
+              shadowOffset: { width: 0, height: 10 },
+              marginTop: 40 // Espacio para que respire arriba si el form es muy largo
+            }
           ]}>
+            
             <View style={styles.header}>
               <Text style={[styles.title, { color: currentColors.text }]}>Crear Cuenta</Text>
               <Text style={[styles.subtitle, { color: currentColors.textSecondary }]}>Únete a la liga de Flag Durango</Text>
             </View>
 
-            {/* SELECTOR DE ROL */}
+            {/* SELECTOR DE ROL TIPO PILL */}
             <View style={[styles.roleSelector, { backgroundColor: currentColors.bgSecondary }]}>
               <Pressable 
                 style={[
@@ -142,11 +176,12 @@ export default function RegisterScreen() {
                   styles.roleText, 
                   { color: currentColors.textSecondary },
                   role === "coach" && styles.roleTextActive
-                ]}>Coach </Text>
+                ]}>Coach</Text>
               </Pressable>
             </View>
 
             <View style={styles.form}>
+              
               <View style={styles.inputGroup}>
                 <Text style={[styles.label, { color: currentColors.textMuted }]}>Nombre de Usuario (App)</Text>
                 <View style={[styles.inputContainer, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.borderLight }]}>
@@ -191,19 +226,19 @@ export default function RegisterScreen() {
                     secureTextEntry={!showPassword} 
                   />
                   <Pressable onPress={() => setShowPassword(!showPassword)} style={styles.eyeIcon}>
-                    <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={20} color={currentColors.textMuted} />
+                    <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={22} color={currentColors.textMuted} />
                   </Pressable>
                 </View>
               </View>
 
-              {/* CAMPOS EXTRA PARA JUGADOR */}
+              {/* CAMPOS EXTRA PARA JUGADOR (BENTO BOX STYLE) */}
               {role === "player" && (
                 <View style={[styles.playerFieldsCard, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.borderLight }]}>
-                  <Text style={styles.playerFieldsTitle}>Datos del Campo</Text>
+                  <Text style={[styles.playerFieldsTitle, { color: BRAND_GRADIENT[0] }]}>Datos del Campo</Text>
                   
                   <View style={styles.inputGroup}>
                     <Text style={[styles.label, { color: currentColors.textMuted }]}>Nombre Completo (Real)</Text>
-                    <View style={[styles.inputContainer, { backgroundColor: currentColors.card, borderColor: currentColors.border }]}>
+                    <View style={[styles.inputContainer, { backgroundColor: currentColors.card, borderColor: currentColors.borderLight }]}>
                       <TextInput 
                         style={[styles.input, { color: currentColors.text }]} 
                         placeholder="Juan Pérez" 
@@ -218,10 +253,10 @@ export default function RegisterScreen() {
                   <View style={styles.rowInputs}>
                     <View style={[styles.inputGroup, { flex: 1 }]}>
                       <Text style={[styles.label, { color: currentColors.textMuted }]}>Posición</Text>
-                      <View style={[styles.inputContainer, { backgroundColor: currentColors.card, borderColor: currentColors.border }]}>
+                      <View style={[styles.inputContainer, { backgroundColor: currentColors.card, borderColor: currentColors.borderLight }]}>
                         <TextInput 
                           style={[styles.input, { color: currentColors.text }]} 
-                          placeholder="Ej. QB, WR" 
+                          placeholder="Ej. QB" 
                           placeholderTextColor={currentColors.textMuted}
                           value={position} 
                           onChangeText={setPosition} 
@@ -232,7 +267,7 @@ export default function RegisterScreen() {
 
                     <View style={[styles.inputGroup, { flex: 1 }]}>
                       <Text style={[styles.label, { color: currentColors.textMuted }]}>Jersey #</Text>
-                      <View style={[styles.inputContainer, { backgroundColor: currentColors.card, borderColor: currentColors.border }]}>
+                      <View style={[styles.inputContainer, { backgroundColor: currentColors.card, borderColor: currentColors.borderLight }]}>
                         <TextInput 
                           style={[styles.input, { color: currentColors.text }]} 
                           placeholder="Ej. 10" 
@@ -248,12 +283,19 @@ export default function RegisterScreen() {
                 </View>
               )}
 
+              {/* Botón Principal Gradient */}
               <Pressable 
-                style={[styles.registerBtn, { backgroundColor: BRAND_GRADIENT[0], shadowColor: BRAND_GRADIENT[0] }]} 
+                style={({ pressed }) => [styles.registerBtn, { opacity: pressed ? 0.8 : 1 }]} 
                 onPress={handleRegister} 
                 disabled={loading}
               >
-                {loading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.registerBtnText}>Registrarme</Text>}
+                <LinearGradient 
+                  colors={[BRAND_GRADIENT[0], BRAND_GRADIENT[1]]} 
+                  start={{x: 0, y: 0}} end={{x: 1, y: 1}} 
+                  style={styles.registerBtnGradient}
+                >
+                  {loading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.registerBtnText}>Registrarme</Text>}
+                </LinearGradient>
               </Pressable>
 
               {/* AVISO DE PRIVACIDAD */}
@@ -276,6 +318,7 @@ export default function RegisterScreen() {
                   <Text style={styles.linkText}>Inicia Sesión</Text>
                 </Pressable>
               </View>
+              
             </View>
 
           </View>
@@ -285,44 +328,63 @@ export default function RegisterScreen() {
   );
 }
 
-// Retiramos colores fijos para no generar conflictos
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  
   topBackground: { height: "35%", width: "100%", position: "absolute", top: 0, justifyContent: "center", alignItems: "center", paddingBottom: 20 },
   logo: { width: 160, height: 60, tintColor: "#FFFFFF" },
+  
   keyboardView: { flex: 1 },
   scrollContent: { flexGrow: 1, justifyContent: "flex-end" },
-  card: { borderTopLeftRadius: 32, borderTopRightRadius: 32, padding: 25, paddingTop: 30, minHeight: "75%", shadowOpacity: 0.1, shadowRadius: 20, elevation: 15 },
-  header: { marginBottom: 20 },
-  title: { fontSize: 26, fontWeight: "900", letterSpacing: -0.5 },
-  subtitle: { fontSize: 14, marginTop: 4, fontWeight: "500" },
   
-  roleSelector: { flexDirection: "row", borderRadius: 16, padding: 6, marginBottom: 25 },
-  roleBtn: { flex: 1, paddingVertical: 12, borderRadius: 12, alignItems: "center" },
+  // Diseño de la tarjeta base (Celular)
+  card: { 
+    borderTopLeftRadius: 40, 
+    borderTopRightRadius: 40, 
+    padding: 32, 
+    paddingTop: 45, 
+    minHeight: "75%", 
+    shadowOpacity: 0.1, 
+    shadowRadius: 20, 
+    elevation: 15,
+    borderWidth: 1,
+    borderBottomWidth: 0 // Evita borde abajo en celulares
+  },
+  
+  header: { marginBottom: 30, alignItems: 'center' },
+  title: { fontSize: 26, fontWeight: "900", letterSpacing: -0.5, marginBottom: 8 },
+  subtitle: { fontSize: 14, fontWeight: "600", textAlign: 'center' },
+  
+  // Selector de Rol tipo "Pill"
+  roleSelector: { flexDirection: "row", borderRadius: 20, padding: 6, marginBottom: 25, borderWidth: 1, borderColor: 'rgba(150,150,150,0.1)' },
+  roleBtn: { flex: 1, paddingVertical: 14, borderRadius: 16, alignItems: "center" },
   roleBtnActive: { shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 5, elevation: 2 },
-  roleText: { fontSize: 13, fontWeight: "700" },
+  roleText: { fontSize: 13, fontWeight: "800", letterSpacing: 0.5 },
   roleTextActive: { color: BRAND_GRADIENT[0], fontWeight: "900" },
 
-  form: { gap: 15 },
-  inputGroup: { gap: 8 },
+  form: { gap: 20 },
+  inputGroup: { gap: 10 },
   rowInputs: { flexDirection: "row", gap: 15 },
-  label: { fontSize: 11, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.5 },
-  inputContainer: { flexDirection: "row", alignItems: "center", borderWidth: 1, borderRadius: 14, paddingHorizontal: 16, height: 50 },
+  label: { fontSize: 12, fontWeight: "800", textTransform: "uppercase", letterSpacing: 1, marginLeft: 4 },
+  inputContainer: { flexDirection: "row", alignItems: "center", borderWidth: 1, borderRadius: 20, paddingHorizontal: 18, height: 60 },
   inputIcon: { marginRight: 12 },
-  input: { flex: 1, fontSize: 15, fontWeight: "500" },
-  eyeIcon: { padding: 5 },
+  input: { flex: 1, fontSize: 16, fontWeight: "600", height: "100%" },
+  eyeIcon: { padding: 5, paddingRight: 0 },
 
-  playerFieldsCard: { padding: 15, borderRadius: 16, borderWidth: 1, gap: 15, marginTop: 5 },
-  playerFieldsTitle: { fontSize: 12, fontWeight: "800", color: BRAND_GRADIENT[0], textTransform: "uppercase", letterSpacing: 0.5 },
+  // Tarjeta de Jugador Extra
+  playerFieldsCard: { padding: 20, borderRadius: 24, borderWidth: 1, gap: 18, marginTop: 5 },
+  playerFieldsTitle: { fontSize: 12, fontWeight: "900", textTransform: "uppercase", letterSpacing: 1 },
   
-  registerBtn: { height: 54, borderRadius: 14, justifyContent: "center", alignItems: "center", marginTop: 15, shadowOpacity: 0.3, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 5 },
-  registerBtnText: { color: "#FFFFFF", fontSize: 16, fontWeight: "800" },
+  // Botón Principal Gradient
+  registerBtn: { borderRadius: 20, marginTop: 15, overflow: 'hidden', elevation: 4, shadowColor: BRAND_GRADIENT[0], shadowOpacity: 0.3, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } },
+  registerBtnGradient: { height: 60, justifyContent: "center", alignItems: "center" },
+  registerBtnText: { color: "#FFFFFF", fontSize: 16, fontWeight: "900", letterSpacing: 0.5 },
   
-  privacyContainer: { marginTop: 5, paddingHorizontal: 10 },
-  privacyText: { fontSize: 11, textAlign: "center", lineHeight: 16 },
+  privacyContainer: { marginTop: 10, paddingHorizontal: 10 },
+  privacyText: { fontSize: 12, textAlign: "center", lineHeight: 18 },
   privacyLink: { color: BRAND_GRADIENT[0], fontWeight: "800", textDecorationLine: "underline" },
 
-  footerLinks: { flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 6, marginTop: 10, marginBottom: 10 },
-  footerText: { fontSize: 14, fontWeight: "500" },
-  linkText: { color: BRAND_GRADIENT[0], fontSize: 14, fontWeight: "800" },
+  footerLinks: { flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 6, marginTop: 15, marginBottom: 15 },
+  footerText: { fontSize: 14, fontWeight: "600" },
+  linkText: { color: BRAND_GRADIENT[0], fontSize: 14, fontWeight: "900" },
 });
