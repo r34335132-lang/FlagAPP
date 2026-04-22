@@ -2,7 +2,7 @@
   "expo": {
     "name": "FlagDurango",
     "slug": "flagdurango",
-    "version": "1.0.6",
+    "version": "1.0.7",
     "orientation": "default",
     "icon": "./assets/images/icon.png",
     "scheme": "flagdurango",
@@ -18,7 +18,7 @@
       "color": "#0A0E1A"
     },
     "ios": {
-      "buildNumber": "12",
+      "buildNumber": "13",
       "supportsTablet": true,
       "bundleIdentifier": "com.flagdurango.app",
       "infoPlist": {
@@ -29,7 +29,7 @@
     },
     "android": {
       "package": "com.flagdurango.app",
-      "versionCode": 9,
+      "versionCode": 10,
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#0A0E1A",
@@ -62,7 +62,8 @@
           "photosPermission": "Esta app requiere acceso a tu galería de fotos para que puedas seleccionar una foto para tu gafete oficial o logo de equipo.",
           "cameraPermission": "Esta app requiere acceso a la cámara para que puedas tomar una foto para tu gafete oficial o logo de equipo."
         }
-      ]
+      ],
+      "expo-video"
     ],
     "experiments": {
       "typedRoutes": true,

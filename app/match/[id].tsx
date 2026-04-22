@@ -415,7 +415,19 @@ export default function MatchDetailScreen() {
             {currentDisplayRoster.length > 0 ? (
               currentDisplayRoster.map((player, index) => (
                 <FadeInView key={player.id} delay={index * 50}>
-                  <View style={[styles.playerRow, { backgroundColor: currentColors.card, borderColor: currentColors.borderLight, shadowColor: theme === 'dark' ? '#000' : '#475569' }]}>
+                  <Pressable 
+                    onPress={() => router.push({ pathname: "/player/[id]", params: { id: player.id } })}
+                    style={({ pressed }) => [
+                      styles.playerRow, 
+                      { 
+                        backgroundColor: currentColors.card, 
+                        borderColor: currentColors.borderLight, 
+                        shadowColor: theme === 'dark' ? '#000' : '#475569',
+                        transform: [{ scale: pressed ? 0.98 : 1 }],
+                        opacity: pressed ? 0.8 : 1
+                      }
+                    ]}
+                  >
                     <View style={[styles.playerJerseyCircle, { backgroundColor: currentTeamColor }]}>
                       <Text style={[styles.playerJerseyNumber, { color: '#FFF' }]}>{player.jersey_number || player.number || "0"}</Text>
                     </View>
@@ -432,7 +444,9 @@ export default function MatchDetailScreen() {
                       <Text style={[styles.playerName, { color: currentColors.text }]}>{player.name}</Text>
                       <Text style={[styles.playerPosition, { color: currentColors.textSecondary }]}>{player.position || "Jugador"}</Text>
                     </View>
-                  </View>
+
+                    <Ionicons name="chevron-forward" size={18} color={currentColors.borderLight} />
+                  </Pressable>
                 </FadeInView>
               ))
             ) : (
