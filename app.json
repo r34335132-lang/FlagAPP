@@ -2,7 +2,7 @@
   "expo": {
     "name": "FlagDurango",
     "slug": "flagdurango",
-    "version": "1.0.7",
+    "version": "1.0.8",
     "orientation": "default",
     "icon": "./assets/images/icon.png",
     "scheme": "flagdurango",
@@ -18,7 +18,7 @@
       "color": "#0A0E1A"
     },
     "ios": {
-      "buildNumber": "13",
+      "buildNumber": "14",
       "supportsTablet": true,
       "bundleIdentifier": "com.flagdurango.app",
       "infoPlist": {
@@ -29,18 +29,14 @@
     },
     "android": {
       "package": "com.flagdurango.app",
-      "versionCode": 10,
+      "versionCode": 12,
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#0A0E1A",
         "foregroundImage": "./assets/images/icon.png"
       },
       "permissions": [
-        "android.permission.CAMERA",
-        "android.permission.READ_EXTERNAL_STORAGE",
-        "android.permission.WRITE_EXTERNAL_STORAGE",
-        "android.permission.READ_MEDIA_IMAGES",
-        "android.permission.RECORD_AUDIO"
+        "android.permission.CAMERA"
       ]
     },
     "web": {

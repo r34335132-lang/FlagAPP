@@ -12,6 +12,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import * as ImagePicker from "expo-image-picker";
 import { supabase } from "@/lib/supabase"; 
 import { BRAND_GRADIENT, Colors } from "@/constants/colors";
+import PlayerCredentialCard from "@/components/PlayerCredentialCard";
 
 const BASE_URL = "https://www.flagdurango.com.mx";
 
@@ -19,7 +20,6 @@ export default function PlayerDashboard() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   
-  // 🔥 Medidas para Tablets
   const { width } = useWindowDimensions();
   const isTablet = width >= 768;
 
@@ -30,11 +30,12 @@ export default function PlayerDashboard() {
   const [user, setUser] = useState<any>(null);
   const [playerInfo, setPlayerInfo] = useState<any>(null);
   const [playerTeams, setPlayerTeams] = useState<any[]>([]);
-  const [gameStats, setGameStats] = useState<any[]>([]); // Estadísticas reales de la API
-  const [mvpCount, setMvpCount] = useState<number>(0); // 🔥 Conteo real de MVPs
+  const [gameStats, setGameStats] = useState<any[]>([]);
+  
+  const [mvpsList, setMvpsList] = useState<any[]>([]); 
+  
   const [joinRequests, setJoinRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  
   const [refreshing, setRefreshing] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
 
@@ -52,6 +53,8 @@ export default function PlayerDashboard() {
   const [editEmergencyPhone, setEditEmergencyPhone] = useState("");
   const [editSeasons, setEditSeasons] = useState("");
   const [editSince, setEditSince] = useState("");
+
+  const [activeCardIndex, setActiveCardIndex] = useState(0);
 
   useFocusEffect(
     useCallback(() => {
@@ -87,10 +90,9 @@ export default function PlayerDashboard() {
         setEditSeasons(profileJson.data.seasons_played?.toString() || "0"); 
         setEditSince(profileJson.data.playing_since || "");                
         
-        // 2. 🔥 OBTENER ESTADÍSTICAS REALES Y MVPs 🔥
+        // 2. Obtener Estadísticas y TODOS los MVPs
         try {
           const statsRes = await fetch(`${BASE_URL}/api/player-stats?player_id=${profileJson.data.id}`);
-          
           const contentType = statsRes.headers.get("content-type");
           if (statsRes.ok && contentType && contentType.includes("application/json")) {
             const statsJson = await statsRes.json();
@@ -99,16 +101,14 @@ export default function PlayerDashboard() {
             }
           }
 
-          // Consultar a Supabase el número exacto de MVPs
-          const { count, error: mvpError } = await supabase
+          const { data: mvpsData, error: mvpError } = await supabase
             .from("mvps")
-            .select("*", { count: 'exact', head: true })
+            .select("*")
             .eq("player_id", profileJson.data.id);
             
-          if (!mvpError && count !== null) {
-            setMvpCount(count);
+          if (!mvpError && mvpsData) {
+            setMvpsList(mvpsData);
           }
-
         } catch (err) {
           console.log("No se pudieron cargar las estadísticas", err);
         }
@@ -137,22 +137,12 @@ export default function PlayerDashboard() {
     setRefreshing(false);
   }, []);
 
-  // 🔥 SUMATORIA REAL DESDE LA TABLA 'player_game_stats' CON PASES QB 🔥
-  const totals = useMemo(() => {
-    return gameStats.reduce((acc, curr) => ({
-      tds: acc.tds + (Number(curr.touchdowns_totales) || 0),
-      passes: acc.passes + (Number(curr.pases_completos) || 0), // <-- AQUI SUMAMOS LOS PASES
-      ints: acc.ints + (Number(curr.intercepciones) || 0),
-      sacks: acc.sacks + (Number(curr.sacks) || 0),
-    }), { tds: 0, passes: 0, ints: 0, sacks: 0 });
-  }, [gameStats]);
-
   const handlePickImage = async () => {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
         allowsEditing: true,
-        aspect: [1, 1],
+        aspect: [3, 4],
         quality: 0.5,
       });
 
@@ -212,7 +202,6 @@ export default function PlayerDashboard() {
 
   const handleJoinTeam = async () => {
     if (!selectedTeamId) return Alert.alert("Aviso", "Selecciona un equipo.");
-
     try {
       setLoading(true);
       const response = await fetch(`${BASE_URL}/api/team-join-requests`, {
@@ -307,13 +296,35 @@ export default function PlayerDashboard() {
     router.replace("/login");
   };
 
+  // 🔥 1. Variables preparadas (Antes del early return)
+  const myCategories = playerTeams.map(pt => pt.team?.category);
+  const teamsToRender = playerTeams.length > 0 ? playerTeams : [{ _id: 'empty' }];
+  
+  const activeTeam = teamsToRender[activeCardIndex];
+  const activeTeamId = activeTeam?.team?.id || activeTeam?.team_id;
+
+  // 🔥 2. HOOK USEMEMO (Antes del early return)
+  const activeTeamStats = useMemo(() => {
+    if (activeTeam?._id === 'empty') return { tds: 0, passes: 0, ints: 0, sacks: 0, mvps: 0 };
+    
+    const filteredStats = gameStats.filter(s => s.team_id === activeTeamId);
+    
+    const totals = filteredStats.reduce((acc, curr) => ({
+      tds: acc.tds + (Number(curr.touchdowns_totales) || 0),
+      passes: acc.passes + (Number(curr.pases_completos) || 0),
+      ints: acc.ints + (Number(curr.intercepciones) || 0),
+      sacks: acc.sacks + (Number(curr.sacks) || 0),
+    }), { tds: 0, passes: 0, ints: 0, sacks: 0 });
+
+    const mvps = mvpsList.filter(m => m.team_id === activeTeamId).length;
+
+    return { ...totals, mvps };
+  }, [gameStats, mvpsList, activeTeamId, activeTeam]);
+
+  // 🛑 3. EARLY RETURN DE CARGA (Después de todos los Hooks)
   if (loading && !refreshing && !playerInfo) {
     return <View style={[styles.loading, { backgroundColor: currentColors.bg }]}><ActivityIndicator size="large" color={BRAND_GRADIENT[0]} /></View>;
   }
-
-  const myCategories = playerTeams.map(pt => pt.team?.category);
-  const mainColor = playerTeams.length > 0 && playerTeams[0].team?.color1 ? playerTeams[0].team.color1 : BRAND_GRADIENT[0];
-  const hasPhoto = playerInfo?.photo_url && !playerInfo.photo_url.startsWith('blob:');
 
   return (
     <View style={[styles.container, { backgroundColor: currentColors.bg }]}>
@@ -338,93 +349,140 @@ export default function PlayerDashboard() {
       >
         <View style={styles.contentWrapper}>
           
-          {/* --- GAFETE DIGITAL --- */}
+          {/* --- CARTA UPPER DECK (CREDENCIA OFICIAL) CARRUSEL --- */}
           {playerInfo && (
-            <View style={[styles.qrCard, { borderColor: isDark ? currentColors.borderLight : mainColor, backgroundColor: isDark ? currentColors.card : '#FFFFFF' }]}>
-              <LinearGradient colors={[mainColor, isDark ? "#0F172A" : `${mainColor}99`]} style={styles.qrHeader}>
-                <Text style={styles.qrTeamName}>LIGA FLAG DURANGO PASSPORT</Text>
-              </LinearGradient>
+            <View style={styles.credentialWrapper}>
               
-              <View style={styles.qrBody}>
-                <Pressable style={[styles.playerPhotoRing, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.card }]} onPress={handlePickImage} disabled={uploadingImage}>
-                  {uploadingImage ? (
-                    <ActivityIndicator color={mainColor} size="small" />
-                  ) : hasPhoto ? (
-                    <Image source={{ uri: playerInfo.photo_url }} style={styles.playerPhoto} resizeMode="cover" />
-                  ) : (
-                    <Ionicons name="person" size={50} color={currentColors.textMuted} />
-                  )}
-                  <View style={[styles.cameraBadge, { backgroundColor: mainColor, borderColor: currentColors.card }]}>
-                    <Ionicons name="camera" size={14} color="#FFF" />
-                  </View>
-                </Pressable>
+              <ScrollView
+                horizontal
+                pagingEnabled
+                showsHorizontalScrollIndicator={false}
+                onMomentumScrollEnd={(e) => {
+                  const newIndex = Math.round(e.nativeEvent.contentOffset.x / (width - 40));
+                  setActiveCardIndex(newIndex);
+                }}
+              >
+                {teamsToRender.map((pt, index) => {
+                  const isPlaceholder = pt._id === 'empty';
+                  const teamId = pt.team?.id || pt.team_id;
+                  
+                  const displayTeam = isPlaceholder ? "LIGA FLAG DURANGO" : pt.team?.name;
+                  const displayJersey = isPlaceholder ? (playerInfo?.jersey_number?.toString() || "00") : pt.jersey_number?.toString();
+                  const displayPosition = isPlaceholder ? (playerInfo?.position || "F/A") : pt.position;
 
-                <Text style={[styles.playerName, { color: currentColors.text }]}>{playerInfo.name}</Text>
-                
-                <View style={styles.autoSaveBadge}>
-                  <Ionicons name="shield-checkmark" size={14} color={BRAND_GRADIENT[0]} />
-                  <Text style={[styles.autoSaveText, { color: currentColors.textSecondary }]}>Jugador Verificado Oficial</Text>
+                  // Estadísticas aisladas por carta en el carrusel
+                  const cardStatsData = gameStats.filter(s => s.team_id === teamId);
+                  const cardTotals = cardStatsData.reduce((acc, curr) => ({
+                    touchdowns: acc.touchdowns + (Number(curr.touchdowns_totales) || 0),
+                    pases: acc.pases + (Number(curr.pases_completos) || 0),
+                    intercepciones: acc.intercepciones + (Number(curr.intercepciones) || 0),
+                    sacks: acc.sacks + (Number(curr.sacks) || 0),
+                  }), { touchdowns: 0, pases: 0, intercepciones: 0, sacks: 0 });
+
+                  const cardMvps = mvpsList.filter(m => m.team_id === teamId).length;
+
+                  return (
+                    <View key={index} style={{ width: width - 40, alignItems: 'center' }}>
+                      <PlayerCredentialCard
+                        playerName={playerInfo.name}
+                        playerNumber={displayJersey}
+                        position={displayPosition}
+                        team={displayTeam}
+                        photoUrl={playerInfo.photo_url}
+                        stats={{
+                          ...cardTotals,
+                          mvps: cardMvps
+                        }}
+                      />
+                    </View>
+                  );
+                })}
+              </ScrollView>
+
+              {/* Indicadores de página (Puntitos) */}
+              {teamsToRender.length > 1 && (
+                <View style={styles.paginationContainer}>
+                  {teamsToRender.map((_, idx) => (
+                    <View 
+                      key={idx} 
+                      style={[styles.dot, activeCardIndex === idx && styles.activeDot]} 
+                    />
+                  ))}
                 </View>
-              </View>
+              )}
+
+              <Text style={[styles.hintText, { color: currentColors.textMuted }]}>
+                {teamsToRender.length > 1 
+                  ? "Desliza para ver tus otros equipos • Toca para girar" 
+                  : "Toca la credencial para ver tus estadísticas"}
+              </Text>
               
-              <Pressable style={styles.editProfileBtn} onPress={() => setShowEditModal(true)}>
-                <Ionicons name="create-outline" size={16} color="#FFF" />
-                <Text style={styles.editProfileText}>Editar Mi Información</Text>
-              </Pressable>
+              <View style={styles.cardActionsRow}>
+                <Pressable style={[styles.actionBtn, { backgroundColor: currentColors.card, borderColor: currentColors.borderLight }]} onPress={handlePickImage} disabled={uploadingImage}>
+                  {uploadingImage ? (
+                    <ActivityIndicator size="small" color={BRAND_GRADIENT[0]} />
+                  ) : (
+                    <>
+                      <Ionicons name="camera-outline" size={18} color={currentColors.text} />
+                      <Text style={[styles.actionBtnText, { color: currentColors.text }]}>Cambiar Foto</Text>
+                    </>
+                  )}
+                </Pressable>
+                
+                <Pressable style={[styles.actionBtn, { backgroundColor: currentColors.card, borderColor: currentColors.borderLight }]} onPress={() => setShowEditModal(true)}>
+                  <Ionicons name="create-outline" size={18} color={currentColors.text} />
+                  <Text style={[styles.actionBtnText, { color: currentColors.text }]}>Editar Datos</Text>
+                </Pressable>
+              </View>
             </View>
           )}
 
-          {/* --- 🔥 RENDIMIENTO GLOBAL (BENTO BOX COMPLETO) 🔥 --- */}
-          <Text style={[styles.sectionTitle, { color: currentColors.text }]}>Rendimiento de Temporada</Text>
+          {/* --- RENDIMIENTO DINÁMICO (BENTO BOX COMPLETO) --- */}
+          <Text style={[styles.sectionTitle, { color: currentColors.text }]}>
+            Rendimiento {activeTeam?._id === 'empty' ? '' : `en ${activeTeam?.team?.name}`}
+          </Text>
           <View style={[styles.globalStatsCard, { backgroundColor: currentColors.card, borderColor: currentColors.borderLight, shadowColor: isDark ? '#000' : '#475569' }]}>
             
             <View style={styles.statsGridRow}>
-              {/* TOUCHDOWNS */}
               <View style={styles.statGridBox}>
                 <View style={[styles.statGridIconWrap, { backgroundColor: isDark ? 'rgba(59, 130, 246, 0.15)' : '#EFF6FF' }]}>
                   <Ionicons name="american-football" size={24} color="#3B82F6" />
                 </View>
-                <Text style={[styles.statGridValue, { color: currentColors.text }]}>{totals.tds}</Text>
+                <Text style={[styles.statGridValue, { color: currentColors.text }]}>{activeTeamStats.tds}</Text>
                 <Text style={[styles.statGridLabel, { color: currentColors.textSecondary }]}>ANOTACIONES</Text>
               </View>
-
-              {/* PASES QB */}
               <View style={styles.statGridBox}>
                 <View style={[styles.statGridIconWrap, { backgroundColor: isDark ? 'rgba(139, 92, 246, 0.15)' : '#F5F3FF' }]}>
                   <Ionicons name="send" size={22} color="#8B5CF6" />
                 </View>
-                <Text style={[styles.statGridValue, { color: currentColors.text }]}>{totals.passes}</Text>
+                <Text style={[styles.statGridValue, { color: currentColors.text }]}>{activeTeamStats.passes}</Text>
                 <Text style={[styles.statGridLabel, { color: currentColors.textSecondary }]}>PASES QB</Text>
               </View>
             </View>
 
             <View style={[styles.statsGridRow, { marginTop: 15 }]}>
-              {/* INTERCEPCIONES */}
               <View style={styles.statGridBox}>
                 <View style={[styles.statGridIconWrap, { backgroundColor: isDark ? 'rgba(16, 185, 129, 0.15)' : '#ECFDF5' }]}>
                   <Ionicons name="magnet" size={24} color="#10B981" />
                 </View>
-                <Text style={[styles.statGridValue, { color: currentColors.text }]}>{totals.ints}</Text>
+                <Text style={[styles.statGridValue, { color: currentColors.text }]}>{activeTeamStats.ints}</Text>
                 <Text style={[styles.statGridLabel, { color: currentColors.textSecondary }]}>INTERCEP.</Text>
               </View>
-
-              {/* SACKS */}
               <View style={styles.statGridBox}>
                 <View style={[styles.statGridIconWrap, { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : '#FEF2F2' }]}>
                   <Ionicons name="close-circle" size={24} color="#EF4444" />
                 </View>
-                <Text style={[styles.statGridValue, { color: currentColors.text }]}>{totals.sacks}</Text>
+                <Text style={[styles.statGridValue, { color: currentColors.text }]}>{activeTeamStats.sacks}</Text>
                 <Text style={[styles.statGridLabel, { color: currentColors.textSecondary }]}>SACKS</Text>
               </View>
             </View>
 
-            {/* MVP (Ocupa todo el ancho) */}
             <View style={[styles.statsGridRow, { marginTop: 15 }]}>
               <View style={styles.statGridBox}>
                 <View style={[styles.statGridIconWrap, { backgroundColor: isDark ? 'rgba(245, 158, 11, 0.15)' : '#FFFBEB' }]}>
                   <Ionicons name="trophy" size={24} color="#F59E0B" />
                 </View>
-                <Text style={[styles.statGridValue, { color: currentColors.text }]}>{mvpCount}</Text>
+                <Text style={[styles.statGridValue, { color: currentColors.text }]}>{activeTeamStats.mvps}</Text>
                 <Text style={[styles.statGridLabel, { color: currentColors.textSecondary }]}>PREMIOS MVP</Text>
               </View>
             </View>
@@ -507,9 +565,7 @@ export default function PlayerDashboard() {
         </View>
       </ScrollView>
 
-      {/* ─────────────────────────────────────────────────────────────
-          MODAL: BUSCAR EQUIPO CON KEYBOARD AVOIDING VIEW Y RESPONSIVE
-      ────────────────────────────────────────────────────────────── */}
+      {/* --- MODALES --- */}
       <Modal visible={showJoinModal} animationType="slide" transparent={true}>
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
           <View style={styles.modalOverlay}>
@@ -564,9 +620,6 @@ export default function PlayerDashboard() {
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* ─────────────────────────────────────────────────────────────
-          MODAL: EDITAR PERFIL CON KEYBOARD AVOIDING VIEW Y RESPONSIVE
-      ────────────────────────────────────────────────────────────── */}
       <Modal visible={showEditModal} animationType="fade" transparent={true}>
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
           <View style={styles.modalOverlay}>
@@ -576,7 +629,6 @@ export default function PlayerDashboard() {
                 <Pressable style={styles.modalCloseBtn} onPress={() => setShowEditModal(false)}><Ionicons name="close" size={24} color={currentColors.text} /></Pressable>
               </View>
               <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-                
                 <Text style={[styles.inputTitle, { color: currentColors.textMuted }]}>Experiencia en Flag Football</Text>
                 <View style={styles.rowInputs}>
                    <View style={{flex: 1}}>
@@ -611,49 +663,32 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   loading: { flex: 1, justifyContent: "center", alignItems: "center" },
   contentWrapper: { width: "100%", maxWidth: 800, alignSelf: "center" },
-  
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 20, paddingBottom: 15, borderBottomWidth: 1, elevation: 4, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 5 },
   headerLeft: { flexDirection: "row", alignItems: "center" },
   homeIcon: { marginRight: 15, padding: 5 },
   headerTitle: { fontSize: 26, fontWeight: "900", letterSpacing: -0.5 },
   logoutIcon: { padding: 5 },
-  
   scrollContent: { padding: 20, paddingBottom: 100 },
-  
-  // --- Gafete Premium ---
-  qrCard: { borderRadius: 28, borderWidth: 1, elevation: 8, shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.1, shadowRadius: 20, overflow: "hidden", marginBottom: 30 },
-  qrHeader: { paddingVertical: 18, alignItems: "center" },
-  qrTeamName: { color: "#FFFFFF", fontSize: 14, fontWeight: "900", letterSpacing: 2.5 },
-  qrBody: { alignItems: "center", padding: 25 },
-  playerPhotoRing: { width: 94, height: 94, borderRadius: 47, justifyContent: "center", alignItems: "center", borderWidth: 4, elevation: 5, marginTop: -50, marginBottom: 15 },
-  playerPhoto: { width: "100%", height: "100%", borderRadius: 47 },
-  cameraBadge: { position: "absolute", bottom: -2, right: -6, width: 30, height: 30, borderRadius: 15, justifyContent: "center", alignItems: "center", borderWidth: 3 },
-  playerName: { fontSize: 26, fontWeight: "900", marginBottom: 6, textAlign: 'center', letterSpacing: -0.5 },
-  autoSaveBadge: { flexDirection: "row", alignItems: "center", gap: 5, marginBottom: 18 },
-  autoSaveText: { fontSize: 11, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5 },
-
-  // --- STATS GLOBALES (BENTO BOX) ---
+  credentialWrapper: { alignItems: 'center', marginBottom: 30 },
+  hintText: { fontSize: 11, textAlign: 'center', marginTop: 5, marginBottom: 15, fontWeight: '600' },
+  cardActionsRow: { flexDirection: 'row', justifyContent: 'center', gap: 15, width: '100%' },
+  actionBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 20, borderRadius: 12, borderWidth: 1, gap: 8 },
+  actionBtnText: { fontSize: 13, fontWeight: 'bold' },
+  paginationContainer: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 10, marginBottom: 5 },
+  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#555', marginHorizontal: 5 },
+  activeDot: { backgroundColor: BRAND_GRADIENT[0], width: 22 }, 
   globalStatsCard: { borderRadius: 28, borderWidth: 1, padding: 24, marginBottom: 30, elevation: 3, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.05, shadowRadius: 12 },
   statsGridRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 15 },
   statGridBox: { flex: 1, alignItems: 'center' },
   statGridIconWrap: { width: 48, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center', marginBottom: 10 },
   statGridValue: { fontSize: 26, fontWeight: '900', letterSpacing: -1, marginBottom: 2 },
   statGridLabel: { fontSize: 10, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
-
-  digitalIdContainer: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10 },
-  digitalIdText: { fontSize: 11, fontWeight: "800", textTransform: 'uppercase', letterSpacing: 1 },
-
-  editProfileBtn: { backgroundColor: "#1E293B", flexDirection: "row", justifyContent: "center", alignItems: "center", paddingVertical: 16, gap: 8 },
-  editProfileText: { color: "#FFFFFF", fontSize: 13, fontWeight: "800", letterSpacing: 0.5 },
-  
   sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 15 },
   sectionTitle: { fontSize: 18, fontWeight: "900", letterSpacing: -0.5, marginBottom: 15 },
   addBtn: { flexDirection: "row", paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12, alignItems: "center", gap: 4, elevation: 2 },
   addBtnText: { color: "#FFF", fontSize: 12, fontWeight: "900", letterSpacing: 0.5 },
   emptyCard: { padding: 25, borderRadius: 20, alignItems: "center", borderWidth: 1, borderStyle: "dashed" },
   emptyText: { fontSize: 13, fontWeight: '600' },
-  
-  // --- Tarjetas de Equipos ---
   teamCard: { flexDirection: "row", padding: 16, borderRadius: 24, marginBottom: 15, alignItems: "center", borderWidth: 1, elevation: 2 },
   teamCardLogo: { width: 54, height: 54, borderRadius: 14, borderWidth: 1, justifyContent: 'center', alignItems: 'center', marginRight: 15, padding: 5, backgroundColor: '#FFFFFF' },
   teamLogoImg: { width: '100%', height: '100%' },
@@ -664,7 +699,6 @@ const styles = StyleSheet.create({
   teamCardStats: { alignItems: "center", paddingHorizontal: 14, paddingVertical: 8, borderRadius: 14, borderWidth: 1 },
   teamCardJersey: { fontSize: 18, fontWeight: "900" },
   teamCardPos: { fontSize: 10, fontWeight: "800", marginTop: 2, letterSpacing: 0.5 },
-  
   requestCard: { flexDirection: "row", padding: 18, borderRadius: 20, marginBottom: 12, alignItems: "center", borderWidth: 1, elevation: 1 },
   reqTeamName: { fontSize: 16, fontWeight: "900", marginBottom: 2 },
   reqCatName: { fontSize: 11, fontWeight: '700', letterSpacing: 0.5 },
@@ -673,15 +707,11 @@ const styles = StyleSheet.create({
   badgeGreen: { backgroundColor: "#D1FAE5" },
   badgeRed: { backgroundColor: "#FEE2E2" },
   statusText: { fontSize: 10, fontWeight: "900", letterSpacing: 0.5 },
-  
   deleteAccountBtn: { marginTop: 40, padding: 18, borderRadius: 20, borderWidth: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10 },
   deleteAccountText: { color: "#EF4444", fontSize: 14, fontWeight: "900" },
-
-  // --- Modales Adaptados ---
   modalOverlay: { flex: 1, backgroundColor: "rgba(0, 0, 0, 0.65)", justifyContent: "flex-end" },
   modalContent: { borderTopLeftRadius: 36, borderTopRightRadius: 36, padding: 30, paddingBottom: Platform.OS === 'ios' ? 45 : 30 },
   modalTablet: { width: 500, alignSelf: 'center', borderRadius: 36, marginBottom: 'auto', marginTop: 'auto' }, 
-  
   modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 25 },
   modalTitle: { fontSize: 22, fontWeight: "900", letterSpacing: -0.5 },
   modalCloseBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(150,150,150,0.1)', justifyContent: 'center', alignItems: 'center' },
