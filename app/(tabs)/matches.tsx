@@ -23,6 +23,7 @@ import { useRouter } from "expo-router";
 import { useMatches } from "@/hooks/useMatches";
 import { useTeams } from "@/hooks/useTeams";
 import { BRAND_GRADIENT, Colors } from "@/constants/colors";
+// IMPORTANTE: Importamos el Confeti
 import ConfettiCannon from "react-native-confetti-cannon";
 
 const MAIN_CATEGORIES = [
@@ -34,6 +35,12 @@ const MAIN_CATEGORIES = [
   { id: "mixto", label: "MIXTO" },
   { id: "teens", label: "TEENS" },
 ];
+
+// Función helper para saber si un stage es de playoffs (Nueva nomenclatura llave_...)
+const isPlayoffStage = (stage: string | undefined | null) => {
+  if (!stage) return false;
+  return stage.toLowerCase().startsWith('llave_');
+};
 
 const FadeInView = ({ children, delay = 0 }: { children: any, delay?: number }) => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -58,11 +65,17 @@ const LivePulse = () => {
   return <Animated.View style={[styles.liveDot, { transform: [{ scale: pulseAnim }] }]} />;
 };
 
-// --- COMPONENTE: TARJETA PEQUEÑA PARA EL BRACKET HORIZONTAL ---
-const BracketNode = ({ game, teams, currentColors, isFinal = false }: any) => {
+// --- COMPONENTE: TARJETA PEQUEÑA PARA EL BRACKET ---
+const BracketNode = ({ game, teams, currentColors, isFinal = false, label }: any) => {
   const router = useRouter();
+  
   if (!game) {
-    return <View style={[styles.bracketNode, { opacity: 0 }]} />;
+    return (
+      <View style={[styles.bracketNode, { backgroundColor: 'transparent', borderWidth: 1, borderStyle: 'dashed', borderColor: currentColors.borderLight, justifyContent: 'center', alignItems: 'center' }]}>
+        <Text style={{ color: currentColors.textMuted, fontSize: 13, fontWeight: '900' }}>{label}</Text>
+        <Text style={{ color: currentColors.textMuted, fontSize: 11, marginTop: 4 }}>Por definir</Text>
+      </View>
+    );
   }
 
   const homeTeam = teams.find((t: any) => t.name === game.home_team);
@@ -79,7 +92,7 @@ const BracketNode = ({ game, teams, currentColors, isFinal = false }: any) => {
         ) : (
           <View style={[styles.bracketTeamLogo, { backgroundColor: currentColors.border, alignItems: 'center', justifyContent: 'center' }]}>
             <Text style={{ fontSize: 8, fontWeight: 'bold', color: currentColors.textMuted }}>
-              {teamName ? teamName.substring(0,2).toUpperCase() : "?"}
+              {teamName && teamName !== "Por definir" ? teamName.substring(0,2).toUpperCase() : "?"}
             </Text>
           </View>
         )}
@@ -105,59 +118,82 @@ const BracketNode = ({ game, teams, currentColors, isFinal = false }: any) => {
   );
 };
 
-// --- COMPONENTE: BRACKET HORIZONTAL TIPO NFL ---
-const PlayoffsBracketView = ({ games, teams, currentColors }: { games: any[], teams: any[], currentColors: any }) => {
-  const comodines = games.filter((g) => g.stage?.toLowerCase() === 'comodin');
-  const semifinales = games.filter((g) => g.stage?.toLowerCase() === 'semifinal');
-  const finales = games.filter((g) => g.stage?.toLowerCase() === 'final');
+// --- ESTRUCTURA DE UN SOLO ÁRBOL DE TORNEO ---
+const SingleBracketTree = ({ title, gamesList, currentColors, teams, isGold }: any) => {
+  const comodinA = gamesList.find((g: any) => g.stage?.toLowerCase().endsWith('comodin_a'));
+  const comodinB = gamesList.find((g: any) => g.stage?.toLowerCase().endsWith('comodin_b'));
+  const semiA = gamesList.find((g: any) => g.stage?.toLowerCase().endsWith('semifinal_a'));
+  const semiB = gamesList.find((g: any) => g.stage?.toLowerCase().endsWith('semifinal_b'));
+  const final = gamesList.find((g: any) => g.stage?.toLowerCase().endsWith('final'));
 
-  // Si no hay juegos, mostramos estado vacío
+  // Si no hay partidos en esta llave, no la renderizamos
+  if (!comodinA && !comodinB && !semiA && !semiB && !final) return null;
+
+  const SLOT_HEIGHT = 86;
+  const SPACER_HEIGHT = 40;
+  const CONNECTOR_HEIGHT = (SLOT_HEIGHT + SPACER_HEIGHT) / 2;
+
+  return (
+    <View style={{ marginBottom: 60 }}>
+      <Text style={{ textAlign: 'center', fontSize: 22, fontWeight: '900', color: isGold ? '#EAB308' : '#94A3B8', marginBottom: 25, letterSpacing: 1.5 }}>{title}</Text>
+      <View style={styles.bracketWrapper}>
+        
+        {/* COLUMNA 1: COMODINES */}
+        <View style={styles.bracketColumn}>
+          <Text style={[styles.bracketColumnTitle, { color: currentColors.textMuted }]}>COMODINES</Text>
+          <View style={[styles.bracketSlot, { height: SLOT_HEIGHT }]}>
+            <BracketNode game={comodinA} teams={teams} currentColors={currentColors} label="Comodín A" />
+            <View style={[styles.connectorHorizontal, { backgroundColor: currentColors.borderLight }]} />
+          </View>
+          <View style={{ height: SPACER_HEIGHT }} />
+          <View style={[styles.bracketSlot, { height: SLOT_HEIGHT }]}>
+            <BracketNode game={comodinB} teams={teams} currentColors={currentColors} label="Comodín B" />
+            <View style={[styles.connectorHorizontal, { backgroundColor: currentColors.borderLight }]} />
+          </View>
+        </View>
+
+        {/* COLUMNA 2: SEMIFINALES */}
+        <View style={styles.bracketColumn}>
+          <Text style={[styles.bracketColumnTitle, { color: currentColors.textMuted }]}>SEMIFINALES</Text>
+          <View style={[styles.bracketSlot, { height: SLOT_HEIGHT }]}>
+            <View style={[styles.connectorHorizontalLeft, { backgroundColor: currentColors.borderLight }]} />
+            <BracketNode game={semiA} teams={teams} currentColors={currentColors} label="Semifinal A" />
+            <View style={[styles.connectorRightDown, { borderColor: currentColors.borderLight, height: CONNECTOR_HEIGHT }]} />
+          </View>
+          <View style={{ height: SPACER_HEIGHT }} />
+          <View style={[styles.bracketSlot, { height: SLOT_HEIGHT }]}>
+            <View style={[styles.connectorHorizontalLeft, { backgroundColor: currentColors.borderLight }]} />
+            <BracketNode game={semiB} teams={teams} currentColors={currentColors} label="Semifinal B" />
+            <View style={[styles.connectorRightUp, { borderColor: currentColors.borderLight, height: CONNECTOR_HEIGHT }]} />
+          </View>
+        </View>
+
+        {/* COLUMNA 3: FINAL */}
+        <View style={styles.bracketColumn}>
+          <Text style={[styles.bracketColumnTitle, { color: isGold ? '#EAB308' : '#94A3B8', position: 'absolute', top: 0, width: '100%' }]}>FINAL</Text>
+          <View style={[styles.bracketSlot, { height: SLOT_HEIGHT, marginTop: CONNECTOR_HEIGHT }]}>
+            <View style={[styles.connectorHorizontalLeft, { backgroundColor: currentColors.borderLight }]} />
+            <BracketNode game={final} teams={teams} currentColors={currentColors} isFinal={true} label="Gran Final" />
+          </View>
+        </View>
+
+      </View>
+    </View>
+  );
+};
+
+// --- CONTENEDOR PRINCIPAL QUE RENDERIZA LLAVE A Y LLAVE B ---
+const PlayoffsBracketView = ({ games, teams, currentColors }: { games: any[], teams: any[], currentColors: any }) => {
   if (games.length === 0) return null;
+
+  const llaveA = games.filter(g => g.stage?.toLowerCase().startsWith('llave_a'));
+  const llaveB = games.filter(g => g.stage?.toLowerCase().startsWith('llave_b'));
 
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.bracketScrollContainer}>
-      <View style={styles.bracketWrapper}>
-        
-        {/* Columna 1: Comodines / Cuartos */}
-        <View style={styles.bracketColumn}>
-          <Text style={[styles.bracketColumnTitle, { color: currentColors.textMuted }]}>COMODINES</Text>
-          <View style={styles.bracketMatchesContainer}>
-            {comodines.length > 0 ? comodines.map((game, i) => (
-              <View key={`comodin-${game.id}`} style={styles.bracketMatchWrapper}>
-                <BracketNode game={game} teams={teams} currentColors={currentColors} />
-                <View style={[styles.connectorHorizontal, { backgroundColor: currentColors.border }]} />
-              </View>
-            )) : <Text style={{ color: currentColors.textMuted, marginTop: 50 }}>Sin juegos</Text>}
-          </View>
-        </View>
-
-        {/* Columna 2: Semifinales */}
-        <View style={styles.bracketColumn}>
-          <Text style={[styles.bracketColumnTitle, { color: currentColors.textMuted }]}>SEMIFINALES</Text>
-          <View style={styles.bracketMatchesContainer}>
-            {semifinales.length > 0 ? semifinales.map((game, i) => (
-              <View key={`semi-${game.id}`} style={styles.bracketMatchWrapper}>
-                <View style={[styles.connectorHorizontalLeft, { backgroundColor: currentColors.border }]} />
-                <BracketNode game={game} teams={teams} currentColors={currentColors} />
-                <View style={[styles.connectorHorizontal, { backgroundColor: currentColors.border }]} />
-              </View>
-            )) : <Text style={{ color: currentColors.textMuted, marginTop: 50 }}>Sin juegos</Text>}
-          </View>
-        </View>
-
-        {/* Columna 3: Final */}
-        <View style={styles.bracketColumn}>
-          <Text style={[styles.bracketColumnTitle, { color: '#EAB308' }]}>LA GRAN FINAL</Text>
-          <View style={styles.bracketMatchesContainer}>
-            {finales.length > 0 ? finales.map((game, i) => (
-              <View key={`final-${game.id}`} style={styles.bracketMatchWrapper}>
-                 <View style={[styles.connectorHorizontalLeft, { backgroundColor: currentColors.border }]} />
-                 <BracketNode game={game} teams={teams} currentColors={currentColors} isFinal={true} />
-              </View>
-            )) : <Text style={{ color: currentColors.textMuted, marginTop: 50 }}>Sin juegos</Text>}
-          </View>
-        </View>
-
+      <View style={{ flexDirection: 'column' }}>
+        <SingleBracketTree title="🏆 LLAVE A (ORO)" gamesList={llaveA} currentColors={currentColors} teams={teams} isGold={true} />
+        <SingleBracketTree title="🥈 LLAVE B (PLATA)" gamesList={llaveB} currentColors={currentColors} teams={teams} isGold={false} />
       </View>
     </ScrollView>
   );
@@ -177,21 +213,22 @@ const MatchCard = ({ game, teams, isPlayoffsMode }: { game: any, teams: any[], i
   const homeWon = isFinished && game.home_score > game.away_score;
   const awayWon = isFinished && game.away_score > game.home_score;
   
-  const isFinalStage = game.stage?.toLowerCase() === 'final';
+  const isFinalStage = game.stage?.toLowerCase().includes('final');
   if (isPlayoffsMode && isFinalStage && isFinished && (homeWon || awayWon)) {
     const championTeam = homeWon ? homeTeam : awayTeam;
     const championName = homeWon ? game.home_team : game.away_team;
+    const isLlaveA = game.stage?.toLowerCase().includes('llave_a');
     
     return (
-      <View style={[styles.championCard, { backgroundColor: currentColors.card, borderColor: '#FACC15' }]}>
-        <ConfettiCannon count={150} origin={{x: -10, y: 0}} fallSpeed={2500} fadeOut colors={['#FFD700', '#FFA500', '#FF8C00', '#FFFFFF']} />
+      <View style={[styles.championCard, { backgroundColor: currentColors.card, borderColor: isLlaveA ? '#FACC15' : '#94A3B8' }]}>
+        <ConfettiCannon count={150} origin={{x: -10, y: 0}} fallSpeed={2500} fadeOut colors={isLlaveA ? ['#FFD700', '#FFA500', '#FF8C00'] : ['#CBD5E1', '#94A3B8', '#E2E8F0']} />
         
         <View style={styles.championHeader}>
-          <Ionicons name="trophy" size={32} color="#FACC15" style={{ marginBottom: 10 }} />
-          <Text style={[styles.championTitle, { color: currentColors.text }]}>¡FELICIDADES CAMPEÓN!</Text>
+          <Ionicons name="trophy" size={32} color={isLlaveA ? "#FACC15" : "#94A3B8"} style={{ marginBottom: 10 }} />
+          <Text style={[styles.championTitle, { color: currentColors.text }]}>¡CAMPEÓN {isLlaveA ? 'ORO' : 'PLATA'}!</Text>
         </View>
 
-        <View style={[styles.championLogoContainer, { backgroundColor: currentColors.bgSecondary, borderColor: '#FACC15' }]}>
+        <View style={[styles.championLogoContainer, { backgroundColor: currentColors.bgSecondary, borderColor: isLlaveA ? '#FACC15' : '#94A3B8' }]}>
           {championTeam?.logo_url ? (
             <Image source={{ uri: championTeam.logo_url }} style={styles.championTeamLogo} resizeMode="contain" />
           ) : (
@@ -232,6 +269,14 @@ const MatchCard = ({ game, teams, isPlayoffsMode }: { game: any, teams: any[], i
     </View>
   );
 
+  // Helper para que se vea bonito el badge en PlayoffsMode
+  const formatStageName = (stageStr: string) => {
+    if (!stageStr) return "";
+    let formatted = stageStr.replace(/llave_[ab]_/i, '').replace(/_/g, ' ').toUpperCase();
+    if (formatted.includes('COMODIN')) formatted = formatted.replace('COMODIN', 'COMODÍN');
+    return formatted;
+  };
+
   return (
     <Pressable 
       onPress={() => router.push({ pathname: "/match/[id]", params: { id: game.id } })}
@@ -248,7 +293,7 @@ const MatchCard = ({ game, teams, isPlayoffsMode }: { game: any, teams: any[], i
           )}
         </View>
         <Text style={[styles.categoryText, { color: BRAND_GRADIENT[0] }]}>
-          {isPlayoffsMode ? (game.stage === 'comodin' ? 'COMODÍN' : game.stage?.toUpperCase()) : `${game.category?.replace("-", " ").toUpperCase()} • J${game.jornada || "?"}`}
+          {isPlayoffsMode ? formatStageName(game.stage) : `${game.category?.replace("-", " ").toUpperCase()} • J${game.jornada || "?"}`}
         </Text>
       </View>
       <View style={styles.cardBody}>
@@ -263,6 +308,9 @@ const MatchCard = ({ game, teams, isPlayoffsMode }: { game: any, teams: any[], i
   );
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// PANTALLA PRINCIPAL
+// ─────────────────────────────────────────────────────────────────────────────
 export default function MatchesScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
@@ -305,11 +353,11 @@ export default function MatchesScreen() {
       return games.filter((g) => ["en vivo", "en_vivo", "live"].includes(g.status?.toLowerCase() || ""));
     }
     if (selectedMainCat === "playoffs") {
-      return games.filter(g => ['comodin', 'quarterfinal', 'semifinal', 'final'].includes(g.stage?.toLowerCase()));
+      return games.filter(g => isPlayoffStage(g.stage));
     }
     return games.filter((g) => 
       g.category?.toLowerCase().startsWith(selectedMainCat.toLowerCase()) && 
-      (!['comodin', 'quarterfinal', 'semifinal', 'final'].includes(g.stage?.toLowerCase()))
+      !isPlayoffStage(g.stage)
     );
   }, [games, selectedMainCat]);
 
@@ -318,7 +366,7 @@ export default function MatchesScreen() {
     const subs = new Set<string>();
     filteredByMain.forEach(g => {
       if (selectedMainCat === "playoffs") {
-        if(g.category) subs.add(g.category);
+        if(g.category) subs.add(g.category); 
       } else {
         const parts = g.category?.split("-"); 
         if (parts && parts.length > 1) subs.add(parts[1].toLowerCase());
@@ -368,12 +416,12 @@ export default function MatchesScreen() {
     
     if (selectedMainCat === "playoffs") {
        finalFilteredGames.forEach(game => {
-         const stage = game.stage?.toUpperCase();
-         const key = stage === 'COMODIN' ? 'COMODINES' : (stage === 'SEMIFINAL' ? 'SEMIFINALES' : 'LA GRAN FINAL');
+         const stage = game.stage?.toLowerCase() || "";
+         const key = stage.includes('comodin') ? 'COMODINES' : (stage.includes('semifinal') ? 'SEMIFINALES' : 'LA GRAN FINAL');
          if (!groups[key]) groups[key] = [];
          groups[key].push(game);
        });
-       const order = ['COMODINES', 'CUARTOS', 'SEMIFINALES', 'LA GRAN FINAL'];
+       const order = ['COMODINES', 'SEMIFINALES', 'LA GRAN FINAL'];
        return Object.keys(groups)
          .sort((a, b) => order.indexOf(a) - order.indexOf(b))
          .map(title => ({ title, data: groups[title] }));
@@ -456,7 +504,6 @@ export default function MatchesScreen() {
 
       {/* --- CONTENIDO PRINCIPAL: BRACKET O LISTA REGULAR --- */}
       {selectedMainCat === "playoffs" && selectedSubCat !== "all" && finalFilteredGames.length > 0 ? (
-        // SI ESTAMOS EN PLAYOFFS CON CATEGORÍA SELECCIONADA -> MOSTRAMOS BRACKET
         <ScrollView style={{ flex: 1 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BRAND_GRADIENT[0]} />}>
            <View style={[styles.contentWrapper, { marginTop: 15 }]}>
               <BlurView intensity={isDark ? 40 : 80} tint={isDark ? "dark" : "light"} style={[styles.glassFilterBox, { borderColor: currentColors.borderLight, backgroundColor: isDark ? 'rgba(30,41,59,0.4)' : 'rgba(255,255,255,0.6)', marginHorizontal: 20 }]}>
@@ -476,8 +523,7 @@ export default function MatchesScreen() {
 
            <PlayoffsBracketView games={finalFilteredGames} teams={teams || []} currentColors={currentColors} />
            
-           {/* La tarjeta de campeón abajo del bracket si la final está terminada */}
-           {finalFilteredGames.filter(g => g.stage === 'final' && ["finalizado", "final"].includes(g.status?.toLowerCase() ?? "")).map(game => (
+           {finalFilteredGames.filter(g => g.stage?.includes('final') && ["finalizado", "final"].includes(g.status?.toLowerCase() ?? "")).map(game => (
                <View key={`champ-${game.id}`} style={{ paddingHorizontal: 20, marginTop: 20, paddingBottom: 40 }}>
                  <MatchCard game={game} teams={teams || []} isPlayoffsMode={true} />
                </View>
@@ -706,11 +752,10 @@ const styles = StyleSheet.create({
 
   // --- NUEVOS ESTILOS PARA BRACKET HORIZONTAL MÓVIL ---
   bracketScrollContainer: { paddingHorizontal: 20, paddingVertical: 30 },
-  bracketWrapper: { flexDirection: 'row', alignItems: 'stretch' },
-  bracketColumn: { width: 240, marginRight: 30, justifyContent: 'center' },
+  bracketWrapper: { flexDirection: 'row', alignItems: 'flex-start' },
+  bracketColumn: { width: 240, marginRight: 30, position: 'relative', minHeight: 250 },
   bracketColumnTitle: { textAlign: 'center', fontWeight: '900', fontSize: 13, letterSpacing: 1.5, marginBottom: 20 },
-  bracketMatchesContainer: { flex: 1, justifyContent: 'space-around', gap: 30 },
-  bracketMatchWrapper: { flexDirection: 'row', alignItems: 'center', position: 'relative' },
+  bracketSlot: { justifyContent: 'center', position: 'relative', width: '100%' },
   bracketNode: { flex: 1, borderRadius: 12, overflow: 'hidden', elevation: 2, shadowOffset: {width: 0, height:2}, shadowOpacity:0.05, shadowRadius: 4 },
   bracketTeamRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 10 },
   bracketTeamInfo: { flexDirection: 'row', alignItems: 'center', flex: 1 },
@@ -718,8 +763,11 @@ const styles = StyleSheet.create({
   bracketTeamName: { fontSize: 13, flex: 1 },
   bracketScore: { fontSize: 14 },
   bracketDivider: { height: 1, width: '100%' },
+  
   connectorHorizontal: { position: 'absolute', right: -30, width: 30, height: 2, top: '50%' },
   connectorHorizontalLeft: { position: 'absolute', left: -30, width: 30, height: 2, top: '50%' },
+  connectorRightDown: { position: 'absolute', right: -30, top: '50%', width: 30, borderTopWidth: 2, borderRightWidth: 2, borderTopRightRadius: 8 },
+  connectorRightUp: { position: 'absolute', right: -30, bottom: '50%', width: 30, borderBottomWidth: 2, borderRightWidth: 2, borderBottomRightRadius: 8 },
 
   emptyState: { alignItems: "center", marginTop: 60, paddingVertical: 40, borderRadius: 32, borderWidth: 1, borderStyle: "dashed", borderColor: 'rgba(150,150,150,0.3)' },
   emptyIconWrap: { width: 80, height: 80, borderRadius: 40, alignItems: "center", justifyContent: "center", marginBottom: 15 },
