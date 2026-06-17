@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView, Modal, FlatList, ActivityIndicator, Alert, useColorScheme, Image } from 'react-native';
+import React, { useState, useEffect, useMemo } from 'react';
+import { View, Text, StyleSheet, Pressable, ScrollView, Modal, FlatList, ActivityIndicator, Alert, useColorScheme } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
@@ -20,6 +20,10 @@ export default function AdminStatsScreen() {
   const [selectedGame, setSelectedGame] = useState<any>(null);
   const [gameModalVisible, setGameModalVisible] = useState(false);
   
+  // --- ESTADOS DE FILTRO ---
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [selectedJornada, setSelectedJornada] = useState<number | null>(null);
+
   const [players, setPlayers] = useState<any[]>([]);
   const [loadingPlayers, setLoadingPlayers] = useState(false);
   
@@ -36,7 +40,26 @@ export default function AdminStatsScreen() {
   const [isWeeklyMVP, setIsWeeklyMVP] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const recentMatches = matches?.sort((a, b) => new Date(b.game_date).getTime() - new Date(a.game_date).getTime()) || [];
+  // --- DERIVACIÓN DE DATOS Y FILTROS ---
+  const recentMatches = useMemo(() => {
+    return matches?.sort((a, b) => new Date(b.game_date).getTime() - new Date(a.game_date).getTime()) || [];
+  }, [matches]);
+
+  const categories = useMemo(() => {
+    return Array.from(new Set(matches?.map(m => m.category).filter(Boolean))) as string[];
+  }, [matches]);
+
+  const jornadas = useMemo(() => {
+    return Array.from(new Set(matches?.map(m => m.jornada).filter(Boolean))).sort((a: any, b: any) => a - b) as number[];
+  }, [matches]);
+
+  const filteredMatches = useMemo(() => {
+    return recentMatches.filter(m => {
+      if (selectedCategory && m.category !== selectedCategory) return false;
+      if (selectedJornada && m.jornada !== selectedJornada) return false;
+      return true;
+    });
+  }, [recentMatches, selectedCategory, selectedJornada]);
 
   // Cargar jugadores cuando cambia el juego
   useEffect(() => {
@@ -141,9 +164,7 @@ export default function AdminStatsScreen() {
 
       // 2. GUARDAR / BORRAR MVP SEMANAL
       if (isWeeklyMVP) {
-        // Borramos a los anteriores de esta categoría y semana para respetar tu regla Unique
         await supabase.from('mvps').delete().match({ season, category, week_number: weekNumber, mvp_type: 'weekly' });
-        
         await supabase.from('mvps').insert({
           player_id: selectedPlayer.id, season, category, week_number: weekNumber, mvp_type: 'weekly'
         });
@@ -155,7 +176,6 @@ export default function AdminStatsScreen() {
 
       // 3. GUARDAR / BORRAR MVP DEL PARTIDO
       if (isGameMVP) {
-        // Revisar si ya lo tiene para no duplicar
         const { data: existingGameMvp } = await supabase.from('mvps').select('id').match({
           player_id: selectedPlayer.id, season, category, week_number: weekNumber, mvp_type: 'game'
         });
@@ -172,7 +192,7 @@ export default function AdminStatsScreen() {
       }
       
       Alert.alert("¡Guardado!", `Estadísticas de ${selectedPlayer.name} subidas a la plataforma.`);
-      setSelectedPlayer(null); // Cierra el editor y mantiene la lista de jugadores intacta
+      setSelectedPlayer(null); 
     } catch (err: any) {
       Alert.alert("Error al guardar", err.message);
       console.error(err);
@@ -209,7 +229,6 @@ export default function AdminStatsScreen() {
   return (
     <View style={[styles.container, { backgroundColor: currentColors.bg }]}>
       <View style={[styles.header, { paddingTop: insets.top + 10, backgroundColor: currentColors.card, borderBottomColor: currentColors.border }]}>
-        {/* 🔥 AQUÍ ESTÁ EL BOTÓN DE ATRÁS CORREGIDO 🔥 */}
         <Pressable 
           onPress={() => {
             if (router.canGoBack()) {
@@ -286,10 +305,54 @@ export default function AdminStatsScreen() {
               <Text style={[styles.modalTitle, { color: currentColors.text }]}>Elige el Partido</Text>
               <Pressable onPress={() => setGameModalVisible(false)}><Ionicons name="close" size={24} color={currentColors.text} /></Pressable>
             </View>
+
+            {/* FILTROS */}
+            <View style={styles.filtersWrapper}>
+              {/* Filtro de Categoría */}
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll} contentContainerStyle={{ paddingHorizontal: 20 }}>
+                <Pressable 
+                  style={[styles.filterChip, !selectedCategory ? { backgroundColor: BRAND_GRADIENT[0], borderColor: BRAND_GRADIENT[0] } : { borderColor: currentColors.border }]} 
+                  onPress={() => setSelectedCategory(null)}
+                >
+                  <Text style={[styles.filterChipText, { color: !selectedCategory ? '#FFF' : currentColors.textMuted }]}>Todas las Categorías</Text>
+                </Pressable>
+                {categories.map(cat => (
+                  <Pressable 
+                    key={cat} 
+                    style={[styles.filterChip, selectedCategory === cat ? { backgroundColor: BRAND_GRADIENT[0], borderColor: BRAND_GRADIENT[0] } : { borderColor: currentColors.border }]} 
+                    onPress={() => setSelectedCategory(cat)}
+                  >
+                    <Text style={[styles.filterChipText, { color: selectedCategory === cat ? '#FFF' : currentColors.textMuted }]}>{cat}</Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+
+              {/* Filtro de Jornada */}
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll} contentContainerStyle={{ paddingHorizontal: 20 }}>
+                <Pressable 
+                  style={[styles.filterChip, !selectedJornada ? { backgroundColor: '#3B82F6', borderColor: '#3B82F6' } : { borderColor: currentColors.border }]} 
+                  onPress={() => setSelectedJornada(null)}
+                >
+                  <Text style={[styles.filterChipText, { color: !selectedJornada ? '#FFF' : currentColors.textMuted }]}>Todas las Jornadas</Text>
+                </Pressable>
+                {jornadas.map(j => (
+                  <Pressable 
+                    key={j} 
+                    style={[styles.filterChip, selectedJornada === j ? { backgroundColor: '#3B82F6', borderColor: '#3B82F6' } : { borderColor: currentColors.border }]} 
+                    onPress={() => setSelectedJornada(j)}
+                  >
+                    <Text style={[styles.filterChipText, { color: selectedJornada === j ? '#FFF' : currentColors.textMuted }]}>Jornada {j}</Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            </View>
+
+            {/* LISTA DE PARTIDOS FILTRADOS */}
             <FlatList
-              data={recentMatches}
+              data={filteredMatches}
               keyExtractor={(item) => item.id.toString()}
               showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ paddingHorizontal: 20 }}
               renderItem={({ item }) => (
                 <Pressable 
                   style={[styles.modalRow, { borderBottomColor: currentColors.borderLight }]} 
@@ -304,6 +367,11 @@ export default function AdminStatsScreen() {
                   <Text style={[styles.modalRowText, { color: currentColors.text }]}>{item.home_team} vs {item.away_team}</Text>
                   <Text style={{ fontSize: 12, color: currentColors.textMuted }}>Jornada {item.jornada || 1} • {item.category}</Text>
                 </Pressable>
+              )}
+              ListEmptyComponent={() => (
+                <Text style={{ textAlign: 'center', marginTop: 30, color: currentColors.textMuted }}>
+                  No hay partidos para estos filtros.
+                </Text>
               )}
             />
           </View>
@@ -387,12 +455,18 @@ const styles = StyleSheet.create({
   playerName: { fontSize: 15, fontWeight: '700', flex: 1 },
   
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
-  modalContent: { height: '65%', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20 },
+  modalContent: { height: '80%', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingVertical: 20 },
   editorContent: { height: '85%', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20 },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 15, borderBottomWidth: 1, marginBottom: 15 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 15, borderBottomWidth: 1, marginBottom: 15, paddingHorizontal: 20 },
   modalTitle: { fontSize: 18, fontWeight: '900' },
   modalRow: { paddingVertical: 15, borderBottomWidth: 1 },
   modalRowText: { fontSize: 15, fontWeight: '800', marginBottom: 4 },
+
+  // Nuevos estilos para los filtros
+  filtersWrapper: { marginBottom: 15, borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.05)', paddingBottom: 10 },
+  filterScroll: { marginBottom: 10 },
+  filterChip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1, marginRight: 10 },
+  filterChipText: { fontSize: 13, fontWeight: '700' },
 
   statsList: { marginBottom: 15, backgroundColor: 'rgba(0,0,0,0.02)', borderRadius: 16, padding: 15 },
   statControl: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1 },
