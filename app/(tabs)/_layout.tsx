@@ -107,6 +107,15 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="power-ranking"
+        options={{
+          title: "Ranking",
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? "podium" : "podium-outline"} size={24} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="standings"
         options={{
           title: "Estadísticas",
