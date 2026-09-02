@@ -19,6 +19,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
+import { SeasonSelector } from "@/components/SeasonSelector";
 import { useTeams } from "@/hooks/useTeams";
 import { BRAND_GRADIENT, Colors } from "@/constants/colors"; 
 
@@ -201,6 +202,8 @@ export default function TeamsScreen() {
             </Pressable>
           </View>
 
+          <SeasonSelector compact style={styles.seasonSelectorInline} />
+
           {/* BUSCADOR PREMIUM */}
           <View style={[styles.searchBar, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.borderLight }]}>
             <Ionicons name="search" size={20} color={currentColors.textMuted} style={styles.searchIcon} />
@@ -352,6 +355,7 @@ const styles = StyleSheet.create({
   headerTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 24, marginBottom: 15 },
   title: { fontSize: 26, fontWeight: "900", letterSpacing: -0.5 },
   refreshBtn: { padding: 8, backgroundColor: 'rgba(150,150,150,0.1)', borderRadius: 12 },
+  seasonSelectorInline: { paddingHorizontal: 24, marginBottom: 12 },
 
   // Buscador Moderno
   searchBar: {

@@ -17,6 +17,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
+import { SeasonSelector } from "@/components/SeasonSelector";
+import { useSelectedSeason } from "@/hooks/useSeasons";
 import { BRAND_GRADIENT, Colors } from "@/constants/colors";
 import { usePlayerStats } from "@/hooks/usePlayerStats";
 import { useStats } from "@/hooks/useStats";
@@ -116,9 +118,10 @@ export default function PowerRankingScreen() {
   const currentColors = Colors[theme];
   const isDark = theme === "dark";
 
-  const { data: stats, isLoading: statsLoading, refetch: refetchStats } = useStats();
-  const { data: teams, isLoading: teamsLoading, refetch: refetchTeams } = useTeams();
-  const { data: playerStats, isLoading: playersLoading, refetch: refetchPlayers } = usePlayerStats();
+  const { selectedSeasonId } = useSelectedSeason();
+  const { data: stats, isLoading: statsLoading, refetch: refetchStats } = useStats(selectedSeasonId);
+  const { data: teams, isLoading: teamsLoading, refetch: refetchTeams } = useTeams(selectedSeasonId);
+  const { data: playerStats, isLoading: playersLoading, refetch: refetchPlayers } = usePlayerStats(selectedSeasonId);
   const [activeTab, setActiveTab] = useState<RankingTab>("teams");
   const [refreshing, setRefreshing] = useState(false);
 
@@ -239,6 +242,8 @@ export default function PowerRankingScreen() {
               <Ionicons name="refresh" size={20} color={currentColors.text} />
             </Pressable>
           </View>
+
+          <SeasonSelector compact style={styles.seasonSelectorInline} />
 
           <LinearGradient colors={BRAND_GRADIENT} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.heroStrip}>
             <View style={styles.heroIcon}>
@@ -511,6 +516,7 @@ const styles = StyleSheet.create({
   eyebrow: { fontSize: 11, fontWeight: "900", letterSpacing: 1.2, marginBottom: 4 },
   title: { fontSize: 28, fontWeight: "900" },
   refreshButton: { width: 42, height: 42, borderRadius: 16, alignItems: "center", justifyContent: "center" },
+  seasonSelectorInline: { marginBottom: 14 },
   heroStrip: { minHeight: 86, borderRadius: 24, padding: 16, flexDirection: "row", alignItems: "center", marginBottom: 14 },
   heroIcon: { width: 46, height: 46, borderRadius: 16, backgroundColor: "rgba(255,255,255,0.18)", alignItems: "center", justifyContent: "center", marginRight: 14 },
   heroTextBlock: { flex: 1 },

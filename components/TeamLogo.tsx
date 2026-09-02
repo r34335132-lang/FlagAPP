@@ -1,8 +1,8 @@
 import React from "react";
-import { View, StyleSheet, ActivityIndicator } from "react-native";
+import { View, StyleSheet, ActivityIndicator, useColorScheme } from "react-native";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
-import C from "@/constants/colors";
+import { Colors } from "@/constants/colors";
 
 interface TeamLogoProps {
   logoUrl: string | null | undefined;
@@ -13,8 +13,10 @@ interface TeamLogoProps {
 export function TeamLogo({ logoUrl, size = 48, color }: TeamLogoProps) {
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState(false);
+  const theme = useColorScheme() ?? "light";
+  const currentColors = Colors[theme];
 
-  const bgColor = color || C.card;
+  const bgColor = color || currentColors.card;
 
   if (!logoUrl || error) {
     return (
@@ -32,7 +34,7 @@ export function TeamLogo({ logoUrl, size = 48, color }: TeamLogoProps) {
         <Ionicons
           name="american-football"
           size={size * 0.52}
-          color={C.textSecondary}
+          color={currentColors.textSecondary}
         />
       </View>
     );
@@ -52,7 +54,7 @@ export function TeamLogo({ logoUrl, size = 48, color }: TeamLogoProps) {
             },
           ]}
         >
-          <ActivityIndicator size="small" color={C.textSecondary} />
+          <ActivityIndicator size="small" color={currentColors.textSecondary} />
         </View>
       )}
       <Image
@@ -69,6 +71,7 @@ export function TeamLogo({ logoUrl, size = 48, color }: TeamLogoProps) {
           setLoading(false);
           setError(true);
         }}
+        cachePolicy="memory-disk"
         transition={300}
       />
     </View>

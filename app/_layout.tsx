@@ -3,9 +3,9 @@ import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { KeyboardProvider } from "react-native-keyboard-controller";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { usePushNotifications } from '@/hooks/usePushNotifications';
+import { SelectedSeasonProvider } from "@/hooks/useSeasons";
 import { queryClient } from "@/lib/query-client";
 import {
   useFonts,
@@ -50,11 +50,11 @@ export default function RootLayout() {
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
-        <GestureHandlerRootView style={{ flex: 1 }}>
-          <KeyboardProvider>
+        <SelectedSeasonProvider>
+          <GestureHandlerRootView style={{ flex: 1 }}>
             <RootLayoutNav />
-          </KeyboardProvider>
-        </GestureHandlerRootView>
+          </GestureHandlerRootView>
+        </SelectedSeasonProvider>
       </QueryClientProvider>
     </ErrorBoundary>
   );

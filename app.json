@@ -2,7 +2,7 @@
   "expo": {
     "name": "FlagDurango",
     "slug": "flagdurango",
-    "version": "1.0.9",
+    "version": "1.1.1",
     "orientation": "default",
     "icon": "./assets/images/icon.png",
     "scheme": "flagdurango",
@@ -71,7 +71,7 @@
         "origin": "https://replit.com/"
       },
       "eas": {
-        "projectId": "322affb9-38e3-4291-8c1e-ba51e46e6ad2"
+        "projectId": "4c04db27-74d0-42bc-a22a-39459fe0a67c"
       }
     }
   }

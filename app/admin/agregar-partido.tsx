@@ -7,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { useTeams } from '@/hooks/useTeams';
+import { seasonLabel, useSelectedSeason } from '@/hooks/useSeasons';
 import { Colors, BRAND_GRADIENT } from '@/constants/colors';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -26,6 +27,7 @@ export default function AgregarPartidoScreen() {
   const currentColors = Colors[theme];
   
   const { data: teams } = useTeams();
+  const { selectedSeason, selectedSeasonId } = useSelectedSeason();
 
   // Estados del Formulario
   const [category, setCategory] = useState('');
@@ -81,7 +83,7 @@ export default function AgregarPartidoScreen() {
   }, [teams, category]);
 
   const handleSave = async () => {
-    if (!category || !homeTeam || !awayTeam || !date || !time || !field) {
+    if (!category || !homeTeam || !awayTeam || !date || !time || !field || !selectedSeasonId) {
       Alert.alert("Error", "Llena los campos obligatorios (Categoría, Equipos, Fecha, Hora y Campo).");
       return;
     }
@@ -100,7 +102,8 @@ export default function AgregarPartidoScreen() {
         referee2: referee2 || null,
         jornada: parseInt(jornada) || 1,
         status: 'programado',
-        season: 2025,
+        season_id: selectedSeasonId,
+        season: selectedSeason ? seasonLabel(selectedSeason) : null,
         game_type: 'flag',
         match_type: 'jornada',
         stage: 'regular'

@@ -19,6 +19,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import * as ImagePicker from "expo-image-picker"; 
 import { supabase } from "@/lib/supabase"; 
 import { BRAND_GRADIENT, Colors } from "@/constants/colors"; 
+import { seasonLabel, useSelectedSeason } from "@/hooks/useSeasons";
 
 const API_BASE = "https://www.flagdurango.com.mx/api";
 
@@ -64,6 +65,7 @@ export default function CoachDashboard() {
   const theme = useColorScheme() ?? "light";
   const currentColors = Colors[theme];
   const isDark = theme === "dark";
+  const { seasons, selectedSeason } = useSelectedSeason();
 
   const [user, setUser] = useState<any>(null);
   const [coachPhoto, setCoachPhoto] = useState<string | null>(null);
@@ -78,7 +80,7 @@ export default function CoachDashboard() {
   const [uploading, setUploading] = useState(false);
   const [activeTab, setActiveTab] = useState<"equipos" | "crear" | "solicitudes" | "perfil">("equipos");
 
-  const [teamForm, setTeamForm] = useState({ name: "", category: "", captain_name: "", captain_phone: "" });
+  const [teamForm, setTeamForm] = useState({ name: "", category: "", captain_name: "", captain_phone: "", season_id: "" });
   const [tempLogoUri, setTempLogoUri] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
 
@@ -95,6 +97,13 @@ export default function CoachDashboard() {
   const [editPlayerPosition, setEditPlayerPosition] = useState("");
   const [editPlayerJersey, setEditPlayerJersey] = useState("");
   const [savingPlayer, setSavingPlayer] = useState(false);
+
+  useEffect(() => {
+    const selectedSeasonId = selectedSeason?.id;
+    if (!teamForm.season_id && selectedSeasonId) {
+      setTeamForm((current) => ({ ...current, season_id: selectedSeasonId }));
+    }
+  }, [selectedSeason?.id, teamForm.season_id]);
 
   useFocusEffect(
     useCallback(() => {
@@ -283,7 +292,13 @@ export default function CoachDashboard() {
   };
 
   const handleCreateTeam = async () => {
-    if (!teamForm.name || !teamForm.category) return Alert.alert("Error", "Faltan datos obligatorios.");
+    if (!teamForm.name || !teamForm.category || !teamForm.season_id) {
+      return Alert.alert("Error", "Nombre, categoria y temporada son obligatorios.");
+    }
+
+    const teamSeason = seasons.find((season) => season.id === teamForm.season_id);
+    if (!teamSeason) return Alert.alert("Error", "Selecciona una temporada valida.");
+
     setCreating(true);
     try {
       let finalLogoUrl = "";
@@ -295,13 +310,14 @@ export default function CoachDashboard() {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           ...teamForm, logo_url: finalLogoUrl, coach_id: user.id, coach_name: user.username,
+          season: teamSeason.year ?? teamSeason.season ?? seasonLabel(teamSeason),
           coach_photo_url: coachPhoto, color1: BRAND_GRADIENT[0], color2: BRAND_GRADIENT[1]
         }),
       });
       const jsonRes = await safeJsonParse(res);
       if (jsonRes?.success) {
         Alert.alert("¡Éxito!", "Equipo creado.");
-        setTeamForm({ name: "", category: "", captain_name: "", captain_phone: "" });
+        setTeamForm({ name: "", category: "", captain_name: "", captain_phone: "", season_id: selectedSeason?.id ?? "" });
         setTempLogoUri(null);
         setActiveTab("equipos");
         loadCoachData(user);
@@ -527,6 +543,25 @@ export default function CoachDashboard() {
 
                     <Text style={[styles.label, { color: currentColors.textMuted }]}>Nombre del Equipo</Text>
                     <TextInput style={[styles.input, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.borderLight, color: currentColors.text }]} placeholder="Ej. Cuervos" placeholderTextColor={currentColors.textMuted} value={teamForm.name} onChangeText={(t) => setTeamForm({...teamForm, name: t})} />
+
+                    <Text style={[styles.label, { color: currentColors.textMuted }]}>Temporada</Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll}>
+                      {seasons.map((season) => (
+                        <Pressable
+                          key={season.id}
+                          style={[
+                            styles.catChip,
+                            { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.borderLight },
+                            teamForm.season_id === season.id && styles.catChipActive,
+                          ]}
+                          onPress={() => setTeamForm({ ...teamForm, season_id: season.id })}
+                        >
+                          <Text style={[styles.catChipText, { color: currentColors.textSecondary }, teamForm.season_id === season.id && { color: "#FFF" }]}>
+                            {seasonLabel(season)}
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </ScrollView>
                     
                     <Text style={[styles.label, { color: currentColors.textMuted }]}>Categoría</Text>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll}>

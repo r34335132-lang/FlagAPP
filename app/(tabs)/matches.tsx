@@ -13,18 +13,18 @@ import {
   Modal,
   Image,
   Animated,
-  TouchableOpacity
+  TouchableOpacity,
+  Platform
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
+import { SeasonSelector } from "@/components/SeasonSelector";
 import { useMatches } from "@/hooks/useMatches";
 import { useTeams } from "@/hooks/useTeams";
 import { BRAND_GRADIENT, Colors } from "@/constants/colors";
-// IMPORTANTE: Importamos el Confeti
-import ConfettiCannon from "react-native-confetti-cannon";
 
 const MAIN_CATEGORIES = [
   { id: "all", label: "TODOS" },
@@ -42,16 +42,9 @@ const isPlayoffStage = (stage: string | undefined | null) => {
   return stage.toLowerCase().startsWith('llave_');
 };
 
-const FadeInView = ({ children, delay = 0 }: { children: any, delay?: number }) => {
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(15)).current;
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, { toValue: 1, duration: 400, delay, useNativeDriver: true }),
-      Animated.timing(slideAnim, { toValue: 0, duration: 400, delay, useNativeDriver: true })
-    ]).start();
-  }, []);
-  return <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>{children}</Animated.View>;
+const isChampionshipFinalStage = (stage: string | undefined | null) => {
+  if (!stage) return false;
+  return /^llave_[ab]_final$/i.test(stage.trim());
 };
 
 const LivePulse = () => {
@@ -184,10 +177,12 @@ const SingleBracketTree = ({ title, gamesList, currentColors, teams, isGold }: a
 
 // --- CONTENEDOR PRINCIPAL QUE RENDERIZA LLAVE A Y LLAVE B ---
 const PlayoffsBracketView = ({ games, teams, currentColors }: { games: any[], teams: any[], currentColors: any }) => {
-  if (games.length === 0) return null;
+  const { llaveA, llaveB } = useMemo(() => ({
+    llaveA: games.filter(g => g.stage?.toLowerCase().startsWith('llave_a')),
+    llaveB: games.filter(g => g.stage?.toLowerCase().startsWith('llave_b')),
+  }), [games]);
 
-  const llaveA = games.filter(g => g.stage?.toLowerCase().startsWith('llave_a'));
-  const llaveB = games.filter(g => g.stage?.toLowerCase().startsWith('llave_b'));
+  if (games.length === 0) return null;
 
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.bracketScrollContainer}>
@@ -213,7 +208,7 @@ const MatchCard = ({ game, teams, isPlayoffsMode }: { game: any, teams: any[], i
   const homeWon = isFinished && game.home_score > game.away_score;
   const awayWon = isFinished && game.away_score > game.home_score;
   
-  const isFinalStage = game.stage?.toLowerCase().includes('final');
+  const isFinalStage = isChampionshipFinalStage(game.stage);
   if (isPlayoffsMode && isFinalStage && isFinished && (homeWon || awayWon)) {
     const championTeam = homeWon ? homeTeam : awayTeam;
     const championName = homeWon ? game.home_team : game.away_team;
@@ -221,8 +216,6 @@ const MatchCard = ({ game, teams, isPlayoffsMode }: { game: any, teams: any[], i
     
     return (
       <View style={[styles.championCard, { backgroundColor: currentColors.card, borderColor: isLlaveA ? '#FACC15' : '#94A3B8' }]}>
-        <ConfettiCannon count={150} origin={{x: -10, y: 0}} fallSpeed={2500} fadeOut colors={isLlaveA ? ['#FFD700', '#FFA500', '#FF8C00'] : ['#CBD5E1', '#94A3B8', '#E2E8F0']} />
-        
         <View style={styles.championHeader}>
           <Ionicons name="trophy" size={32} color={isLlaveA ? "#FACC15" : "#94A3B8"} style={{ marginBottom: 10 }} />
           <Text style={[styles.championTitle, { color: currentColors.text }]}>¡CAMPEÓN {isLlaveA ? 'ORO' : 'PLATA'}!</Text>
@@ -340,11 +333,12 @@ export default function MatchesScreen() {
     refetch().finally(() => setRefreshing(false));
   }, [refetch]);
 
-  useEffect(() => {
+  const selectMainCategory = useCallback((categoryId: string) => {
+    setSelectedMainCat(categoryId);
     setSelectedJornada("all");
     setSelectedSubCat("all");
     setSelectedTeam("all");
-  }, [selectedMainCat]);
+  }, []);
 
   const filteredByMain = useMemo(() => {
     if (!games) return [];
@@ -441,6 +435,14 @@ export default function MatchesScreen() {
     }).map(jornada => ({ title: jornada, data: groups[jornada] }));
   }, [finalFilteredGames, selectedMainCat]);
 
+  const listRows = useMemo(
+    () => groupedData.flatMap((group) => [
+      { key: `header-${group.title}`, kind: "header" as const, title: group.title },
+      ...group.data.map((game) => ({ key: `game-${game.id}`, kind: "game" as const, game })),
+    ]),
+    [groupedData],
+  );
+
   const openFilters = () => {
     setTempJornada(selectedJornada);
     setTempSubCat(selectedSubCat);
@@ -485,12 +487,14 @@ export default function MatchesScreen() {
             </Pressable>
           </View>
 
+          <SeasonSelector compact style={styles.seasonSelectorInline} />
+
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={[styles.mainCategoryScroll, isTablet && { justifyContent: "center", flexGrow: 1 }]}>
             {MAIN_CATEGORIES.map((cat) => {
               const isActive = selectedMainCat === cat.id;
               const isPlayoffs = cat.id === "playoffs";
               return (
-                <Pressable key={cat.id} style={[styles.mainTab, isActive && styles.mainTabActive]} onPress={() => setSelectedMainCat(cat.id)}>
+                <Pressable key={cat.id} style={[styles.mainTab, isActive && styles.mainTabActive]} onPress={() => selectMainCategory(cat.id)}>
                   <Text style={[styles.mainTabText, { color: currentColors.textMuted }, isActive && styles.mainTabTextActive, cat.id === "en_vivo" && {color: isActive ? "#EF4444" : (isDark ? '#991B1B' : '#FCA5A5')}, isPlayoffs && isActive && {color: '#EAB308'}]}>
                     {cat.label}
                   </Text>
@@ -523,7 +527,7 @@ export default function MatchesScreen() {
 
            <PlayoffsBracketView games={finalFilteredGames} teams={teams || []} currentColors={currentColors} />
            
-           {finalFilteredGames.filter(g => g.stage?.includes('final') && ["finalizado", "final"].includes(g.status?.toLowerCase() ?? "")).map(game => (
+           {finalFilteredGames.filter(g => isChampionshipFinalStage(g.stage) && ["finalizado", "final"].includes(g.status?.toLowerCase() ?? "")).map(game => (
                <View key={`champ-${game.id}`} style={{ paddingHorizontal: 20, marginTop: 20, paddingBottom: 40 }}>
                  <MatchCard game={game} teams={teams || []} isPlayoffsMode={true} />
                </View>
@@ -532,10 +536,15 @@ export default function MatchesScreen() {
       ) : (
         // LISTA REGULAR PARA TEMPORADA O CUANDO NO HAY SUBCAT EN PLAYOFFS
         <FlatList
-          data={groupedData}
-          keyExtractor={(item) => item.title}
+          data={listRows}
+          keyExtractor={(item) => item.key}
           contentContainerStyle={[styles.listContent, { paddingBottom: isTablet ? insets.bottom + 100 : insets.bottom + 80 }]}
           showsVerticalScrollIndicator={false}
+          initialNumToRender={10}
+          maxToRenderPerBatch={8}
+          updateCellsBatchingPeriod={16}
+          windowSize={7}
+          removeClippedSubviews={Platform.OS !== "web"}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BRAND_GRADIENT[0]} />}
           
           ListHeaderComponent={
@@ -583,21 +592,24 @@ export default function MatchesScreen() {
             ) : null
           }
 
-          renderItem={({ item, index }) => (
-            <View style={[styles.jornadaSection, styles.contentWrapper]}>
-              <FadeInView delay={index * 100}>
-                <View style={styles.jornadaHeader}>
+          renderItem={({ item }) => {
+            if (item.kind === "header") {
+              return (
+                <View style={[styles.jornadaHeader, styles.contentWrapper]}>
                   <Text style={[styles.jornadaTitle, { color: currentColors.textSecondary }, item.title === "JUGANDO AHORA" && {color: "#EF4444"}, item.title === "LA GRAN FINAL" && {color: '#EAB308'}]}>
                     {item.title}
                   </Text>
                   <View style={[styles.line, { backgroundColor: currentColors.border }]} />
                 </View>
-                {item.data.map((game) => (
-                  <MatchCard key={game.id} game={game} teams={teams || []} isPlayoffsMode={selectedMainCat === "playoffs"} />
-                ))}
-              </FadeInView>
-            </View>
-          )}
+              );
+            }
+
+            return (
+              <View style={styles.contentWrapper}>
+                <MatchCard game={item.game} teams={teams || []} isPlayoffsMode={false} />
+              </View>
+            );
+          }}
 
           ListEmptyComponent={
             <View style={[styles.emptyState, styles.contentWrapper]}>
@@ -696,6 +708,7 @@ const styles = StyleSheet.create({
   headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 20, marginBottom: 10 },
   headerTitle: { fontSize: 26, fontWeight: "900", letterSpacing: -0.5 },
   refreshBtn: { padding: 8, backgroundColor: 'rgba(150,150,150,0.1)', borderRadius: 12 },
+  seasonSelectorInline: { paddingHorizontal: 20, marginBottom: 8 },
 
   mainCategoryScroll: { paddingHorizontal: 20, paddingBottom: 10, gap: 20 },
   mainTab: { paddingVertical: 8, position: "relative", alignItems: "center" },
@@ -711,7 +724,6 @@ const styles = StyleSheet.create({
   adjustBtn: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: `${BRAND_GRADIENT[0]}15` },
 
   listContent: { paddingHorizontal: 20, paddingTop: 20 },
-  jornadaSection: { marginBottom: 25 },
   jornadaHeader: { flexDirection: "row", alignItems: "center", marginBottom: 16, gap: 12 },
   jornadaTitle: { fontSize: 13, fontWeight: "900", letterSpacing: 1.5, textTransform: 'uppercase' },
   line: { flex: 1, height: 1, opacity: 0.5 },

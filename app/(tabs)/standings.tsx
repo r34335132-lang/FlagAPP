@@ -17,13 +17,13 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router"; 
 import { Ionicons } from "@expo/vector-icons";
+import { SeasonSelector } from "@/components/SeasonSelector";
+import { useSelectedSeason } from "@/hooks/useSeasons";
 import { useStats } from "@/hooks/useStats";
 import { useTeams } from "@/hooks/useTeams";
 import { usePlayerStats } from "@/hooks/usePlayerStats";
 import { StandingsTable } from "@/components/StandingsTable";
 import { BRAND_GRADIENT, Colors } from "@/constants/colors"; 
-
-const BASE_URL = "https://www.flagdurango.com.mx";
 
 const MAIN_CATEGORIES = [
   { id: "all", label: "TODOS" },
@@ -63,12 +63,10 @@ export default function StandingsScreen() {
   const { width } = useWindowDimensions();
   const isTablet = width >= 768;
 
-  const { data: stats, isLoading: statsLoading, refetch: refetchStats } = useStats();
-  const { data: teams, isLoading: teamsLoading, refetch: refetchTeams } = useTeams();
-  const { data: playerStats, isLoading: playersLoading, refetch: refetchPlayers } = usePlayerStats();
-  
-  const [mvpStats, setMvpStats] = useState<any[]>([]);
-  const [mvpLoading, setMvpLoading] = useState(false);
+  const { selectedSeasonId } = useSelectedSeason();
+  const { data: stats, isLoading: statsLoading, refetch: refetchStats } = useStats(selectedSeasonId);
+  const { data: teams, isLoading: teamsLoading, refetch: refetchTeams } = useTeams(selectedSeasonId);
+  const { data: playerStats, isLoading: playersLoading, refetch: refetchPlayers } = usePlayerStats(selectedSeasonId);
   
   const [refreshing, setRefreshing] = useState(false);
   const [viewMode, setViewMode] = useState<"teams" | "players">("teams");
@@ -76,7 +74,7 @@ export default function StandingsScreen() {
   const [activeStatCategory, setActiveStatCategory] = useState<StatCategory>("ofensiva"); // 🔥 Por defecto Ofensiva
   const [statType, setStatType] = useState<StatType>("touchdowns_totales");
   
-  const [selectedMainCat, setSelectedMainCat] = useState("varonil"); 
+  const [selectedMainCat, setSelectedMainCat] = useState("all");
   const [selectedSubCat, setSelectedSubCat] = useState("all");
 
   const theme = useColorScheme() ?? "light";
@@ -84,35 +82,20 @@ export default function StandingsScreen() {
   const isDark = theme === "dark";
 
   const topPad = insets.top + (Platform.OS === "web" ? 20 : 10);
-  const isLoading = statsLoading || teamsLoading || playersLoading || mvpLoading;
+  const isLoading = statsLoading || teamsLoading || playersLoading;
 
   useEffect(() => {
     setSelectedSubCat("all");
   }, [selectedMainCat]);
 
-  // 🔥 Cargar Datos de MVPs desde su propia API 🔥
-  const fetchMvps = async () => {
-    setMvpLoading(true);
-    try {
-      const res = await fetch(`${BASE_URL}/api/mvps/stats`);
-      if (res.ok) {
-        const json = await res.json();
-        if (json.success) setMvpStats(json.data);
-      }
-    } catch (e) {
-      console.log("Error al cargar MVPs", e);
-    } finally {
-      setMvpLoading(false);
-    }
-  };
-
   useEffect(() => {
-    fetchMvps();
-  }, []);
+    setSelectedMainCat("all");
+    setSelectedSubCat("all");
+  }, [selectedSeasonId]);
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([refetchStats(), refetchTeams(), refetchPlayers(), fetchMvps()]);
+    await Promise.all([refetchStats(), refetchTeams(), refetchPlayers()]);
     setRefreshing(false);
   };
 
@@ -165,25 +148,25 @@ export default function StandingsScreen() {
   const topPlayers = useMemo(() => {
     if (statType === "mvps") {
       // 🏆 Filtrado especial para la lista de MVPs
-      let filtered = mvpStats;
+      let filtered = playerStats ?? [];
       if (selectedMainCat !== "all") {
-        filtered = filtered.filter(p => p.categories?.some((c: string) => c.toLowerCase().startsWith(selectedMainCat.toLowerCase())));
+        filtered = filtered.filter((p: any) => p.teams?.category?.toLowerCase().startsWith(selectedMainCat.toLowerCase()));
       }
       if (selectedSubCat !== "all") {
-        filtered = filtered.filter(p => p.categories?.some((c: string) => {
-          const parts = c.split("-");
-          return parts.length > 1 && parts[1].toLowerCase() === selectedSubCat.toLowerCase();
-        }));
+        filtered = filtered.filter((p: any) => {
+          const parts = p.teams?.category?.split("-");
+          return parts && parts.length > 1 && parts[1].toLowerCase() === selectedSubCat.toLowerCase();
+        });
       }
 
       // Mapeamos los datos para que el componente Card los lea igual que a un jugador normal
-      return filtered.map(m => ({
-        id: m.player_id,
-        name: m.player_name,
+      return filtered.map((m: any) => ({
+        id: m.id,
+        name: m.name,
         photo_url: m.photo_url,
-        teams: { name: m.team_name, logo_url: m.team_logo },
-        mvps: m.mvp_count,
-        weighted_mvps: m.weighted_mvp_count,
+        teams: m.teams,
+        mvps: m.mvps,
+        weighted_mvps: m.mvps,
       })).sort((a, b) => b.weighted_mvps - a.weighted_mvps).slice(0, 50);
 
     } else {
@@ -201,7 +184,7 @@ export default function StandingsScreen() {
       }
       return filtered.sort((a, b) => (b[statType] || 0) - (a[statType] || 0)).slice(0, 50); 
     }
-  }, [playerStats, mvpStats, selectedMainCat, selectedSubCat, statType]);
+  }, [playerStats, selectedMainCat, selectedSubCat, statType]);
 
   // 🔥 Estilos de Podio Premium 🔥
   const getRankStyle = (index: number) => {
@@ -241,6 +224,8 @@ export default function StandingsScreen() {
           <View style={styles.headerTopRow}>
             <Text style={[styles.screenTitle, { color: currentColors.text }]}>Clasificación</Text>
           </View>
+
+          <SeasonSelector compact style={styles.seasonSelectorInline} />
 
           {/* Toggle Teams / Players */}
           <View style={styles.toggleWrapper}>
@@ -500,6 +485,7 @@ const styles = StyleSheet.create({
   
   headerTopRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 24 },
   screenTitle: { fontSize: 26, fontWeight: "900", letterSpacing: -0.5 },
+  seasonSelectorInline: { paddingHorizontal: 24, marginTop: 12 },
   
   toggleWrapper: { paddingHorizontal: 24, marginVertical: 15 },
   toggleContainer: { flexDirection: "row", borderRadius: 16, padding: 6 },

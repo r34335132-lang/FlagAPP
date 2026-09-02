@@ -25,12 +25,23 @@ import { router, useFocusEffect } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import MaskedView from "@react-native-masked-view/masked-view";
 import { useMatches } from "@/hooks/useMatches";
+import { isSeasonActive, seasonLabel, useSelectedSeason } from "@/hooks/useSeasons";
+import { usePlayerStats } from "@/hooks/usePlayerStats";
+import { useStats } from "@/hooks/useStats";
 import { useTeams } from "@/hooks/useTeams";
 import { MatchCardSkeleton } from "@/components/SkeletonLoader";
 import { Colors } from "@/constants/colors";
 
 // Colores de la liga
-const LEAGUE_GRADIENT = ['#3B82F6', '#8B5CF6', '#EC4899']; // Azul -> Morado -> Rosa
+const LEAGUE_GRADIENT: [string, string, string] = ['#3B82F6', '#8B5CF6', '#EC4899']; // Azul -> Morado -> Rosa
+
+const navigateFromHome = (path: string) => {
+  if (Platform.OS === "web" && typeof window !== "undefined") {
+    window.location.assign(path);
+    return;
+  }
+  router.push(path as any);
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 1. ANIMACIONES BASE
@@ -89,7 +100,7 @@ function useLiveTimer(game: any) {
     };
 
     updateClock();
-    let interval: NodeJS.Timeout;
+    let interval: ReturnType<typeof setInterval>;
     if (game.clock_running) interval = setInterval(updateClock, 1000);
     return () => clearInterval(interval);
   }, [game]);
@@ -104,7 +115,6 @@ function useLiveTimer(game: any) {
 // TOP NAV BAR: Efecto cristal fijo arriba, ocupa mínimo espacio
 const FloatingTopNav = ({ user, topPad, onProfilePress, isTablet }: any) => {
   const theme = useColorScheme() ?? "light";
-  const currentColors = Colors[theme];
   const isDark = theme === "dark";
 
   return (
@@ -235,12 +245,126 @@ const CommunityCard = () => {
   );
 };
 
+const HomeSeasonPanel = ({ selectedSeason, games, teams, topTeam, topPlayer, currentColors }: any) => {
+  const upcomingCount = games.filter((game: any) => ["programado", "proximo", "pendiente"].includes(game.status?.toLowerCase() ?? "")).length;
+  const recentCount = games.filter((game: any) => ["finalizado", "final", "terminado"].includes(game.status?.toLowerCase() ?? "")).length;
+  const { seasons, selectedSeasonId, activeSeason, isLoading, setSelectedSeason } = useSelectedSeason();
+  const panelColors = currentColors;
+
+  return (
+    <FadeInView delay={120} style={styles.seasonPanelWrap}>
+      <View style={[styles.seasonPanel, { backgroundColor: panelColors.card, borderColor: panelColors.border }]}>
+        <View style={styles.seasonPanelHeader}>
+          <View style={styles.seasonHeading}>
+            <Text style={[styles.seasonEyebrow, { color: panelColors.textSecondary }]}>Temporada</Text>
+            <View style={styles.seasonTitleRow}>
+              <Text style={[styles.seasonPanelTitle, { color: panelColors.text }]} numberOfLines={1}>{seasonLabel(selectedSeason)}</Text>
+              {(selectedSeason?.id === activeSeason?.id || isSeasonActive(selectedSeason)) && (
+                <View style={styles.seasonActiveBadge}>
+                  <View style={styles.seasonActiveDot} />
+                  <Text style={styles.seasonActiveText}>Activa</Text>
+                </View>
+              )}
+            </View>
+          </View>
+          <View style={[styles.seasonBadge, { backgroundColor: panelColors.cardLight, borderColor: panelColors.borderLight }]}>
+            <Ionicons name="american-football-outline" size={16} color={panelColors.blue} />
+          </View>
+        </View>
+
+        <View style={[styles.seasonSwitcher, { backgroundColor: panelColors.bgSecondary, borderColor: panelColors.border }]}>
+          {isLoading ? (
+            <Text style={[styles.seasonSwitcherLoading, { color: panelColors.textSecondary }]}>Cargando temporadas...</Text>
+          ) : (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.seasonSwitcherContent}>
+              {seasons.map((season) => {
+                const isSelected = season.id === selectedSeasonId;
+                const isActive = season.id === activeSeason?.id || isSeasonActive(season);
+
+                return (
+                  <Pressable
+                    key={season.id}
+                    onPress={() => setSelectedSeason(season.id)}
+                    style={({ pressed }) => [
+                      styles.seasonOption,
+                      isSelected && { backgroundColor: panelColors.cardLight, borderColor: panelColors.borderLight },
+                      pressed && styles.seasonOptionPressed,
+                    ]}
+                  >
+                    {isActive && (
+                      <View style={styles.seasonOptionStatus}>
+                        <View style={[styles.seasonOptionDot, { backgroundColor: panelColors.green }]} />
+                        <Text style={[styles.seasonOptionStatusText, { color: panelColors.green }]}>Activa</Text>
+                      </View>
+                    )}
+                    <Text style={[styles.seasonOptionText, { color: isSelected ? panelColors.text : panelColors.textSecondary }]} numberOfLines={1}>
+                      {seasonLabel(season)}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          )}
+        </View>
+
+        <View style={[styles.homeStatsGrid, { borderColor: panelColors.border }]}>
+          <View style={styles.homeMiniStat}>
+            <Text style={[styles.homeMiniValue, { color: panelColors.text }]}>{upcomingCount}</Text>
+            <Text style={[styles.homeMiniLabel, { color: panelColors.textSecondary }]}>Próximos</Text>
+          </View>
+          <View style={[styles.homeStatDivider, { backgroundColor: panelColors.border }]} />
+          <View style={styles.homeMiniStat}>
+            <Text style={[styles.homeMiniValue, { color: panelColors.text }]}>{recentCount}</Text>
+            <Text style={[styles.homeMiniLabel, { color: panelColors.textSecondary }]}>Resultados</Text>
+          </View>
+          <View style={[styles.homeStatDivider, { backgroundColor: panelColors.border }]} />
+          <View style={styles.homeMiniStat}>
+            <Text style={[styles.homeMiniValue, { color: panelColors.text }]}>{teams.length}</Text>
+            <Text style={[styles.homeMiniLabel, { color: panelColors.textSecondary }]}>Equipos</Text>
+          </View>
+        </View>
+
+        <View style={styles.homeHighlightsRow}>
+          <Pressable onPress={() => navigateFromHome("/standings")} style={({ pressed }) => [styles.highlightCard, { backgroundColor: panelColors.bgSecondary, borderColor: panelColors.border }, pressed && styles.highlightPressed]}>
+            <View style={styles.highlightHeader}>
+              <Ionicons name="trophy-outline" size={13} color={panelColors.orange} />
+              <Text style={[styles.highlightLabel, { color: panelColors.textSecondary }]}>Líder</Text>
+            </View>
+            <Text style={[styles.highlightValue, { color: panelColors.text }]} numberOfLines={1}>{topTeam?.team_name || "Por definirse"}</Text>
+            <Text style={[styles.highlightSub, { color: panelColors.textSecondary }]}>{topTeam ? `${topTeam.points ?? 0} pts` : "Aún sin tabla"}</Text>
+          </Pressable>
+          <Pressable onPress={() => navigateFromHome("/power-ranking")} style={({ pressed }) => [styles.highlightCard, { backgroundColor: panelColors.bgSecondary, borderColor: panelColors.border }, pressed && styles.highlightPressed]}>
+            <View style={styles.highlightHeader}>
+              <Ionicons name="flash-outline" size={13} color={panelColors.pink} />
+              <Text style={[styles.highlightLabel, { color: panelColors.textSecondary }]}>Jugador top</Text>
+            </View>
+            <Text style={[styles.highlightValue, { color: panelColors.text }]} numberOfLines={1}>{topPlayer?.name || "Por definirse"}</Text>
+            <Text style={[styles.highlightSub, { color: panelColors.textSecondary }]}>{topPlayer ? `${topPlayer.touchdowns_totales ?? 0} TD · ${topPlayer.mvps ?? 0} MVP` : "Sin stats todavía"}</Text>
+          </Pressable>
+        </View>
+
+        <View style={styles.quickActions}>
+          <Pressable onPress={() => navigateFromHome("/matches")} style={({ pressed }) => [styles.quickAction, { borderColor: panelColors.borderLight }, pressed && { backgroundColor: panelColors.cardLight }]}>
+            <Ionicons name="calendar-outline" size={15} color={panelColors.textSecondary} />
+            <Text style={[styles.quickActionText, { color: panelColors.textSecondary }]}>Calendario</Text>
+          </Pressable>
+          <Pressable onPress={() => navigateFromHome("/teams")} style={({ pressed }) => [styles.quickAction, { borderColor: panelColors.borderLight }, pressed && { backgroundColor: panelColors.cardLight }]}>
+            <Ionicons name="shield-outline" size={15} color={panelColors.textSecondary} />
+            <Text style={[styles.quickActionText, { color: panelColors.textSecondary }]}>Equipos</Text>
+          </Pressable>
+        </View>
+      </View>
+    </FadeInView>
+  );
+};
+
 // Tarjeta de Partido Moderna
 const MatchCard = ({ game, teams, isFeatured = false, index = 0 }: { game: any, teams: any[], isFeatured?: boolean, index?: number }) => {
   const theme = useColorScheme() ?? "light";
   const currentColors = Colors[theme];
   const isDark = theme === "dark";
   const scaleAnim = useRef(new Animated.Value(1)).current;
+  const timeStr = useLiveTimer(game);
 
   if (!game) return null;
 
@@ -251,8 +375,6 @@ const MatchCard = ({ game, teams, isFeatured = false, index = 0 }: { game: any, 
 
   const handlePressIn = () => { Animated.spring(scaleAnim, { toValue: 0.97, useNativeDriver: true }).start(); };
   const handlePressOut = () => { Animated.spring(scaleAnim, { toValue: 1, friction: 5, tension: 40, useNativeDriver: true }).start(); };
-  const timeStr = useLiveTimer(game);
-
   const TeamRow = ({ team, name, score, isWinner }: any) => (
     <View style={styles.teamRow}>
       <View style={styles.teamInfo}>
@@ -341,6 +463,9 @@ export default function HomeScreen() {
 
   const { data: games, isLoading: gamesLoading, refetch: refetchGames } = useMatches();
   const { data: teams, isLoading: teamsLoading, refetch: refetchTeams } = useTeams();
+  const { selectedSeason } = useSelectedSeason();
+  const { data: stats, refetch: refetchStats } = useStats();
+  const { data: playerStats, refetch: refetchPlayers } = usePlayerStats();
   const [refreshing, setRefreshing] = useState(false);
   const [user, setUser] = useState<any>(null);
 
@@ -358,6 +483,7 @@ export default function HomeScreen() {
 
   const isLoading = gamesLoading || teamsLoading;
   const safeTeams = teams ?? [];
+  const safeGames = games ?? [];
   const topPad = insets.top;
 
   const dateStr = useMemo(() => {
@@ -450,12 +576,40 @@ export default function HomeScreen() {
     const finished = restGames.filter(g => ["finalizado", "final"].includes(g.status?.toLowerCase() ?? "")).sort((a, b) => new Date(b.game_date).getTime() - new Date(a.game_date).getTime());
 
     const sects = [];
-    if (live.length > 0) sects.push({ title: "🔴 EN VIVO", data: live, type: 'live' });
-    if (upcoming.length > 0) sects.push({ title: "PRÓXIMOS ENCUENTROS", data: upcoming, type: 'upcoming' });
-    if (finished.length > 0) sects.push({ title: "RESULTADOS", data: finished.slice(0, 10), type: 'finished' });
+    if (live.length > 0) sects.push({ title: "EN VIVO", data: live.slice(0, 3), type: 'live' });
+    if (upcoming.length > 0) sects.push({ title: "PROXIMOS PARTIDOS", data: upcoming.slice(0, 3), type: 'upcoming' });
+    if (finished.length > 0) sects.push({ title: "ULTIMOS RESULTADOS", data: finished.slice(0, 3), type: 'finished' });
 
     return { featuredGame: featGame, sections: sects };
   }, [games, activeJornada, activeCategory, activeField]);
+
+  const topTeam = useMemo(() => {
+    return [...(stats ?? [])].sort((a: any, b: any) => {
+      if ((b.points ?? 0) !== (a.points ?? 0)) return (b.points ?? 0) - (a.points ?? 0);
+      return (b.points_difference ?? 0) - (a.points_difference ?? 0);
+    })[0] ?? null;
+  }, [stats]);
+
+  const topPlayer = useMemo(() => {
+    return [...(playerStats ?? [])]
+      .map((player: any) => ({
+        ...player,
+        score:
+          Number(player.mvps || 0) * 1000 +
+          Number(player.touchdowns_totales || 0) * 75 +
+          Number(player.pases_completos || 0) * 8 +
+          Number(player.sacks || 0) * 45 +
+          Number(player.intercepciones || 0) * 50,
+      }))
+      .filter((player: any) => player.score > 0)
+      .sort((a: any, b: any) => b.score - a.score)[0] ?? null;
+  }, [playerStats]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await Promise.all([refetchGames(), refetchTeams(), refetchStats(), refetchPlayers()]);
+    setRefreshing(false);
+  }, [refetchGames, refetchPlayers, refetchStats, refetchTeams]);
 
   // Si está cargando, mostramos los Skeletons dentro del scroll
   if (isLoading) {
@@ -491,26 +645,37 @@ export default function HomeScreen() {
         contentContainerStyle={[styles.listContent, { paddingTop: topPad + 60, paddingBottom: isTablet ? insets.bottom + 100 : 90 }]}
         showsVerticalScrollIndicator={false}
         stickySectionHeadersEnabled={false} 
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => refetchGames()} tintColor={LEAGUE_GRADIENT[1]} progressViewOffset={topPad + 60} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={LEAGUE_GRADIENT[1]} progressViewOffset={topPad + 60} />}
         
         ListHeaderComponent={
           <View style={styles.contentWrapper}>
-            
-            {/* El saludo gigante ahora vive aquí */}
-            <GreetingScrollable user={user} dateStr={dateStr} />
-
-            <ActiveFiltersBar 
-              onOpenModal={openFilterModal}
-              activeJornada={activeJornada}
-              activeCategory={activeCategory}
-              activeField={activeField}
-              isTablet={isTablet}
+            <HomeSeasonPanel
+              selectedSeason={selectedSeason}
+              games={safeGames}
+              teams={safeTeams}
+              topTeam={topTeam}
+              topPlayer={topPlayer}
+              currentColors={currentColors}
             />
+
+            {(activeJornada !== "TODAS" || activeCategory !== "TODAS" || activeField !== "TODOS") && (
+              <ActiveFiltersBar
+                onOpenModal={openFilterModal}
+                activeJornada={activeJornada}
+                activeCategory={activeCategory}
+                activeField={activeField}
+              />
+            )}
 
             <View style={styles.featuredContainer}>
               {featuredGame && (
                 <FadeInView delay={100}>
-                  <Text style={[styles.sectionTitleLabel, { color: currentColors.text }]}>DESTACADO 🔥</Text>
+                  <View style={styles.sectionHeaderRow}>
+                    <Text style={[styles.sectionTitleLabel, { color: currentColors.text, marginBottom: 0 }]}>PARTIDO DESTACADO</Text>
+                    <TouchableOpacity onPress={openFilterModal} style={[styles.inlineFilterBtn, { backgroundColor: currentColors.bgSecondary }]}>
+                      <Ionicons name="options-outline" size={17} color={currentColors.text} />
+                    </TouchableOpacity>
+                  </View>
                   <MatchCard game={featuredGame} teams={safeTeams} isFeatured={true} />
                 </FadeInView>
               )}
@@ -632,6 +797,42 @@ const styles = StyleSheet.create({
   gradientTextWrapper: { height: 45, justifyContent: 'flex-start' },
   greetingTextGradient: { fontSize: 36, fontWeight: "900", letterSpacing: -1.2, lineHeight: 42 },
 
+  seasonPanelWrap: { paddingHorizontal: 20, marginTop: 10, marginBottom: 8 },
+  seasonPanel: { borderRadius: 18, borderCurve: "continuous", borderWidth: 1, padding: 16, gap: 12, boxShadow: "0 6px 18px rgba(15, 23, 42, 0.08)" },
+  seasonPanelHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  seasonHeading: { flex: 1, minWidth: 0, gap: 5 },
+  seasonTitleRow: { flexDirection: "row", alignItems: "center", gap: 8, minWidth: 0 },
+  seasonEyebrow: { fontSize: 10, fontWeight: "700", letterSpacing: 0, textTransform: "uppercase" },
+  seasonPanelTitle: { flexShrink: 1, fontSize: 18, lineHeight: 22, fontWeight: "800", letterSpacing: 0 },
+  seasonActiveBadge: { flexDirection: "row", alignItems: "center", gap: 5, borderRadius: 999, backgroundColor: `${Colors.dark.green}18`, paddingHorizontal: 7, paddingVertical: 3 },
+  seasonActiveDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: Colors.dark.green },
+  seasonActiveText: { color: Colors.dark.green, fontSize: 8, fontWeight: "800", letterSpacing: 0, textTransform: "uppercase" },
+  seasonBadge: { width: 34, height: 34, borderRadius: 10, borderCurve: "continuous", borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  seasonSwitcher: { minHeight: 36, borderRadius: 10, borderCurve: "continuous", borderWidth: 1, padding: 3, overflow: "hidden", justifyContent: "center" },
+  seasonSwitcherContent: { alignItems: "center", gap: 3 },
+  seasonSwitcherLoading: { paddingHorizontal: 8, fontSize: 11, fontWeight: "600" },
+  seasonOption: { minHeight: 28, maxWidth: 180, borderRadius: 7, borderCurve: "continuous", borderWidth: 1, borderColor: "transparent", paddingHorizontal: 9, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 },
+  seasonOptionPressed: { opacity: 0.72 },
+  seasonOptionStatus: { flexDirection: "row", alignItems: "center", gap: 4 },
+  seasonOptionDot: { width: 5, height: 5, borderRadius: 3 },
+  seasonOptionStatusText: { fontSize: 8, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0 },
+  seasonOptionText: { flexShrink: 1, fontSize: 11, fontWeight: "700", letterSpacing: 0 },
+  homeStatsGrid: { minHeight: 54, flexDirection: "row", alignItems: "center", borderTopWidth: 1, borderBottomWidth: 1, paddingVertical: 8 },
+  homeMiniStat: { flex: 1, minWidth: 0, alignItems: "center", justifyContent: "center", gap: 2 },
+  homeMiniValue: { fontSize: 18, lineHeight: 21, fontWeight: "800", fontVariant: ["tabular-nums"] },
+  homeMiniLabel: { fontSize: 9, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0 },
+  homeStatDivider: { width: 1, height: 25 },
+  homeHighlightsRow: { flexDirection: "row", gap: 8 },
+  highlightCard: { flex: 1, minWidth: 0, minHeight: 78, borderRadius: 10, borderCurve: "continuous", borderWidth: 1, padding: 11, justifyContent: "center" },
+  highlightPressed: { opacity: 0.78 },
+  highlightHeader: { flexDirection: "row", alignItems: "center", gap: 5, marginBottom: 6 },
+  highlightLabel: { fontSize: 9, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0 },
+  highlightValue: { fontSize: 13, lineHeight: 17, fontWeight: "800", letterSpacing: 0 },
+  highlightSub: { fontSize: 10, fontWeight: "600", marginTop: 2 },
+  quickActions: { flexDirection: "row", gap: 8 },
+  quickAction: { flex: 1, minHeight: 34, borderRadius: 9, borderCurve: "continuous", borderWidth: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 },
+  quickActionText: { fontSize: 11, fontWeight: "700", letterSpacing: 0 },
+
   // --- FILTER BAR MODERNA (PÍLDORAS INDIVIDUALES) ---
   filterBarContainer: { paddingVertical: 5 },
   filterPillScroll: { alignItems: 'center', gap: 10, paddingHorizontal: 24, paddingVertical: 5 },
@@ -644,7 +845,9 @@ const styles = StyleSheet.create({
 
   listContent: { paddingTop: 0 },
   
-  featuredContainer: { marginTop: 15, paddingHorizontal: 24, marginBottom: 5 },
+  featuredContainer: { marginTop: 14, paddingHorizontal: 24, marginBottom: 5 },
+  sectionHeaderRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 14 },
+  inlineFilterBtn: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
   sectionTitleLabel: { fontSize: 13, fontWeight: "900", letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 14 },
   sectionHeader: { marginTop: 25, paddingHorizontal: 24 },
   sectionTitleLive: { color: "#EF4444" },

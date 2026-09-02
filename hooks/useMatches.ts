@@ -1,6 +1,63 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, type QueryClient, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { supabase } from "@/lib/supabase";
+import { useSelectedSeason } from "@/hooks/useSeasons";
+
+interface GamesRealtimeEntry {
+  channel: ReturnType<typeof supabase.channel>;
+  consumers: number;
+  queryClients: Map<QueryClient, number>;
+}
+
+const gamesRealtimeChannels = new Map<string, GamesRealtimeEntry>();
+let gamesRealtimeGeneration = 0;
+
+function subscribeToSeasonGames(seasonId: string, queryClient: QueryClient) {
+  let entry = gamesRealtimeChannels.get(seasonId);
+
+  if (!entry) {
+    gamesRealtimeGeneration += 1;
+    const queryClients = new Map<QueryClient, number>();
+    const channel = supabase.channel(`realtime-games-${seasonId}-${gamesRealtimeGeneration}`);
+
+    channel.on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "games", filter: `season_id=eq.${seasonId}` },
+      () => {
+        queryClients.forEach((_, client) => {
+          client.invalidateQueries({ queryKey: ["games", seasonId] });
+          client.invalidateQueries({ queryKey: ["matches", seasonId] });
+        });
+      },
+    );
+
+    channel.subscribe();
+    entry = { channel, consumers: 0, queryClients };
+    gamesRealtimeChannels.set(seasonId, entry);
+  }
+
+  entry.consumers += 1;
+  entry.queryClients.set(queryClient, (entry.queryClients.get(queryClient) ?? 0) + 1);
+
+  return () => {
+    const currentEntry = gamesRealtimeChannels.get(seasonId);
+    if (!currentEntry || currentEntry !== entry) return;
+
+    currentEntry.consumers -= 1;
+    const queryClientConsumers = (currentEntry.queryClients.get(queryClient) ?? 1) - 1;
+
+    if (queryClientConsumers > 0) {
+      currentEntry.queryClients.set(queryClient, queryClientConsumers);
+    } else {
+      currentEntry.queryClients.delete(queryClient);
+    }
+
+    if (currentEntry.consumers === 0) {
+      gamesRealtimeChannels.delete(seasonId);
+      void supabase.removeChannel(currentEntry.channel);
+    }
+  };
+}
 
 export interface Game {
   id: string;
@@ -14,32 +71,33 @@ export interface Game {
   field: string | null;
   category: string | null;
   status: string | null;
+  season_id: string | null;
   season: string | null;
   stage: string | null;
   jornada: number | null;
   mvp: string | null;
-  // Campos para el cronómetro en vivo
   seconds_remaining: number | null;
   current_period: string | null;
   clock_running: boolean | null;
   clock_last_started_at: string | null;
 }
 
-async function fetchGames(): Promise<Game[]> {
+async function fetchGames(seasonId: string): Promise<Game[]> {
   const { data, error } = await supabase
-    .from('games')
+    .from("games")
     .select(`
-      id, 
-      home_team, 
-      away_team, 
-      home_score, 
-      away_score, 
-      game_date, 
-      game_time, 
-      status, 
-      category, 
-      venue, 
+      id,
+      home_team,
+      away_team,
+      home_score,
+      away_score,
+      game_date,
+      game_time,
+      status,
+      category,
+      venue,
       field,
+      season_id,
       season,
       stage,
       jornada,
@@ -49,6 +107,7 @@ async function fetchGames(): Promise<Game[]> {
       clock_running,
       clock_last_started_at
     `)
+    .eq("season_id", seasonId)
     .order("game_date", { ascending: true })
     .order("game_time", { ascending: true });
 
@@ -56,46 +115,31 @@ async function fetchGames(): Promise<Game[]> {
     console.error("Error fetching games:", error.message);
     throw new Error(error.message);
   }
-  return (data as any) ?? [];
+
+  return (data as Game[]) ?? [];
 }
 
-// --------------------------------------------------------
-// HOOK PRINCIPAL CON MAGIA REALTIME
-// --------------------------------------------------------
-export function useMatches() {
+export function useMatches(seasonId?: string | null) {
   const queryClient = useQueryClient();
+  const { selectedSeasonId } = useSelectedSeason();
+  const effectiveSeasonId = seasonId ?? selectedSeasonId;
 
   useEffect(() => {
-    // 1. Nos suscribimos al canal de Supabase escuchando la tabla 'games'
-    const gamesSubscription = supabase
-      .channel('realtime-games')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'games' },
-        (payload) => {
-          console.log('¡Cambio detectado en la DB en tiempo real!', payload);
-          
-          // 2. Le decimos a React Query: "Los datos ya están viejos, descárgalos de nuevo en silencio"
-          // Esto hará que la pantalla se actualice sola sin que el usuario haga nada.
-          queryClient.invalidateQueries({ queryKey: ["matches"] });
-        }
-      )
-      .subscribe();
+    if (!effectiveSeasonId) return;
 
-    // Limpiamos la suscripción cuando la app se cierra o se desmonta
-    return () => {
-      supabase.removeChannel(gamesSubscription);
-    };
-  }, [queryClient]);
+    return subscribeToSeasonGames(effectiveSeasonId, queryClient);
+  }, [effectiveSeasonId, queryClient]);
 
   return useQuery<Game[]>({
-    queryKey: ["matches"],
-    queryFn: fetchGames,
-    staleTime: 60 * 1000, // Lo subimos a 1 min porque ahora el Realtime nos avisará si hay cambios antes
+    queryKey: ["matches", effectiveSeasonId],
+    queryFn: () => fetchGames(effectiveSeasonId!),
+    enabled: !!effectiveSeasonId,
+    placeholderData: keepPreviousData,
+    staleTime: 2 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
   });
 }
 
-// Filtros de estado consistentes con el resto de la App
 const FINISHED = new Set(["finalizado", "final", "terminado"]);
 const LIVE = new Set(["en vivo", "live", "en curso", "en_vivo"]);
 const UPCOMING = new Set(["programado", "scheduled", "pendiente", "por jugar", "proximo"]);
@@ -113,26 +157,31 @@ function isUpcoming(g: Game) {
   return UPCOMING.has(s) || (!isLive(g) && !isFinished(g));
 }
 
-export function useRecentMatches() {
-  const { data, ...rest } = useMatches();
-  const recent = data
-    ?.filter((g) => isFinished(g))
-    .sort((a, b) => new Date(b.game_date).getTime() - new Date(a.game_date).getTime())
-    .slice(0, 10) ?? [];
+export function useRecentMatches(seasonId?: string | null) {
+  const { data, ...rest } = useMatches(seasonId);
+  const recent =
+    data
+      ?.filter((g) => isFinished(g))
+      .sort((a, b) => new Date(b.game_date).getTime() - new Date(a.game_date).getTime())
+      .slice(0, 10) ?? [];
+
   return { data: recent, ...rest };
 }
 
-export function useUpcomingMatches() {
-  const { data, ...rest } = useMatches();
-  const upcoming = data
-    ?.filter(isUpcoming)
-    .sort((a, b) => new Date(a.game_date).getTime() - new Date(b.game_date).getTime())
-    .slice(0, 10) ?? [];
+export function useUpcomingMatches(seasonId?: string | null) {
+  const { data, ...rest } = useMatches(seasonId);
+  const upcoming =
+    data
+      ?.filter(isUpcoming)
+      .sort((a, b) => new Date(a.game_date).getTime() - new Date(b.game_date).getTime())
+      .slice(0, 10) ?? [];
+
   return { data: upcoming, ...rest };
 }
 
-export function useLiveMatches() {
-  const { data, ...rest } = useMatches();
+export function useLiveMatches(seasonId?: string | null) {
+  const { data, ...rest } = useMatches(seasonId);
   const live = data?.filter(isLive) ?? [];
+
   return { data: live, ...rest };
 }
