@@ -24,19 +24,26 @@ import { seasonLabel, useSelectedSeason } from "@/hooks/useSeasons";
 const API_BASE = "https://www.flagdurango.com.mx/api";
 
 const CATEGORIES = [
-  { id: "varonil-libre", label: "Varonil Libre" },
-  { id: "varonil-gold", label: "Varonil Gold" },
-  { id: "varonil-silver", label: "Varonil Silver" },
-  { id: "varonil-master", label: "Varonil Master" },
-  { id: "varonil-cooper", label: "Varonil Cooper" }, 
-  { id: "femenil-gold", label: "Femenil Gold" },
-  { id: "femenil-silver", label: "Femenil Silver" },
-  { id: "femenil-copper", label: "Femenil Copper" }, 
-  { id: "mixto-gold", label: "Mixto Gold" },
-  { id: "mixto-silver", label: "Mixto Silver" },
-  { id: "mixto-cooper", label: "Mixto Cooper" },    
-  { id: "mixto-recreativo", label: "Mixto Recreativo" },
-  { id: "teens", label: "Teens" },
+  { id: "varonil-libre", label: "Libre", group: "varonil" },
+  { id: "varonil-gold", label: "Gold", group: "varonil" },
+  { id: "varonil-silver", label: "Silver", group: "varonil" },
+  { id: "varonil-master", label: "Master", group: "varonil" },
+  { id: "varonil-cooper", label: "Cooper", group: "varonil" },
+  { id: "femenil-gold", label: "Gold", group: "femenil" },
+  { id: "femenil-silver", label: "Silver", group: "femenil" },
+  { id: "femenil-copper", label: "Copper", group: "femenil" },
+  { id: "mixto-gold", label: "Gold", group: "mixto" },
+  { id: "mixto-silver", label: "Silver", group: "mixto" },
+  { id: "mixto-cooper", label: "Cooper", group: "mixto" },
+  { id: "mixto-recreativo", label: "Recreativo", group: "mixto" },
+  { id: "teens", label: "Teens", group: "teens" },
+];
+
+const CATEGORY_GROUPS = [
+  { id: "varonil", label: "Varonil", icon: "male" as const, hint: "Equipos de hombres" },
+  { id: "femenil", label: "Femenil", icon: "female" as const, hint: "Equipos de mujeres" },
+  { id: "mixto", label: "Mixto", icon: "people" as const, hint: "Hombres y mujeres" },
+  { id: "teens", label: "Teens", icon: "school" as const, hint: "Categoría juvenil" },
 ];
 
 const FadeInView = ({ children, delay = 0 }: { children: any, delay?: number }) => {
@@ -83,6 +90,8 @@ export default function CoachDashboard() {
   const [teamForm, setTeamForm] = useState({ name: "", category: "", captain_name: "", captain_phone: "", season_id: "" });
   const [tempLogoUri, setTempLogoUri] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [createStep, setCreateStep] = useState(1);
+  const [categoryGroup, setCategoryGroup] = useState<string | null>(null);
 
   const [champForm, setChampForm] = useState({
     team_id: null as number | null, title: "", year: "", tournament: "", position: "1er Lugar"
@@ -113,7 +122,8 @@ export default function CoachDashboard() {
           setUser(u);
           loadCoachData(u);
         } else {
-          router.replace("/login");
+          // Sin sesión: ir al inicio (replace evita GO_BACK sin historial al cerrar sesión)
+          router.replace("/");
         }
       });
     }, [])
@@ -292,37 +302,82 @@ export default function CoachDashboard() {
   };
 
   const handleCreateTeam = async () => {
-    if (!teamForm.name || !teamForm.category || !teamForm.season_id) {
-      return Alert.alert("Error", "Nombre, categoria y temporada son obligatorios.");
+    if (!teamForm.name.trim()) {
+      setCreateStep(1);
+      return Alert.alert("Falta el nombre", "Escribe el nombre de tu equipo para continuar.");
+    }
+    if (!teamForm.category) {
+      setCreateStep(2);
+      return Alert.alert("Falta la categoría", "Elige si es Varonil, Femenil, Mixto o Teens, y luego el nivel.");
+    }
+    if (!teamForm.season_id) {
+      setCreateStep(3);
+      return Alert.alert("Falta la temporada", "Selecciona la temporada en la que vas a jugar.");
     }
 
     const teamSeason = seasons.find((season) => season.id === teamForm.season_id);
-    if (!teamSeason) return Alert.alert("Error", "Selecciona una temporada valida.");
+    if (!teamSeason) {
+      setCreateStep(3);
+      return Alert.alert("Temporada no válida", "Vuelve a elegir la temporada.");
+    }
 
     setCreating(true);
     try {
       let finalLogoUrl = "";
       if (tempLogoUri) {
-        const uploadData = await uploadImageToServer(tempLogoUri, 'team_logos');
+        const uploadData = await uploadImageToServer(tempLogoUri, "team_logos");
         if (uploadData?.success) finalLogoUrl = uploadData.url;
       }
       const res = await fetch(`${API_BASE}/teams`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          ...teamForm, logo_url: finalLogoUrl, coach_id: user.id, coach_name: user.username,
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...teamForm,
+          name: teamForm.name.trim(),
+          logo_url: finalLogoUrl,
+          coach_id: user.id,
+          coach_name: user.username,
           season: teamSeason.year ?? teamSeason.season ?? seasonLabel(teamSeason),
-          coach_photo_url: coachPhoto, color1: BRAND_GRADIENT[0], color2: BRAND_GRADIENT[1]
+          coach_photo_url: coachPhoto,
+          color1: BRAND_GRADIENT[0],
+          color2: BRAND_GRADIENT[1],
         }),
       });
       const jsonRes = await safeJsonParse(res);
       if (jsonRes?.success) {
-        Alert.alert("¡Éxito!", "Equipo creado.");
+        Alert.alert("¡Listo!", "Tu equipo ya quedó inscrito. Ahora puedes agregar jugadores desde Solicitudes.");
         setTeamForm({ name: "", category: "", captain_name: "", captain_phone: "", season_id: selectedSeason?.id ?? "" });
         setTempLogoUri(null);
+        setCreateStep(1);
+        setCategoryGroup(null);
         setActiveTab("equipos");
         loadCoachData(user);
+      } else {
+        Alert.alert("No se pudo guardar", jsonRes?.message || "Revisa tu conexión e inténtalo de nuevo.");
       }
-    } finally { setCreating(false); }
+    } catch {
+      Alert.alert("Sin conexión", "No pudimos guardar el equipo. Revisa internet e inténtalo otra vez.");
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const goNextCreateStep = () => {
+    if (createStep === 1) {
+      if (!teamForm.name.trim()) {
+        return Alert.alert("Falta el nombre", "Escribe cómo se llama tu equipo (ej. Cuervos).");
+      }
+      setCreateStep(2);
+      return;
+    }
+    if (createStep === 2) {
+      if (!teamForm.category) {
+        return Alert.alert("Elige categoría", "Primero toca Varonil, Femenil, Mixto o Teens, y luego el nivel (Gold, Silver, etc.).");
+      }
+      setCreateStep(3);
+      return;
+    }
+    handleCreateTeam();
   };
 
   const openEditPlayerModal = (player: any) => {
@@ -381,7 +436,8 @@ export default function CoachDashboard() {
           const data = await safeJsonParse(res);
           if (data?.success) {
             await AsyncStorage.removeItem("userSession");
-            router.replace("/login");
+            await AsyncStorage.removeItem("user");
+            router.replace("/");
           }
         } catch(e) { Alert.alert("Error", "Fallo de conexión."); }
       }}
@@ -390,7 +446,8 @@ export default function CoachDashboard() {
 
   const handleLogout = async () => {
     await AsyncStorage.removeItem("userSession");
-    router.replace("/login");
+    await AsyncStorage.removeItem("user");
+    router.replace("/");
   };
 
   const sendWhatsAppProof = () => {
@@ -432,7 +489,7 @@ export default function CoachDashboard() {
       <View style={[styles.tabsRow, { backgroundColor: currentColors.card, shadowColor: isDark ? '#000' : '#0F172A' }]}>
         <View style={[styles.contentWrapper, { flexDirection: 'row' }]}>
           <TabButton title="Equipos" icon="shield" active={activeTab === "equipos"} onPress={() => setActiveTab("equipos")} currentColors={currentColors} />
-          <TabButton title="Nuevo" icon="add-circle" active={activeTab === "crear"} onPress={() => setActiveTab("crear")} currentColors={currentColors} />
+          <TabButton title="Registrar" icon="add-circle" active={activeTab === "crear"} onPress={() => { setActiveTab("crear"); setCreateStep(1); }} currentColors={currentColors} />
           <TabButton title="Inbox" icon="mail" active={activeTab === "solicitudes"} badge={requests.length} onPress={() => setActiveTab("solicitudes")} currentColors={currentColors} />
           <TabButton title="Perfil" icon="trophy" active={activeTab === "perfil"} onPress={() => setActiveTab("perfil")} currentColors={currentColors} />
         </View>
@@ -457,8 +514,22 @@ export default function CoachDashboard() {
                     {teams.length === 0 ? (
                       <View style={[styles.emptyBox, { borderColor: currentColors.borderLight, backgroundColor: currentColors.card }]}>
                         <Ionicons name="shield-half" size={48} color={currentColors.textMuted} />
-                        <Text style={[styles.emptyTitle, { color: currentColors.text }]}>Sin Equipos</Text>
-                        <Text style={{color: currentColors.textSecondary}}>Inscribe tu primer equipo en la pestaña "Nuevo".</Text>
+                        <Text style={[styles.emptyTitle, { color: currentColors.text }]}>Aún no tienes equipos</Text>
+                        <Text style={{ color: currentColors.textSecondary, textAlign: "center", marginBottom: 18, paddingHorizontal: 12 }}>
+                          Te guiamos paso a paso. Solo necesitas el nombre y la categoría.
+                        </Text>
+                        <Pressable
+                          style={styles.emptyCta}
+                          onPress={() => {
+                            setCreateStep(1);
+                            setActiveTab("crear");
+                          }}
+                        >
+                          <LinearGradient colors={[BRAND_GRADIENT[0], BRAND_GRADIENT[1]]} style={styles.emptyCtaGrad}>
+                            <Ionicons name="add-circle" size={20} color="#FFF" />
+                            <Text style={styles.emptyCtaText}>Registrar mi equipo</Text>
+                          </LinearGradient>
+                        </Pressable>
                       </View>
                     ) : (
                       teams.map((team, index) => (
@@ -529,59 +600,241 @@ export default function CoachDashboard() {
                 )}
 
                 {activeTab === "crear" && (
-                  <View style={[styles.formCard, { backgroundColor: currentColors.card, borderColor: currentColors.borderLight, shadowColor: isDark ? '#000' : '#0F172A' }]}>
-                    <Text style={[styles.cardTitle, { color: currentColors.text }]}>Inscribir Nuevo Equipo</Text>
-                    
-                    <Text style={[styles.label, { color: currentColors.textMuted }]}>Logo del Equipo</Text>
-                    <Pressable onPress={async () => {
-                      const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 0.5 });
-                      if (!res.canceled) setTempLogoUri(res.assets[0].uri);
-                    }} style={[styles.logoPicker, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.borderLight }]}>
-                      {tempLogoUri ? <Image source={{ uri: tempLogoUri }} style={styles.logoPreview} /> : 
-                      <View style={styles.logoPickerInner}><Ionicons name="image-outline" size={32} color={currentColors.textMuted} /><Text style={[styles.logoPickerText, { color: currentColors.textMuted }]}>Seleccionar Logo</Text></View>}
-                    </Pressable>
+                  <View style={[styles.formCard, { backgroundColor: currentColors.card, borderColor: currentColors.borderLight, shadowColor: isDark ? "#000" : "#0F172A" }]}>
+                    <Text style={[styles.cardTitle, { color: currentColors.text }]}>Registrar equipo</Text>
+                    <Text style={[styles.wizardHint, { color: currentColors.textSecondary }]}>
+                      Fácil y rápido · Solo 3 pasos
+                    </Text>
 
-                    <Text style={[styles.label, { color: currentColors.textMuted }]}>Nombre del Equipo</Text>
-                    <TextInput style={[styles.input, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.borderLight, color: currentColors.text }]} placeholder="Ej. Cuervos" placeholderTextColor={currentColors.textMuted} value={teamForm.name} onChangeText={(t) => setTeamForm({...teamForm, name: t})} />
-
-                    <Text style={[styles.label, { color: currentColors.textMuted }]}>Temporada</Text>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll}>
-                      {seasons.map((season) => (
-                        <Pressable
-                          key={season.id}
-                          style={[
-                            styles.catChip,
-                            { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.borderLight },
-                            teamForm.season_id === season.id && styles.catChipActive,
-                          ]}
-                          onPress={() => setTeamForm({ ...teamForm, season_id: season.id })}
-                        >
-                          <Text style={[styles.catChipText, { color: currentColors.textSecondary }, teamForm.season_id === season.id && { color: "#FFF" }]}>
-                            {seasonLabel(season)}
+                    {/* Progress */}
+                    <View style={styles.wizardProgress}>
+                      {[1, 2, 3].map((step) => (
+                        <View key={step} style={styles.wizardProgressItem}>
+                          <View
+                            style={[
+                              styles.wizardDot,
+                              {
+                                backgroundColor:
+                                  createStep >= step ? BRAND_GRADIENT[0] : currentColors.bgSecondary,
+                              },
+                            ]}
+                          >
+                            <Text style={[styles.wizardDotText, { color: createStep >= step ? "#FFF" : currentColors.textMuted }]}>
+                              {step}
+                            </Text>
+                          </View>
+                          <Text style={[styles.wizardStepLabel, { color: createStep === step ? currentColors.text : currentColors.textMuted }]}>
+                            {step === 1 ? "Nombre" : step === 2 ? "Categoría" : "Confirmar"}
                           </Text>
-                        </Pressable>
+                        </View>
                       ))}
-                    </ScrollView>
-                    
-                    <Text style={[styles.label, { color: currentColors.textMuted }]}>Categoría</Text>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll}>
-                      {CATEGORIES.map(cat => (
-                        <Pressable key={cat.id} style={[styles.catChip, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.borderLight }, teamForm.category === cat.id && styles.catChipActive]} onPress={() => setTeamForm({...teamForm, category: cat.id})}>
-                          <Text style={[styles.catChipText, { color: currentColors.textSecondary }, teamForm.category === cat.id && {color:'#FFF'}]}>{cat.label}</Text>
+                    </View>
+
+                    {/* STEP 1 */}
+                    {createStep === 1 && (
+                      <View>
+                        <Text style={[styles.stepTitle, { color: currentColors.text }]}>¿Cómo se llama tu equipo?</Text>
+                        <TextInput
+                          style={[styles.input, styles.inputBig, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.borderLight, color: currentColors.text }]}
+                          placeholder="Ejemplo: Cuervos Durango"
+                          placeholderTextColor={currentColors.textMuted}
+                          value={teamForm.name}
+                          onChangeText={(t) => setTeamForm({ ...teamForm, name: t })}
+                          autoCapitalize="words"
+                        />
+
+                        <Text style={[styles.label, { color: currentColors.textMuted }]}>Logo (opcional)</Text>
+                        <Text style={[styles.helperText, { color: currentColors.textMuted }]}>
+                          Si no lo tienes ahora, puedes subirlo después desde Mis Equipos.
+                        </Text>
+                        <Pressable
+                          onPress={async () => {
+                            const res = await ImagePicker.launchImageLibraryAsync({
+                              mediaTypes: ["images"],
+                              allowsEditing: true,
+                              aspect: [1, 1],
+                              quality: 0.5,
+                            });
+                            if (!res.canceled) setTempLogoUri(res.assets[0].uri);
+                          }}
+                          style={[styles.logoPicker, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.borderLight }]}
+                        >
+                          {tempLogoUri ? (
+                            <Image source={{ uri: tempLogoUri }} style={styles.logoPreview} />
+                          ) : (
+                            <View style={styles.logoPickerInner}>
+                              <Ionicons name="image-outline" size={32} color={currentColors.textMuted} />
+                              <Text style={[styles.logoPickerText, { color: currentColors.textMuted }]}>Toca para elegir logo</Text>
+                            </View>
+                          )}
                         </Pressable>
-                      ))}
-                    </ScrollView>
+                      </View>
+                    )}
 
-                    <Text style={[styles.label, { color: currentColors.textMuted }]}>Nombre del Capitán</Text>
-                    <TextInput style={[styles.input, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.borderLight, color: currentColors.text }]} placeholder="Nombre" placeholderTextColor={currentColors.textMuted} value={teamForm.captain_name} onChangeText={(t) => setTeamForm({...teamForm, captain_name: t})} />
-                    <Text style={[styles.label, { color: currentColors.textMuted }]}>Teléfono del Capitán</Text>
-                    <TextInput style={[styles.input, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.borderLight, color: currentColors.text }]} placeholder="618..." placeholderTextColor={currentColors.textMuted} keyboardType="phone-pad" value={teamForm.captain_phone} onChangeText={(t) => setTeamForm({...teamForm, captain_phone: t})} />
+                    {/* STEP 2 */}
+                    {createStep === 2 && (
+                      <View>
+                        <Text style={[styles.stepTitle, { color: currentColors.text }]}>¿En qué categoría juegan?</Text>
+                        <Text style={[styles.helperText, { color: currentColors.textMuted, marginBottom: 14 }]}>
+                          1) Elige el tipo · 2) Elige el nivel
+                        </Text>
 
-                    <Pressable style={styles.submitBtn} onPress={handleCreateTeam} disabled={creating}>
-                      <LinearGradient colors={[BRAND_GRADIENT[0], BRAND_GRADIENT[1]]} style={styles.submitBtnGradient}>
-                        {creating ? <ActivityIndicator color="#FFF" /> : <Text style={styles.submitBtnText}>Inscribir Equipo</Text>}
-                      </LinearGradient>
-                    </Pressable>
+                        <View style={styles.groupGrid}>
+                          {CATEGORY_GROUPS.map((group) => {
+                            const selected = categoryGroup === group.id;
+                            return (
+                              <Pressable
+                                key={group.id}
+                                onPress={() => {
+                                  setCategoryGroup(group.id);
+                                  if (group.id === "teens") {
+                                    setTeamForm({ ...teamForm, category: "teens" });
+                                  } else {
+                                    setTeamForm({ ...teamForm, category: "" });
+                                  }
+                                }}
+                                style={[
+                                  styles.groupCard,
+                                  {
+                                    backgroundColor: selected ? `${BRAND_GRADIENT[0]}15` : currentColors.bgSecondary,
+                                    borderColor: selected ? BRAND_GRADIENT[0] : currentColors.borderLight,
+                                  },
+                                ]}
+                              >
+                                <Ionicons name={group.icon} size={22} color={selected ? BRAND_GRADIENT[0] : currentColors.textMuted} />
+                                <Text style={[styles.groupCardTitle, { color: currentColors.text }]}>{group.label}</Text>
+                                <Text style={[styles.groupCardHint, { color: currentColors.textMuted }]}>{group.hint}</Text>
+                              </Pressable>
+                            );
+                          })}
+                        </View>
+
+                        {categoryGroup && categoryGroup !== "teens" && (
+                          <>
+                            <Text style={[styles.label, { color: currentColors.textMuted, marginTop: 8 }]}>Nivel</Text>
+                            <View style={styles.levelWrap}>
+                              {CATEGORIES.filter((c) => c.group === categoryGroup).map((cat) => {
+                                const selected = teamForm.category === cat.id;
+                                return (
+                                  <Pressable
+                                    key={cat.id}
+                                    onPress={() => setTeamForm({ ...teamForm, category: cat.id })}
+                                    style={[
+                                      styles.levelChip,
+                                      {
+                                        backgroundColor: selected ? BRAND_GRADIENT[0] : currentColors.bgSecondary,
+                                        borderColor: selected ? BRAND_GRADIENT[0] : currentColors.borderLight,
+                                      },
+                                    ]}
+                                  >
+                                    <Text style={[styles.levelChipText, { color: selected ? "#FFF" : currentColors.text }]}>
+                                      {cat.label}
+                                    </Text>
+                                  </Pressable>
+                                );
+                              })}
+                            </View>
+                          </>
+                        )}
+
+                        {teamForm.category ? (
+                          <View style={[styles.selectedBanner, { backgroundColor: isDark ? "rgba(16,185,129,0.15)" : "#ECFDF5" }]}>
+                            <Ionicons name="checkmark-circle" size={18} color="#10B981" />
+                            <Text style={{ color: "#059669", fontWeight: "800", flex: 1 }}>
+                              {CATEGORIES.find((c) => c.id === teamForm.category)?.group === "teens"
+                                ? "Teens"
+                                : `${categoryGroup?.toUpperCase()} · ${CATEGORIES.find((c) => c.id === teamForm.category)?.label}`}
+                            </Text>
+                          </View>
+                        ) : null}
+                      </View>
+                    )}
+
+                    {/* STEP 3 */}
+                    {createStep === 3 && (
+                      <View>
+                        <Text style={[styles.stepTitle, { color: currentColors.text }]}>Confirma y registra</Text>
+
+                        <View style={[styles.summaryBox, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.borderLight }]}>
+                          <Text style={[styles.summaryLabel, { color: currentColors.textMuted }]}>Equipo</Text>
+                          <Text style={[styles.summaryValue, { color: currentColors.text }]}>{teamForm.name}</Text>
+                          <Text style={[styles.summaryLabel, { color: currentColors.textMuted, marginTop: 10 }]}>Categoría</Text>
+                          <Text style={[styles.summaryValue, { color: currentColors.text }]}>
+                            {teamForm.category.replace("-", " ").toUpperCase()}
+                          </Text>
+                        </View>
+
+                        <Text style={[styles.label, { color: currentColors.textMuted }]}>Temporada</Text>
+                        <View style={styles.levelWrap}>
+                          {seasons.map((season) => {
+                            const selected = teamForm.season_id === season.id;
+                            return (
+                              <Pressable
+                                key={season.id}
+                                style={[
+                                  styles.levelChip,
+                                  {
+                                    backgroundColor: selected ? BRAND_GRADIENT[0] : currentColors.bgSecondary,
+                                    borderColor: selected ? BRAND_GRADIENT[0] : currentColors.borderLight,
+                                  },
+                                ]}
+                                onPress={() => setTeamForm({ ...teamForm, season_id: season.id })}
+                              >
+                                <Text style={[styles.levelChipText, { color: selected ? "#FFF" : currentColors.text }]}>
+                                  {seasonLabel(season)}
+                                </Text>
+                              </Pressable>
+                            );
+                          })}
+                        </View>
+
+                        <Text style={[styles.label, { color: currentColors.textMuted }]}>Capitán (opcional)</Text>
+                        <Text style={[styles.helperText, { color: currentColors.textMuted }]}>
+                          Puedes dejarlo vacío y llenarlo después.
+                        </Text>
+                        <TextInput
+                          style={[styles.input, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.borderLight, color: currentColors.text }]}
+                          placeholder="Nombre del capitán"
+                          placeholderTextColor={currentColors.textMuted}
+                          value={teamForm.captain_name}
+                          onChangeText={(t) => setTeamForm({ ...teamForm, captain_name: t })}
+                        />
+                        <TextInput
+                          style={[styles.input, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.borderLight, color: currentColors.text }]}
+                          placeholder="Teléfono (ej. 6181234567)"
+                          placeholderTextColor={currentColors.textMuted}
+                          keyboardType="phone-pad"
+                          value={teamForm.captain_phone}
+                          onChangeText={(t) => setTeamForm({ ...teamForm, captain_phone: t })}
+                        />
+                      </View>
+                    )}
+
+                    {/* Navigation */}
+                    <View style={styles.wizardNav}>
+                      {createStep > 1 ? (
+                        <Pressable style={styles.wizardBack} onPress={() => setCreateStep((s) => s - 1)}>
+                          <Ionicons name="arrow-back" size={18} color={currentColors.text} />
+                          <Text style={[styles.wizardBackText, { color: currentColors.text }]}>Atrás</Text>
+                        </Pressable>
+                      ) : (
+                        <View style={{ flex: 1 }} />
+                      )}
+                      <Pressable style={styles.wizardNext} onPress={goNextCreateStep} disabled={creating}>
+                        <LinearGradient colors={[BRAND_GRADIENT[0], BRAND_GRADIENT[1]]} style={styles.wizardNextGrad}>
+                          {creating ? (
+                            <ActivityIndicator color="#FFF" />
+                          ) : (
+                            <>
+                              <Text style={styles.submitBtnText}>
+                                {createStep === 3 ? "Inscribir equipo" : "Continuar"}
+                              </Text>
+                              <Ionicons name={createStep === 3 ? "checkmark" : "arrow-forward"} size={18} color="#FFF" />
+                            </>
+                          )}
+                        </LinearGradient>
+                      </Pressable>
+                    </View>
                   </View>
                 )}
 
@@ -873,19 +1126,80 @@ const styles = StyleSheet.create({
   playerRowPos: { fontSize: 11, fontWeight: "700", textTransform: 'uppercase', marginTop: 2 },
   editPlayerBtn: { width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center', borderWidth: 1 },
   
-  formCard: { padding: 25, borderRadius: 28, elevation: 3, borderWidth: 1, marginBottom: 25 },
-  cardTitle: { fontSize: 20, fontWeight: "900", marginBottom: 20, letterSpacing: -0.5 },
-  logoPicker: { width: '100%', height: 120, borderRadius: 20, borderStyle: 'dashed', borderWidth: 2, justifyContent: 'center', alignItems: 'center', marginBottom: 20, overflow: 'hidden' },
-  logoPickerInner: { alignItems: 'center' },
-  logoPickerText: { fontSize: 12, fontWeight: '800', marginTop: 6 },
-  logoPreview: { width: '100%', height: '100%', resizeMode: 'cover' },
+  formCard: { padding: 22, borderRadius: 28, elevation: 3, borderWidth: 1, marginBottom: 25 },
+  cardTitle: { fontSize: 22, fontWeight: "900", marginBottom: 4, letterSpacing: -0.5 },
+  wizardHint: { fontSize: 13, fontWeight: "600", marginBottom: 18 },
+  wizardProgress: { flexDirection: "row", justifyContent: "space-between", marginBottom: 22 },
+  wizardProgressItem: { flex: 1, alignItems: "center", gap: 6 },
+  wizardDot: { width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center" },
+  wizardDotText: { fontSize: 13, fontWeight: "900" },
+  wizardStepLabel: { fontSize: 11, fontWeight: "700" },
+  stepTitle: { fontSize: 18, fontWeight: "800", marginBottom: 12, letterSpacing: -0.3 },
+  helperText: { fontSize: 12, fontWeight: "500", marginBottom: 10, lineHeight: 17 },
+  inputBig: { fontSize: 17, paddingVertical: 18 },
+  groupGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 12 },
+  groupCard: {
+    width: "47%",
+    flexGrow: 1,
+    minWidth: 140,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    padding: 14,
+    gap: 4,
+  },
+  groupCardTitle: { fontSize: 15, fontWeight: "900", marginTop: 4 },
+  groupCardHint: { fontSize: 11, fontWeight: "600" },
+  levelWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 14 },
+  levelChip: { paddingHorizontal: 16, paddingVertical: 12, borderRadius: 14, borderWidth: 1 },
+  levelChipText: { fontSize: 14, fontWeight: "800" },
+  selectedBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 4,
+  },
+  summaryBox: { borderRadius: 16, borderWidth: 1, padding: 16, marginBottom: 16 },
+  summaryLabel: { fontSize: 11, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.5 },
+  summaryValue: { fontSize: 17, fontWeight: "900", marginTop: 2 },
+  wizardNav: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 8 },
+  wizardBack: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+  },
+  wizardBackText: { fontSize: 14, fontWeight: "800" },
+  wizardNext: { flex: 1, borderRadius: 16, overflow: "hidden" },
+  wizardNextGrad: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 16,
+  },
+  emptyCta: { borderRadius: 16, overflow: "hidden", alignSelf: "stretch", marginTop: 4 },
+  emptyCtaGrad: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 14,
+  },
+  emptyCtaText: { color: "#FFF", fontWeight: "900", fontSize: 15 },
+  logoPicker: { width: "100%", height: 120, borderRadius: 20, borderStyle: "dashed", borderWidth: 2, justifyContent: "center", alignItems: "center", marginBottom: 20, overflow: "hidden" },
+  logoPickerInner: { alignItems: "center" },
+  logoPickerText: { fontSize: 12, fontWeight: "800", marginTop: 6 },
+  logoPreview: { width: "100%", height: "100%", resizeMode: "cover" },
   label: { fontSize: 11, fontWeight: "800", textTransform: "uppercase", marginBottom: 8, letterSpacing: 0.5 },
-  input: { borderRadius: 16, padding: 16, marginBottom: 18, borderWidth: 1, fontWeight: '600', fontSize: 15 },
+  input: { borderRadius: 16, padding: 16, marginBottom: 18, borderWidth: 1, fontWeight: "600", fontSize: 15 },
   categoryScroll: { marginBottom: 20 },
   catChip: { paddingHorizontal: 16, paddingVertical: 12, borderRadius: 20, marginRight: 10, borderWidth: 1 },
   catChipActive: { backgroundColor: BRAND_GRADIENT[0], borderColor: BRAND_GRADIENT[0] },
   catChipText: { fontSize: 13, fontWeight: "800" },
-  submitBtn: { borderRadius: 16, overflow: 'hidden', marginTop: 5 },
+  submitBtn: { borderRadius: 16, overflow: "hidden", marginTop: 5 },
   submitBtnGradient: { padding: 18, alignItems: "center" },
   submitBtnText: { color: "#FFF", fontWeight: "900", fontSize: 15, letterSpacing: 0.5 },
   

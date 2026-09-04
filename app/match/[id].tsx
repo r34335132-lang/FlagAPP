@@ -11,31 +11,79 @@ import {
   useColorScheme,
   useWindowDimensions,
   Animated,
-  Easing
+  Easing,
+  Platform,
 } from "react-native";
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
 import { supabase } from "@/lib/supabase";
-import { BRAND_GRADIENT, Colors } from "@/constants/colors"; 
-import { useHeadToHead } from "@/hooks/useTeams"; 
+import { BRAND_GRADIENT, Colors } from "@/constants/colors";
+import { useHeadToHead } from "@/hooks/useTeams";
 
 import ViewShot from "react-native-view-shot";
 import * as Sharing from "expo-sharing";
 
+const SUBTITLE = "#8F9BB3";
+const CARD_RADIUS = 24;
+
+const premiumShadow = Platform.select({
+  ios: {
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 20,
+  },
+  android: { elevation: 6 },
+  default: {
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 20,
+  },
+});
+
+const logoShadow = Platform.select({
+  ios: {
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+  },
+  android: { elevation: 8 },
+  default: {
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+  },
+});
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 1. ANIMACIONES
 // ─────────────────────────────────────────────────────────────────────────────
-const FadeInView = ({ children, delay = 0 }: { children: any, delay?: number }) => {
+const FadeInView = ({ children, delay = 0 }: { children: any; delay?: number }) => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(15)).current;
 
   useEffect(() => {
     Animated.parallel([
-      Animated.timing(fadeAnim, { toValue: 1, duration: 500, delay, useNativeDriver: true, easing: Easing.out(Easing.cubic) }),
-      Animated.timing(slideAnim, { toValue: 0, duration: 500, delay, useNativeDriver: true, easing: Easing.out(Easing.cubic) })
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 500,
+        delay,
+        useNativeDriver: true,
+        easing: Easing.out(Easing.cubic),
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 500,
+        delay,
+        useNativeDriver: true,
+        easing: Easing.out(Easing.cubic),
+      }),
     ]).start();
   }, []);
 
@@ -49,10 +97,12 @@ const FadeInView = ({ children, delay = 0 }: { children: any, delay?: number }) 
 const LivePulse = () => {
   const pulseAnim = useRef(new Animated.Value(1)).current;
   useEffect(() => {
-    Animated.loop(Animated.sequence([
-      Animated.timing(pulseAnim, { toValue: 1.4, duration: 800, useNativeDriver: true }),
-      Animated.timing(pulseAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
-    ])).start();
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 1.4, duration: 800, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
+      ])
+    ).start();
   }, []);
   return <Animated.View style={[styles.liveDot, { transform: [{ scale: pulseAnim }] }]} />;
 };
@@ -79,7 +129,9 @@ function useLiveTimer(game: any) {
       }
       const min = Math.floor(remaining / 60);
       const sec = remaining % 60;
-      setDisplayTime(`${game.current_period ?? '1H'} • ${min.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`);
+      setDisplayTime(
+        `${game.current_period ?? "1H"} • ${min.toString().padStart(2, "0")}:${sec.toString().padStart(2, "0")}`
+      );
     };
     updateClock();
     let interval: NodeJS.Timeout;
@@ -96,20 +148,23 @@ export default function MatchDetailScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  
-  // 🔥 Soporte para Tablets 🔥
+
   const { width } = useWindowDimensions();
   const isTablet = width >= 768;
 
   const [game, setGame] = useState<any>(null);
   const [teams, setTeams] = useState<any[]>([]);
-  const [players, setPlayers] = useState<any[]>([]); 
+  const [players, setPlayers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  
+
   const [activeRoster, setActiveRoster] = useState<"home" | "away">("home");
 
   const theme = useColorScheme() ?? "light";
   const currentColors = Colors[theme];
+  const isDark = theme === "dark";
+  const pageBg = isDark ? currentColors.bg : "#F7F9FC";
+  const cardBg = isDark ? currentColors.card : "#FFFFFF";
+  const muted = isDark ? currentColors.textMuted : SUBTITLE;
 
   const scoreboardRef = useRef<ViewShot>(null);
   const timeDisplay = useLiveTimer(game);
@@ -120,36 +175,40 @@ export default function MatchDetailScreen() {
 
     const subscription = supabase
       .channel(`game-${id}`)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'games', filter: `id=eq.${id}` }, 
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "games", filter: `id=eq.${id}` },
         (payload) => setGame(payload.new)
       )
       .subscribe();
 
-    return () => { supabase.removeChannel(subscription); };
+    return () => {
+      supabase.removeChannel(subscription);
+    };
   }, [id]);
 
   const fetchData = async () => {
     setLoading(true);
     try {
       const { data: gameData } = await supabase.from("games").select("*").eq("id", id).single();
-      
+
       if (gameData) {
         const { data: teamsData } = await supabase
           .from("teams")
           .select("*")
           .in("name", [gameData.home_team, gameData.away_team]);
-        
+
         setGame(gameData);
         setTeams(teamsData || []);
 
         if (teamsData && teamsData.length > 0) {
-          const teamIds = teamsData.map(t => t.id);
+          const teamIds = teamsData.map((t) => t.id);
           const { data: playersData } = await supabase
             .from("players")
             .select("*")
             .in("team_id", teamIds)
             .order("jersey_number", { ascending: true });
-          
+
           setPlayers(playersData || []);
         }
       }
@@ -167,12 +226,12 @@ export default function MatchDetailScreen() {
       if (scoreboardRef.current && scoreboardRef.current.capture) {
         const uri = await scoreboardRef.current.capture();
         const isAvailable = await Sharing.isAvailableAsync();
-        
+
         if (isAvailable) {
           await Sharing.shareAsync(uri, {
-            mimeType: 'image/jpeg',
-            dialogTitle: 'Comparte este marcador',
-            UTI: 'public.jpeg',
+            mimeType: "image/jpeg",
+            dialogTitle: "Comparte este marcador",
+            UTI: "public.jpeg",
           });
         } else {
           Alert.alert("Aviso", "La opción de compartir no está disponible.");
@@ -193,7 +252,7 @@ export default function MatchDetailScreen() {
 
   if (loading || !game) {
     return (
-      <View style={[styles.loadingCenter, { backgroundColor: currentColors.bg }]}>
+      <View style={[styles.loadingCenter, { backgroundColor: pageBg }]}>
         <ActivityIndicator size="large" color={BRAND_GRADIENT[0]} />
       </View>
     );
@@ -210,254 +269,521 @@ export default function MatchDetailScreen() {
   const hExtra = hScore % 6;
   const aExtra = aScore % 6;
 
-  const homeRoster = players.filter(p => p.team_id === homeTeam?.id);
-  const awayRoster = players.filter(p => p.team_id === awayTeam?.id);
+  const homeRoster = players.filter((p) => p.team_id === homeTeam?.id);
+  const awayRoster = players.filter((p) => p.team_id === awayTeam?.id);
   const currentDisplayRoster = activeRoster === "home" ? homeRoster : awayRoster;
-  
+
   const homeColor = homeTeam?.color1 || BRAND_GRADIENT[0];
-  const awayColor = awayTeam?.color1 || currentColors.textMuted;
+  const awayColor = awayTeam?.color1 || BRAND_GRADIENT[2];
   const currentTeamColor = activeRoster === "home" ? homeColor : awayColor;
 
+  const scoreboardColors: [string, string, string] =
+    homeTeam?.color1 && awayTeam?.color1
+      ? [homeColor, BRAND_GRADIENT[1], awayColor]
+      : BRAND_GRADIENT;
+
   return (
-    <View style={[styles.container, { backgroundColor: currentColors.bg }]}>
+    <View style={[styles.container, { backgroundColor: pageBg }]}>
       <Stack.Screen options={{ headerShown: false }} />
 
-      {/* BOTONES FLOTANTES DE CRISTAL */}
-      <View style={[styles.floatingHeader, { top: insets.top + 10 }, isTablet && styles.floatingHeaderTablet]}>
-        <Pressable onPress={handleBack}>
-          <BlurView intensity={80} tint="dark" style={styles.floatingBtn}>
-            <Ionicons name="chevron-back" size={24} color="#FFF" />
+      {/* BOTONES FLOTANTES CRISTAL */}
+      <View
+        style={[
+          styles.floatingHeader,
+          { top: insets.top + 10 },
+          isTablet && styles.floatingHeaderTablet,
+        ]}
+        pointerEvents="box-none"
+      >
+        <Pressable
+          onPress={handleBack}
+          style={({ pressed }) => [{ transform: [{ scale: pressed ? 0.92 : 1 }] }]}
+          hitSlop={8}
+        >
+          <BlurView intensity={70} tint="dark" style={styles.floatingBtn}>
+            <Ionicons name="chevron-back" size={22} color="#FFF" />
           </BlurView>
         </Pressable>
-        <Pressable onPress={handleShare}>
-          <BlurView intensity={80} tint="dark" style={styles.floatingBtn}>
-            <Ionicons name="share-social" size={22} color="#FFF" />
+
+        <Pressable
+          onPress={handleShare}
+          style={({ pressed }) => [{ transform: [{ scale: pressed ? 0.92 : 1 }] }]}
+          hitSlop={8}
+        >
+          <BlurView intensity={70} tint="dark" style={styles.floatingBtn}>
+            <Ionicons name="share-outline" size={20} color="#FFF" />
           </BlurView>
         </Pressable>
       </View>
 
-      <ScrollView bounces={false} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}>
-        
-        {/* --- ÁREA COMPARTIBLE (MARCADOR Y ANÁLISIS) --- */}
-        <ViewShot 
-          ref={scoreboardRef} 
-          options={{ format: "jpg", quality: 0.9 }} 
-          style={{ backgroundColor: currentColors.bg, paddingBottom: 15 }}
+      <ScrollView
+        bounces={false}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{
+          paddingBottom: insets.bottom + 48,
+          ...(isTablet ? { maxWidth: 800, alignSelf: "center", width: "100%" } : null),
+        }}
+      >
+        {/* --- ÁREA COMPARTIBLE --- */}
+        <ViewShot
+          ref={scoreboardRef}
+          options={{ format: "jpg", quality: 0.9 }}
+          style={{ backgroundColor: pageBg }}
         >
-          {/* HEADER DEL MARCADOR */}
-          <LinearGradient colors={[BRAND_GRADIENT[0], BRAND_GRADIENT[1]]} style={[styles.scoreboard, { paddingTop: insets.top + 65 }]}>
-            <View style={styles.contentWrapper}>
-              <View style={styles.statusContainer}>
+          <FadeInView delay={60}>
+            {/* SCOREBOARD GRADIENT HERO */}
+            <LinearGradient
+              colors={scoreboardColors}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={[styles.scoreboardHero, { paddingTop: insets.top + 64 }]}
+            >
+              {/* Decorative soft overlays */}
+              <View style={styles.heroGlowLeft} />
+              <View style={styles.heroGlowRight} />
+
+              <View style={styles.statusRow}>
                 {isLive ? (
-                  <View style={styles.statusBadgeLive}>
+                  <View style={styles.liveBadge}>
                     <LivePulse />
-                    <Text style={styles.statusTextLive}>{timeDisplay}</Text>
+                    <Text style={styles.liveBadgeText}>EN VIVO</Text>
                   </View>
                 ) : (
-                  <View style={styles.statusBadge}>
-                    <Text style={styles.statusText}>{timeDisplay}</Text>
+                  <View style={styles.statusBadgeGlass}>
+                    <Text style={styles.statusBadgeText}>{timeDisplay || "PROGRAMADO"}</Text>
                   </View>
                 )}
-                <Text style={styles.categoryHeader}>{game.category?.toUpperCase()} • {game.match_type?.toUpperCase()}</Text>
+                {isLive && <Text style={styles.periodText}>{timeDisplay}</Text>}
               </View>
 
-              <View style={styles.teamsMainRow}>
-                <View style={styles.teamBrand}>
-                  <View style={styles.logoCircleFixed}>
-                    <Image source={{ uri: homeTeam?.logo_url || "https://via.placeholder.com/100" }} style={styles.mainLogo} resizeMode="contain" />
+              <View style={styles.scoreboardRow}>
+                <View style={styles.teamCol}>
+                  <View style={[styles.logoCircle, logoShadow]}>
+                    <Image
+                      source={{ uri: homeTeam?.logo_url || "https://via.placeholder.com/100" }}
+                      style={styles.logo}
+                      resizeMode="contain"
+                    />
                   </View>
-                  <Text style={styles.teamNameMain}>{game.home_team}</Text>
+                  <Text style={styles.teamNameHero} numberOfLines={2}>
+                    {game.home_team}
+                  </Text>
+                  <View style={[styles.teamColorDot, { backgroundColor: homeColor }]} />
                 </View>
 
-                <View style={styles.scoreContainer}>
-                  <Text style={styles.scoreNumber}>{hScore}</Text>
-                  <Text style={styles.scoreDivider}>-</Text>
-                  <Text style={styles.scoreNumber}>{aScore}</Text>
+                <View style={styles.scoreBlock}>
+                  <Text style={styles.scoreGiant}>{hScore}</Text>
+                  <Text style={styles.scoreSep}>:</Text>
+                  <Text style={styles.scoreGiant}>{aScore}</Text>
                 </View>
 
-                <View style={styles.teamBrand}>
-                  <View style={styles.logoCircleFixed}>
-                    <Image source={{ uri: awayTeam?.logo_url || "https://via.placeholder.com/100" }} style={styles.mainLogo} resizeMode="contain" />
+                <View style={styles.teamCol}>
+                  <View style={[styles.logoCircle, logoShadow]}>
+                    <Image
+                      source={{ uri: awayTeam?.logo_url || "https://via.placeholder.com/100" }}
+                      style={styles.logo}
+                      resizeMode="contain"
+                    />
                   </View>
-                  <Text style={styles.teamNameMain}>{game.away_team}</Text>
+                  <Text style={styles.teamNameHero} numberOfLines={2}>
+                    {game.away_team}
+                  </Text>
+                  <View style={[styles.teamColorDot, { backgroundColor: awayColor }]} />
                 </View>
               </View>
-            </View>
-          </LinearGradient>
+            </LinearGradient>
+          </FadeInView>
 
-          {/* CONTENIDO DEL PARTIDO */}
-          <View style={[styles.content, styles.contentWrapper]}>
-            <FadeInView delay={100}>
-              <View style={[styles.infoCard, { backgroundColor: currentColors.card, borderColor: currentColors.borderLight, shadowColor: theme === 'dark' ? '#000' : '#475569' }]}>
-                 <View style={styles.infoRow}>
-                    <View style={[styles.iconCircle, { backgroundColor: currentColors.bgSecondary }]}><Ionicons name="location" size={20} color={BRAND_GRADIENT[0]} /></View>
-                    <View style={{flex: 1}}>
-                      <Text style={[styles.infoLabel, { color: currentColors.textMuted }]}>Sede y Campo</Text>
-                      <Text style={[styles.infoValue, { color: currentColors.text }]}>{game.venue || "Sede TBD"} • {game.field || "Campo TBD"}</Text>
-                    </View>
-                 </View>
-                 <View style={[styles.divider, { backgroundColor: currentColors.borderLight }]} />
-                 <View style={styles.infoRow}>
-                    <View style={[styles.iconCircle, { backgroundColor: currentColors.bgSecondary }]}><Ionicons name="calendar" size={20} color={BRAND_GRADIENT[0]} /></View>
-                    <View style={{flex: 1}}>
-                      <Text style={[styles.infoLabel, { color: currentColors.textMuted }]}>Fecha y Hora</Text>
-                      <Text style={[styles.infoValue, { color: currentColors.text }]}>
-                        {game.game_date ? new Date(game.game_date).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' }) : 'Fecha TBD'} • {game.game_time?.substring(0,5)} hrs
-                      </Text>
-                    </View>
-                 </View>
+          <View style={styles.contentPad}>
+            <FadeInView delay={120}>
+              {/* META CARD */}
+              <View style={[styles.card, premiumShadow, { backgroundColor: cardBg, marginTop: -28 }]}>
+                <MetaRow
+                  icon="location-outline"
+                  label="Sede"
+                  value={game.venue || "Sede TBD"}
+                  textColor={currentColors.text}
+                  muted={muted}
+                  iconColor={BRAND_GRADIENT[0]}
+                  iconBg={`${BRAND_GRADIENT[0]}18`}
+                />
+                <View
+                  style={[
+                    styles.metaDivider,
+                    { backgroundColor: isDark ? currentColors.borderLight : "#F1F5F9" },
+                  ]}
+                />
+                <MetaRow
+                  icon="football-outline"
+                  label="Campo"
+                  value={game.field || "Campo TBD"}
+                  textColor={currentColors.text}
+                  muted={muted}
+                  iconColor={BRAND_GRADIENT[1]}
+                  iconBg={`${BRAND_GRADIENT[1]}18`}
+                />
+                <View
+                  style={[
+                    styles.metaDivider,
+                    { backgroundColor: isDark ? currentColors.borderLight : "#F1F5F9" },
+                  ]}
+                />
+                <MetaRow
+                  icon="ribbon-outline"
+                  label="Categoría"
+                  value={(game.category || "—").toString().replace("-", " ")}
+                  textColor={currentColors.text}
+                  muted={muted}
+                  iconColor={BRAND_GRADIENT[2]}
+                  iconBg={`${BRAND_GRADIENT[2]}18`}
+                />
+                <View
+                  style={[
+                    styles.metaDivider,
+                    { backgroundColor: isDark ? currentColors.borderLight : "#F1F5F9" },
+                  ]}
+                />
+                <MetaRow
+                  icon="calendar-outline"
+                  label="Jornada"
+                  value={
+                    game.jornada
+                      ? `Jornada ${game.jornada}`
+                      : game.game_date
+                        ? `${new Date(game.game_date).toLocaleDateString("es-ES", {
+                            weekday: "short",
+                            day: "numeric",
+                            month: "short",
+                          })}${game.game_time ? ` · ${game.game_time.substring(0, 5)} hrs` : ""}`
+                        : "Por definir"
+                  }
+                  textColor={currentColors.text}
+                  muted={muted}
+                  iconColor={homeColor}
+                  iconBg={`${homeColor}18`}
+                />
               </View>
+            </FadeInView>
 
-              {game.mvp && (
-                <LinearGradient 
-                  colors={theme === 'dark' ? ['#78350F', currentColors.card] : ['#FFFBEB', '#FFFFFF']} 
-                  style={[styles.mvpCard, { borderColor: theme === 'dark' ? '#92400E' : '#FDE68A', shadowColor: theme === 'dark' ? '#000' : '#F59E0B' }]}
+            {game.mvp ? (
+              <FadeInView delay={160}>
+                <View
+                  style={[
+                    styles.card,
+                    styles.mvpCard,
+                    premiumShadow,
+                    { backgroundColor: cardBg, marginTop: 16 },
+                  ]}
                 >
-                  <View style={[styles.mvpIconWrap, { backgroundColor: theme === 'dark' ? '#92400E' : '#FEF3C7' }]}>
-                    <Ionicons name="ribbon" size={28} color="#F59E0B" />
-                  </View>
-                  <View style={{marginLeft: 15, flex: 1}}>
-                    <Text style={[styles.mvpTitle, { color: theme === 'dark' ? '#FDE68A' : '#D97706' }]}>MVP DEL PARTIDO</Text>
-                    <Text style={[styles.mvpName, { color: theme === 'dark' ? '#FFF' : '#92400E' }]}>{game.mvp}</Text>
+                  <LinearGradient
+                    colors={["#F59E0B", "#F97316"]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.mvpIcon}
+                  >
+                    <Ionicons name="ribbon" size={22} color="#FFF" />
+                  </LinearGradient>
+                  <View style={{ flex: 1, marginLeft: 14 }}>
+                    <Text style={[styles.mvpLabel, { color: muted }]}>MVP DEL PARTIDO</Text>
+                    <Text style={[styles.mvpName, { color: currentColors.text }]}>{game.mvp}</Text>
                   </View>
                   <Ionicons name="star" size={20} color="#F59E0B" />
-                </LinearGradient>
-              )}
+                </View>
+              </FadeInView>
+            ) : null}
 
-              {/* ESTADÍSTICAS DEL MARCADOR */}
-              <Text style={[styles.sectionTitle, { color: currentColors.text }]}>Análisis de Anotaciones</Text>
-              <View style={[styles.statsCard, { backgroundColor: currentColors.card, borderColor: currentColors.borderLight, shadowColor: theme === 'dark' ? '#000' : '#475569' }]}>
-                <StatBar label="Touchdowns (6 pts)" home={hTDs} away={aTDs} colors={currentColors} />
-                <StatBar label="Extras / Safeties" home={hExtra} away={aExtra} colors={currentColors} />
-
-                <View style={[styles.efficiencyContainer, { borderTopColor: currentColors.borderLight }]}>
-                   <View style={styles.fullBar}>
-                      <View style={[styles.homeSegment, { flex: hScore || 1 }]} />
-                      <View style={[styles.awaySegment, { flex: aScore || 1, backgroundColor: currentColors.border }]} />
-                   </View>
+            <FadeInView delay={180}>
+              <Text style={[styles.sectionLabel, { color: currentColors.text }]}>Análisis</Text>
+              <View style={[styles.card, premiumShadow, { backgroundColor: cardBg }]}>
+                <StatBar
+                  label="Touchdowns (6 pts)"
+                  home={hTDs}
+                  away={aTDs}
+                  colors={currentColors}
+                  muted={muted}
+                  homeColor={homeColor}
+                  awayColor={awayColor}
+                />
+                <StatBar
+                  label="Extras / Safeties"
+                  home={hExtra}
+                  away={aExtra}
+                  colors={currentColors}
+                  muted={muted}
+                  homeColor={homeColor}
+                  awayColor={awayColor}
+                />
+                <View
+                  style={[
+                    styles.efficiencyWrap,
+                    { borderTopColor: isDark ? currentColors.borderLight : "#F1F5F9" },
+                  ]}
+                >
+                  <View style={styles.efficiencyLabels}>
+                    <View style={[styles.effDot, { backgroundColor: homeColor }]} />
+                    <Text style={[styles.effLabel, { color: muted }]}>{game.home_team}</Text>
+                    <View style={{ flex: 1 }} />
+                    <Text style={[styles.effLabel, { color: muted }]}>{game.away_team}</Text>
+                    <View style={[styles.effDot, { backgroundColor: awayColor }]} />
+                  </View>
+                  <View style={styles.fullBar}>
+                    <View style={[styles.homeSegment, { flex: hScore || 1, backgroundColor: homeColor }]} />
+                    <View style={[styles.awaySegment, { flex: aScore || 1, backgroundColor: awayColor }]} />
+                  </View>
                 </View>
               </View>
+            </FadeInView>
 
-              {/* CARA A CARA */}
-              {h2h && (
-                <>
-                  <Text style={[styles.sectionTitle, { color: currentColors.text, marginTop: 25 }]}>Cara a Cara (Historial)</Text>
-                  <View style={[styles.h2hCard, { backgroundColor: currentColors.card, borderColor: currentColors.borderLight, shadowColor: theme === 'dark' ? '#000' : '#475569' }]}>
-                    {h2h.totalGames === 0 ? (
-                      <View style={styles.h2hEmpty}>
-                        <Ionicons name="shield-half-outline" size={36} color={currentColors.textMuted} />
-                        <Text style={[styles.h2hEmptyText, { color: currentColors.textSecondary }]}>Primer enfrentamiento registrado en la liga.</Text>
+            {h2h ? (
+              <FadeInView delay={220}>
+                <Text style={[styles.sectionLabel, { color: currentColors.text }]}>Cara a cara</Text>
+                <View style={[styles.card, premiumShadow, { backgroundColor: cardBg }]}>
+                  {h2h.totalGames === 0 ? (
+                    <View style={styles.h2hEmpty}>
+                      <View style={[styles.h2hEmptyIcon, { backgroundColor: `${BRAND_GRADIENT[0]}15` }]}>
+                        <Ionicons name="shield-half-outline" size={28} color={BRAND_GRADIENT[0]} />
                       </View>
-                    ) : (
-                      <>
-                        <View style={styles.h2hRow}>
-                          <View style={styles.h2hTeam}>
-                            <Text style={[styles.h2hWins, { color: homeColor }]}>{h2h.team1Wins}</Text>
-                            <Text style={[styles.h2hLabel, { color: currentColors.textSecondary }]}>Victorias</Text>
-                          </View>
-                          
-                          <View style={styles.h2hCenter}>
-                            <Text style={[styles.h2hTotal, { color: currentColors.text }]}>{h2h.totalGames}</Text>
-                            <Text style={[styles.h2hLabel, { color: currentColors.textSecondary }]}>Partidos</Text>
-                            {h2h.draws > 0 && <Text style={[styles.h2hDraws, { color: currentColors.textMuted }]}>{h2h.draws} Empates</Text>}
-                          </View>
-
-                          <View style={styles.h2hTeam}>
-                            <Text style={[styles.h2hWins, { color: awayColor }]}>{h2h.team2Wins}</Text>
-                            <Text style={[styles.h2hLabel, { color: currentColors.textSecondary }]}>Victorias</Text>
-                          </View>
+                      <Text style={[styles.h2hEmptyText, { color: muted }]}>
+                        Primer enfrentamiento registrado en la liga.
+                      </Text>
+                    </View>
+                  ) : (
+                    <>
+                      <View style={styles.h2hRow}>
+                        <View style={styles.h2hTeam}>
+                          <Text style={[styles.h2hWins, { color: homeColor }]}>{h2h.team1Wins}</Text>
+                          <Text style={[styles.h2hLabel, { color: muted }]}>Victorias</Text>
                         </View>
 
-                        {h2h.lastGame && (
-                          <View style={[styles.lastGameBox, { backgroundColor: currentColors.bgSecondary }]}>
-                            <Text style={[styles.lastGameTitle, { color: currentColors.textMuted }]}>ÚLTIMO ENFRENTAMIENTO</Text>
-                            <Text style={[styles.lastGameResult, { color: currentColors.text }]}>
-                              {h2h.lastGame.home_team}  <Text style={{color: BRAND_GRADIENT[0]}}>{h2h.lastGame.home_score}</Text> - <Text style={{color: BRAND_GRADIENT[0]}}>{h2h.lastGame.away_score}</Text>  {h2h.lastGame.away_team}
-                            </Text>
-                            <Text style={[styles.lastGameDate, { color: currentColors.textSecondary }]}>
-                              {new Date(h2h.lastGame.game_date).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })}
+                        <View style={styles.h2hCenter}>
+                          <View
+                            style={[
+                              styles.h2hTotalBadge,
+                              { backgroundColor: isDark ? currentColors.bgSecondary : "#F7F9FC" },
+                            ]}
+                          >
+                            <Text style={[styles.h2hTotal, { color: currentColors.text }]}>
+                              {h2h.totalGames}
                             </Text>
                           </View>
+                          <Text style={[styles.h2hLabel, { color: muted }]}>Partidos</Text>
+                          {h2h.draws > 0 && (
+                            <Text style={[styles.h2hDraws, { color: muted }]}>{h2h.draws} Empates</Text>
+                          )}
+                        </View>
+
+                        <View style={styles.h2hTeam}>
+                          <Text style={[styles.h2hWins, { color: awayColor }]}>{h2h.team2Wins}</Text>
+                          <Text style={[styles.h2hLabel, { color: muted }]}>Victorias</Text>
+                        </View>
+                      </View>
+
+                      {/* H2H win bar */}
+                      <View style={[styles.h2hBar, { backgroundColor: isDark ? currentColors.bgSecondary : "#EEF2F7" }]}>
+                        <View
+                          style={[
+                            styles.h2hBarFill,
+                            {
+                              flex: h2h.team1Wins || 0.01,
+                              backgroundColor: homeColor,
+                              borderTopLeftRadius: 6,
+                              borderBottomLeftRadius: 6,
+                            },
+                          ]}
+                        />
+                        {h2h.draws > 0 && (
+                          <View
+                            style={[
+                              styles.h2hBarFill,
+                              { flex: h2h.draws, backgroundColor: muted },
+                            ]}
+                          />
                         )}
-                      </>
-                    )}
-                  </View>
-                </>
-              )}
-            </FadeInView>
+                        <View
+                          style={[
+                            styles.h2hBarFill,
+                            {
+                              flex: h2h.team2Wins || 0.01,
+                              backgroundColor: awayColor,
+                              borderTopRightRadius: 6,
+                              borderBottomRightRadius: 6,
+                            },
+                          ]}
+                        />
+                      </View>
+
+                      {h2h.lastGame ? (
+                        <View
+                          style={[
+                            styles.lastGameBox,
+                            { backgroundColor: isDark ? currentColors.bgSecondary : "#F7F9FC" },
+                          ]}
+                        >
+                          <Text style={[styles.lastGameTitle, { color: muted }]}>
+                            ÚLTIMO ENFRENTAMIENTO
+                          </Text>
+                          <Text style={[styles.lastGameResult, { color: currentColors.text }]}>
+                            {h2h.lastGame.home_team}{" "}
+                            <Text style={{ color: homeColor, fontWeight: "900" }}>
+                              {h2h.lastGame.home_score}
+                            </Text>
+                            {" - "}
+                            <Text style={{ color: awayColor, fontWeight: "900" }}>
+                              {h2h.lastGame.away_score}
+                            </Text>{" "}
+                            {h2h.lastGame.away_team}
+                          </Text>
+                          <Text style={[styles.lastGameDate, { color: muted }]}>
+                            {new Date(h2h.lastGame.game_date).toLocaleDateString("es-ES", {
+                              day: "numeric",
+                              month: "long",
+                              year: "numeric",
+                            })}
+                          </Text>
+                        </View>
+                      ) : null}
+                    </>
+                  )}
+                </View>
+              </FadeInView>
+            ) : null}
           </View>
         </ViewShot>
 
-        {/* --- SECCIÓN: ROSTERS (Fuera del ViewShot) --- */}
-        <View style={[styles.rosterSection, styles.contentWrapper]}>
-          <Text style={[styles.sectionTitle, { paddingHorizontal: 20, color: currentColors.text, marginTop: 10 }]}>Alineaciones Oficiales</Text>
-          
-          <View style={[styles.rosterToggleWrapper, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.borderLight }]}>
-            <Pressable 
-              style={[styles.rosterToggleBtn, activeRoster === "home" && { backgroundColor: currentColors.card, shadowColor: theme === 'dark' ? '#000' : '#475569' }]}
-              onPress={() => setActiveRoster("home")}
-            >
-              <Text style={[styles.rosterToggleText, { color: currentColors.textSecondary }, activeRoster === "home" && [styles.rosterToggleTextActive, { color: currentColors.text }]]}>
-                {game.home_team}
-              </Text>
-            </Pressable>
-            <Pressable 
-              style={[styles.rosterToggleBtn, activeRoster === "away" && { backgroundColor: currentColors.card, shadowColor: theme === 'dark' ? '#000' : '#475569' }]}
-              onPress={() => setActiveRoster("away")}
-            >
-              <Text style={[styles.rosterToggleText, { color: currentColors.textSecondary }, activeRoster === "away" && [styles.rosterToggleTextActive, { color: currentColors.text }]]}>
-                {game.away_team}
-              </Text>
-            </Pressable>
-          </View>
+        {/* --- ROSTERS --- */}
+        <View style={styles.contentPad}>
+          <FadeInView delay={260}>
+            <Text style={[styles.sectionLabel, { color: currentColors.text }]}>Alineaciones</Text>
 
-          <View style={styles.rosterListContainer}>
+            <View
+              style={[
+                styles.rosterTabs,
+                { backgroundColor: isDark ? currentColors.bgSecondary : "#EEF2F7" },
+              ]}
+            >
+              <Pressable
+                style={[
+                  styles.rosterTab,
+                  activeRoster === "home" && [
+                    premiumShadow,
+                    { backgroundColor: cardBg, borderBottomColor: homeColor, borderBottomWidth: 3 },
+                  ],
+                ]}
+                onPress={() => setActiveRoster("home")}
+              >
+                <View
+                  style={[
+                    styles.rosterTabDot,
+                    { backgroundColor: homeColor, opacity: activeRoster === "home" ? 1 : 0.35 },
+                  ]}
+                />
+                <Text
+                  style={[
+                    styles.rosterTabText,
+                    { color: muted },
+                    activeRoster === "home" && { color: currentColors.text, fontWeight: "800" },
+                  ]}
+                  numberOfLines={1}
+                >
+                  {game.home_team}
+                </Text>
+              </Pressable>
+              <Pressable
+                style={[
+                  styles.rosterTab,
+                  activeRoster === "away" && [
+                    premiumShadow,
+                    { backgroundColor: cardBg, borderBottomColor: awayColor, borderBottomWidth: 3 },
+                  ],
+                ]}
+                onPress={() => setActiveRoster("away")}
+              >
+                <View
+                  style={[
+                    styles.rosterTabDot,
+                    { backgroundColor: awayColor, opacity: activeRoster === "away" ? 1 : 0.35 },
+                  ]}
+                />
+                <Text
+                  style={[
+                    styles.rosterTabText,
+                    { color: muted },
+                    activeRoster === "away" && { color: currentColors.text, fontWeight: "800" },
+                  ]}
+                  numberOfLines={1}
+                >
+                  {game.away_team}
+                </Text>
+              </Pressable>
+            </View>
+
             {currentDisplayRoster.length > 0 ? (
               currentDisplayRoster.map((player, index) => (
-                <FadeInView key={player.id} delay={index * 50}>
-                  <Pressable 
-                    onPress={() => router.push({ pathname: "/player/[id]", params: { id: player.id } })}
+                <FadeInView key={player.id} delay={index * 40}>
+                  <Pressable
+                    onPress={() =>
+                      router.push({ pathname: "/player/[id]", params: { id: player.id } })
+                    }
                     style={({ pressed }) => [
-                      styles.playerRow, 
-                      { 
-                        backgroundColor: currentColors.card, 
-                        borderColor: currentColors.borderLight, 
-                        shadowColor: theme === 'dark' ? '#000' : '#475569',
-                        transform: [{ scale: pressed ? 0.98 : 1 }],
-                        opacity: pressed ? 0.8 : 1
-                      }
+                      styles.playerCard,
+                      premiumShadow,
+                      {
+                        backgroundColor: cardBg,
+                        opacity: pressed ? 0.85 : 1,
+                        transform: [{ scale: pressed ? 0.985 : 1 }],
+                        borderLeftColor: currentTeamColor,
+                        borderLeftWidth: 4,
+                      },
                     ]}
                   >
-                    <View style={[styles.playerJerseyCircle, { backgroundColor: currentTeamColor }]}>
-                      <Text style={[styles.playerJerseyNumber, { color: '#FFF' }]}>{player.jersey_number || player.number || "0"}</Text>
+                    <View style={[styles.jerseyBadge, { backgroundColor: currentTeamColor }]}>
+                      <Text style={styles.jerseyNum}>
+                        {player.jersey_number || player.number || "0"}
+                      </Text>
                     </View>
-                    
-                    <View style={[styles.playerAvatarWrap, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.borderLight }]}>
+
+                    <View
+                      style={[
+                        styles.avatarWrap,
+                        { backgroundColor: isDark ? currentColors.bgSecondary : "#F7F9FC" },
+                      ]}
+                    >
                       {player.photo_url && !player.photo_url.startsWith("blob:") ? (
-                        <Image source={{ uri: player.photo_url }} style={styles.playerAvatar} resizeMode="cover" />
+                        <Image
+                          source={{ uri: player.photo_url }}
+                          style={styles.avatar}
+                          resizeMode="cover"
+                        />
                       ) : (
-                        <Ionicons name="person" size={20} color={currentColors.textMuted} />
+                        <Ionicons name="person" size={18} color={muted} />
                       )}
                     </View>
 
                     <View style={styles.playerInfo}>
-                      <Text style={[styles.playerName, { color: currentColors.text }]}>{player.name}</Text>
-                      <Text style={[styles.playerPosition, { color: currentColors.textSecondary }]}>{player.position || "Jugador"}</Text>
+                      <Text style={[styles.playerName, { color: currentColors.text }]}>
+                        {player.name}
+                      </Text>
+                      <Text style={[styles.playerPos, { color: muted }]}>
+                        {player.position || "Jugador"}
+                      </Text>
                     </View>
 
-                    <Ionicons name="chevron-forward" size={18} color={currentColors.borderLight} />
+                    <Ionicons name="chevron-forward" size={16} color={muted} />
                   </Pressable>
                 </FadeInView>
               ))
             ) : (
-              <View style={[styles.emptyRoster, { backgroundColor: currentColors.card, borderColor: currentColors.borderLight }]}>
-                <Ionicons name="people-outline" size={45} color={currentColors.textMuted} />
-                <Text style={[styles.emptyRosterText, { color: currentColors.textMuted }]}>Aún no hay roster oficial cargado para este equipo.</Text>
+              <View style={[styles.emptyRoster, premiumShadow, { backgroundColor: cardBg }]}>
+                <View style={[styles.h2hEmptyIcon, { backgroundColor: `${currentTeamColor}15` }]}>
+                  <Ionicons name="people-outline" size={32} color={currentTeamColor} />
+                </View>
+                <Text style={[styles.emptyRosterText, { color: muted }]}>
+                  Aún no hay roster oficial cargado para este equipo.
+                </Text>
               </View>
             )}
-          </View>
+          </FadeInView>
         </View>
-
       </ScrollView>
     </View>
   );
@@ -466,20 +792,66 @@ export default function MatchDetailScreen() {
 // ─────────────────────────────────────────────────────────────────────────────
 // COMPONENTES SECUNDARIOS
 // ─────────────────────────────────────────────────────────────────────────────
-const StatBar = ({ label, home, away, colors }: any) => {
+const MetaRow = ({
+  icon,
+  label,
+  value,
+  textColor,
+  muted,
+  iconBg,
+  iconColor,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  value: string;
+  textColor: string;
+  muted: string;
+  iconBg: string;
+  iconColor: string;
+}) => (
+  <View style={styles.metaRow}>
+    <View style={[styles.metaIcon, { backgroundColor: iconBg }]}>
+      <Ionicons name={icon} size={18} color={iconColor} />
+    </View>
+    <View style={{ flex: 1 }}>
+      <Text style={[styles.metaLabel, { color: muted }]}>{label}</Text>
+      <Text style={[styles.metaValue, { color: textColor }]}>{value}</Text>
+    </View>
+  </View>
+);
+
+const StatBar = ({
+  label,
+  home,
+  away,
+  colors,
+  muted,
+  homeColor,
+  awayColor,
+}: {
+  label: string;
+  home: number;
+  away: number;
+  colors: any;
+  muted: string;
+  homeColor: string;
+  awayColor: string;
+}) => {
   const total = home + away || 1;
   const homeWidth = (home / total) * 100;
-  
+
   return (
     <View style={{ marginBottom: 22 }}>
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-        <Text style={[styles.statNum, { color: colors.text }]}>{home}</Text>
-        <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{label}</Text>
-        <Text style={[styles.statNum, { color: colors.text }]}>{away}</Text>
+      <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 10 }}>
+        <Text style={[styles.statNum, { color: homeColor }]}>{home}</Text>
+        <Text style={[styles.statLabel, { color: muted }]}>{label}</Text>
+        <Text style={[styles.statNum, { color: awayColor }]}>{away}</Text>
       </View>
       <View style={[styles.barBg, { backgroundColor: colors.bgSecondary }]}>
-        <View style={[styles.barFill, { width: `${homeWidth}%`, backgroundColor: BRAND_GRADIENT[0] }]} />
-        <View style={[styles.barFill, { width: `${100 - homeWidth}%`, backgroundColor: colors.borderLight }]} />
+        <View style={[styles.barFill, { width: `${homeWidth}%`, backgroundColor: homeColor }]} />
+        <View
+          style={[styles.barFill, { width: `${100 - homeWidth}%`, backgroundColor: awayColor }]}
+        />
       </View>
     </View>
   );
@@ -490,99 +862,393 @@ const StatBar = ({ label, home, away, colors }: any) => {
 // ─────────────────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  loadingCenter: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  contentWrapper: { width: "100%", maxWidth: 800, alignSelf: "center" },
-  
-  // Botones Flotantes (Cristal)
-  floatingHeader: { position: 'absolute', left: 20, right: 20, flexDirection: 'row', justifyContent: 'space-between', zIndex: 999 },
-  floatingHeaderTablet: { width: 800, alignSelf: 'center', left: 'auto', right: 'auto' }, // Ajuste para tablets
-  floatingBtn: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' },
-  
-  scoreboard: { paddingBottom: 45, borderBottomLeftRadius: 40, borderBottomRightRadius: 40, alignItems: 'center', elevation: 8, shadowColor: "#000", shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.2, shadowRadius: 15 },
-  statusContainer: { alignItems: 'center', marginBottom: 25 },
-  
-  statusBadge: { backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 16, paddingVertical: 6, borderRadius: 20, marginBottom: 8, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
-  statusText: { color: '#FFF', fontWeight: '800', fontSize: 13, letterSpacing: 0.5 },
-  
-  statusBadgeLive: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 6, borderRadius: 20, backgroundColor: '#FEF2F2', marginBottom: 8, elevation: 4, shadowColor: "#EF4444", shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.4, shadowRadius: 8 },
-  liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#EF4444", marginRight: 8 },
-  statusTextLive: { color: "#EF4444", fontSize: 13, fontWeight: "900", letterSpacing: 0.5 },
+  loadingCenter: { flex: 1, justifyContent: "center", alignItems: "center" },
 
-  categoryHeader: { color: 'rgba(255,255,255,0.85)', fontSize: 12, fontWeight: '800', letterSpacing: 1.5, textTransform: 'uppercase' },
+  floatingHeader: {
+    position: "absolute",
+    left: 16,
+    right: 16,
+    zIndex: 50,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  floatingHeaderTablet: {
+    maxWidth: 800,
+    alignSelf: "center",
+    width: "100%",
+    paddingHorizontal: 20,
+  },
+  floatingBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: "center",
+    alignItems: "center",
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.22)",
+  },
 
-  teamsMainRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20 },
-  teamBrand: { flex: 1, alignItems: 'center' },
-  
-  logoCircleFixed: { width: 90, height: 90, borderRadius: 45, backgroundColor: '#FFFFFF', elevation: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.2, shadowRadius: 8, justifyContent: 'center', alignItems: 'center', overflow: 'hidden', padding: 5 },
-  mainLogo: { width: '100%', height: '100%' },
-  teamNameMain: { color: '#FFF', fontWeight: '900', fontSize: 15, marginTop: 14, textAlign: 'center', paddingHorizontal: 5, letterSpacing: -0.5 },
-  
-  scoreContainer: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 15 },
-  scoreNumber: { color: '#FFF', fontSize: 50, fontWeight: '900', letterSpacing: -2 },
-  scoreDivider: { color: 'rgba(255,255,255,0.5)', fontSize: 32, marginHorizontal: 10, fontWeight: '300' },
+  scoreboardHero: {
+    paddingHorizontal: 24,
+    paddingBottom: 48,
+    overflow: "hidden",
+  },
+  heroGlowLeft: {
+    position: "absolute",
+    top: -40,
+    left: -60,
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    backgroundColor: "rgba(255,255,255,0.12)",
+  },
+  heroGlowRight: {
+    position: "absolute",
+    bottom: -30,
+    right: -50,
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    backgroundColor: "rgba(0,0,0,0.12)",
+  },
 
-  content: { paddingHorizontal: 20, paddingTop: 25 },
-  
-  infoCard: { borderRadius: 28, padding: 22, elevation: 3, marginBottom: 20, borderWidth: 1, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 12 },
-  infoRow: { flexDirection: 'row', alignItems: 'center' },
-  iconCircle: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', marginRight: 16 },
-  infoLabel: { fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 },
-  infoValue: { fontSize: 15, fontWeight: '900' },
-  divider: { height: 1, marginVertical: 16 },
+  contentPad: {
+    paddingHorizontal: 20,
+  },
 
-  mvpCard: { flexDirection: 'row', alignItems: 'center', padding: 20, borderRadius: 28, borderWidth: 1, marginBottom: 25, elevation: 4, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.1, shadowRadius: 12 },
-  mvpIconWrap: { width: 50, height: 50, borderRadius: 25, justifyContent: "center", alignItems: "center" },
-  mvpTitle: { fontSize: 11, fontWeight: '900', letterSpacing: 1.5, marginBottom: 2 },
-  mvpName: { fontSize: 22, fontWeight: '900', letterSpacing: -0.5 },
+  statusRow: {
+    alignItems: "center",
+    marginBottom: 28,
+    gap: 10,
+  },
+  liveBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.95)",
+    paddingHorizontal: 16,
+    paddingVertical: 7,
+    borderRadius: 22,
+  },
+  liveDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#EF4444",
+    marginRight: 8,
+  },
+  liveBadgeText: {
+    color: "#EF4444",
+    fontSize: 12,
+    fontWeight: "800",
+    letterSpacing: 1,
+  },
+  statusBadgeGlass: {
+    paddingHorizontal: 16,
+    paddingVertical: 7,
+    borderRadius: 22,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.3)",
+  },
+  statusBadgeText: {
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 0.8,
+    color: "#FFFFFF",
+  },
+  periodText: {
+    fontSize: 14,
+    fontWeight: "700",
+    letterSpacing: 0.3,
+    color: "rgba(255,255,255,0.9)",
+  },
 
-  sectionTitle: { fontSize: 18, fontWeight: '900', marginBottom: 15, letterSpacing: -0.5 },
-  statsCard: { borderRadius: 28, padding: 24, elevation: 3, borderWidth: 1, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 12 },
-  statNum: { fontSize: 19, fontWeight: '900' },
-  statLabel: { fontSize: 13, fontWeight: '800', letterSpacing: 0.5 },
-  barBg: { height: 10, borderRadius: 5, flexDirection: 'row', overflow: 'hidden' },
-  barFill: { height: '100%' },
+  scoreboardRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  teamCol: {
+    flex: 1,
+    alignItems: "center",
+    gap: 12,
+  },
+  logoCircle: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    backgroundColor: "#FFFFFF",
+    justifyContent: "center",
+    alignItems: "center",
+    overflow: "hidden",
+    padding: 10,
+  },
+  logo: { width: "100%", height: "100%" },
+  teamNameHero: {
+    fontSize: 13,
+    fontWeight: "800",
+    textAlign: "center",
+    letterSpacing: -0.2,
+    lineHeight: 18,
+    paddingHorizontal: 2,
+    color: "#FFFFFF",
+    textShadowColor: "rgba(0,0,0,0.25)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  teamColorDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    borderWidth: 2,
+    borderColor: "rgba(255,255,255,0.6)",
+  },
 
-  efficiencyContainer: { marginTop: 15, paddingTop: 20, borderTopWidth: 1 },
-  fullBar: { height: 14, flexDirection: 'row', borderRadius: 7, overflow: 'hidden' },
-  homeSegment: { backgroundColor: BRAND_GRADIENT[0] },
+  scoreBlock: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 6,
+    minWidth: 120,
+    justifyContent: "center",
+  },
+  scoreGiant: {
+    fontSize: 64,
+    fontWeight: "900",
+    letterSpacing: -3,
+    lineHeight: 70,
+    color: "#FFFFFF",
+    textShadowColor: "rgba(0,0,0,0.2)",
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 6,
+  },
+  scoreSep: {
+    fontSize: 32,
+    fontWeight: "300",
+    marginHorizontal: 4,
+    marginBottom: 6,
+    color: "rgba(255,255,255,0.7)",
+  },
+
+  card: {
+    borderRadius: CARD_RADIUS,
+    padding: 22,
+  },
+
+  metaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  metaIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 14,
+  },
+  metaLabel: {
+    fontSize: 11,
+    fontWeight: "600",
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+    marginBottom: 2,
+  },
+  metaValue: {
+    fontSize: 15,
+    fontWeight: "700",
+    letterSpacing: -0.2,
+  },
+  metaDivider: {
+    height: 1,
+    marginVertical: 14,
+    marginLeft: 58,
+  },
+
+  mvpCard: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  mvpIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  mvpLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 1,
+    marginBottom: 2,
+  },
+  mvpName: {
+    fontSize: 18,
+    fontWeight: "800",
+    letterSpacing: -0.3,
+  },
+
+  sectionLabel: {
+    fontSize: 18,
+    fontWeight: "800",
+    letterSpacing: -0.4,
+    marginTop: 28,
+    marginBottom: 14,
+  },
+
+  statNum: { fontSize: 18, fontWeight: "800" },
+  statLabel: { fontSize: 12, fontWeight: "600", letterSpacing: 0.2 },
+  barBg: { height: 10, borderRadius: 5, flexDirection: "row", overflow: "hidden" },
+  barFill: { height: "100%" },
+  efficiencyWrap: { marginTop: 4, paddingTop: 18, borderTopWidth: 1 },
+  efficiencyLabels: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 10,
+    gap: 6,
+  },
+  effDot: { width: 8, height: 8, borderRadius: 4 },
+  effLabel: { fontSize: 11, fontWeight: "600", flexShrink: 1 },
+  fullBar: { height: 12, flexDirection: "row", borderRadius: 6, overflow: "hidden" },
+  homeSegment: {},
   awaySegment: {},
 
-  // H2H
-  h2hCard: { borderRadius: 28, padding: 24, borderWidth: 1, marginBottom: 25, elevation: 3, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 12 },
-  h2hRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 25, paddingHorizontal: 10 },
-  h2hTeam: { alignItems: 'center' },
-  h2hWins: { fontSize: 36, fontWeight: '900' },
-  h2hCenter: { alignItems: 'center' },
-  h2hTotal: { fontSize: 18, fontWeight: '900' },
-  h2hLabel: { fontSize: 11, fontWeight: '800', textTransform: 'uppercase', marginTop: 4, letterSpacing: 0.5 },
-  h2hDraws: { fontSize: 11, fontWeight: '900', marginTop: 8 },
-  lastGameBox: { padding: 18, borderRadius: 20, alignItems: 'center' },
-  lastGameTitle: { fontSize: 11, fontWeight: '900', letterSpacing: 1.5, marginBottom: 8 },
-  lastGameResult: { fontSize: 16, fontWeight: '900', marginBottom: 4 },
-  lastGameDate: { fontSize: 13, fontWeight: '700' },
-  h2hEmpty: { padding: 25, alignItems: 'center' },
-  h2hEmptyText: { marginTop: 12, fontSize: 14, fontWeight: '700', textAlign: 'center' },
+  h2hRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 18,
+    paddingHorizontal: 4,
+  },
+  h2hTeam: { alignItems: "center", minWidth: 72 },
+  h2hWins: { fontSize: 40, fontWeight: "900", letterSpacing: -1.5 },
+  h2hCenter: { alignItems: "center" },
+  h2hTotalBadge: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 4,
+  },
+  h2hTotal: { fontSize: 18, fontWeight: "800" },
+  h2hLabel: {
+    fontSize: 11,
+    fontWeight: "600",
+    textTransform: "uppercase",
+    marginTop: 4,
+    letterSpacing: 0.4,
+  },
+  h2hDraws: { fontSize: 11, fontWeight: "700", marginTop: 6 },
+  h2hBar: {
+    height: 8,
+    borderRadius: 6,
+    flexDirection: "row",
+    overflow: "hidden",
+    marginBottom: 18,
+  },
+  h2hBarFill: { height: "100%" },
+  lastGameBox: { padding: 16, borderRadius: 16, alignItems: "center" },
+  lastGameTitle: {
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 1.2,
+    marginBottom: 8,
+  },
+  lastGameResult: { fontSize: 15, fontWeight: "700", marginBottom: 4, textAlign: "center" },
+  lastGameDate: { fontSize: 12, fontWeight: "500" },
+  h2hEmpty: { paddingVertical: 20, alignItems: "center" },
+  h2hEmptyIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 4,
+  },
+  h2hEmptyText: {
+    marginTop: 12,
+    fontSize: 14,
+    fontWeight: "500",
+    textAlign: "center",
+    lineHeight: 20,
+  },
 
-  // Roster
-  rosterSection: { marginTop: 10 },
-  rosterToggleWrapper: { flexDirection: 'row', marginHorizontal: 20, borderRadius: 24, padding: 6, marginBottom: 20, borderWidth: 1 },
-  rosterToggleBtn: { flex: 1, paddingVertical: 14, borderRadius: 18, alignItems: 'center', elevation: 0 },
-  rosterToggleText: { fontSize: 14, fontWeight: '800' },
-  rosterToggleTextActive: { fontWeight: '900' },
-  
-  rosterListContainer: { paddingHorizontal: 20 },
-  playerRow: { flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: 24, marginBottom: 12, borderWidth: 1, elevation: 2, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 6 },
-  
-  playerJerseyCircle: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 14 },
-  playerJerseyNumber: { fontSize: 18, fontWeight: '900' },
-  
-  playerAvatarWrap: { width: 48, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center', overflow: 'hidden', marginRight: 15, borderWidth: 2 },
-  playerAvatar: { width: '100%', height: '100%' },
-  
+  rosterTabs: {
+    flexDirection: "row",
+    borderRadius: 18,
+    padding: 5,
+    marginBottom: 16,
+  },
+  rosterTab: {
+    flex: 1,
+    flexDirection: "row",
+    paddingVertical: 12,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  rosterTabDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  rosterTabText: {
+    fontSize: 13,
+    fontWeight: "600",
+    paddingHorizontal: 2,
+    flexShrink: 1,
+  },
+
+  playerCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 14,
+    borderRadius: CARD_RADIUS,
+    marginBottom: 12,
+    overflow: "hidden",
+  },
+  jerseyBadge: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  jerseyNum: { color: "#FFF", fontSize: 16, fontWeight: "800" },
+  avatarWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: "center",
+    alignItems: "center",
+    overflow: "hidden",
+    marginRight: 12,
+  },
+  avatar: { width: "100%", height: "100%" },
   playerInfo: { flex: 1 },
-  playerName: { fontSize: 16, fontWeight: '900', marginBottom: 3, letterSpacing: -0.3 },
-  playerPosition: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
-  
-  emptyRoster: { padding: 40, alignItems: 'center', borderRadius: 32, borderWidth: 2, borderStyle: 'dashed' },
-  emptyRosterText: { marginTop: 15, fontSize: 14, textAlign: 'center', fontWeight: '700', paddingHorizontal: 20, lineHeight: 22 }
+  playerName: { fontSize: 15, fontWeight: "700", marginBottom: 2, letterSpacing: -0.2 },
+  playerPos: {
+    fontSize: 11,
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+  },
+
+  emptyRoster: {
+    padding: 40,
+    alignItems: "center",
+    borderRadius: CARD_RADIUS,
+  },
+  emptyRosterText: {
+    marginTop: 14,
+    fontSize: 14,
+    textAlign: "center",
+    fontWeight: "500",
+    lineHeight: 20,
+    paddingHorizontal: 12,
+  },
 });

@@ -15,25 +15,78 @@ import {
   Easing,
   Modal,
   TouchableOpacity,
-  useWindowDimensions
+  useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
-import { BlurView } from "expo-blur";
 import { router, useFocusEffect } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import MaskedView from "@react-native-masked-view/masked-view";
 import { useMatches } from "@/hooks/useMatches";
-import { isSeasonActive, seasonLabel, useSelectedSeason } from "@/hooks/useSeasons";
-import { usePlayerStats } from "@/hooks/usePlayerStats";
+import { seasonLabel, useSelectedSeason } from "@/hooks/useSeasons";
 import { useStats } from "@/hooks/useStats";
 import { useTeams } from "@/hooks/useTeams";
 import { MatchCardSkeleton } from "@/components/SkeletonLoader";
-import { Colors } from "@/constants/colors";
+import { BRAND_GRADIENT, Colors } from "@/constants/colors";
 
-// Colores de la liga
-const LEAGUE_GRADIENT: [string, string, string] = ['#3B82F6', '#8B5CF6', '#EC4899']; // Azul -> Morado -> Rosa
+const DASH_BG = "#F4F6FB";
+const MUTED = "#8F9BB3";
+const KICKOFF_DATE = new Date(2026, 8, 20, 9, 0, 0);
+const REGISTRATION_CLOSE = new Date(2026, 8, 14, 23, 59, 59);
+
+const HERO_IMAGE =
+  "https://images.unsplash.com/photo-1566577739112-5180d4bf9390?auto=format&fit=crop&w=1400&q=85";
+
+/** Cards de explorar: sin fotos de soccer — iconos + gradiente de marca */
+const EXPLORE_ITEMS = [
+  {
+    title: "Partidos",
+    subtitle: "Tochito",
+    path: "/matches",
+    icon: "american-football" as const,
+    colors: ["#0F3D2E", "#1A6B4A"] as [string, string],
+  },
+  {
+    title: "Ranking",
+    subtitle: "Individual",
+    path: "/power-ranking",
+    icon: "trophy" as const,
+    colors: ["#7A4A00", "#D97706"] as [string, string],
+  },
+  {
+    title: "Tablas",
+    subtitle: "Posiciones",
+    path: "/standings",
+    icon: "podium" as const,
+    colors: ["#0B2A5B", "#1E5DBB"] as [string, string],
+  },
+];
+
+const COMMUNITY_IMAGE =
+  "https://images.unsplash.com/photo-1508098682722-e99c43a406b2?auto=format&fit=crop&w=1200&q=85";
+
+const CATEGORY_CHIPS = [
+  { id: "TODAS", label: "Todas", icon: "apps-outline" as const },
+  { id: "FEMENIL", label: "Femenil", icon: "female-outline" as const },
+  { id: "MIXTO", label: "Mixto", icon: "people-outline" as const },
+  { id: "VARONIL", label: "Varonil", icon: "male-outline" as const },
+];
+
+const premiumShadow = Platform.select({
+  ios: {
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.08,
+    shadowRadius: 18,
+  },
+  android: { elevation: 4 },
+  default: {
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.08,
+    shadowRadius: 18,
+  },
+});
 
 const navigateFromHome = (path: string) => {
   if (Platform.OS === "web" && typeof window !== "undefined") {
@@ -43,42 +96,63 @@ const navigateFromHome = (path: string) => {
   router.push(path as any);
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 1. ANIMACIONES BASE
-// ─────────────────────────────────────────────────────────────────────────────
-
-const FadeInView = ({ children, delay = 0, style }: { children: any, delay?: number, style?: any }) => {
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(20)).current;
+const FadeIn = ({ children, delay = 0, style }: { children: any; delay?: number; style?: any }) => {
+  const opacity = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(18)).current;
 
   useEffect(() => {
     Animated.parallel([
-      Animated.timing(fadeAnim, { toValue: 1, duration: 600, delay: delay, useNativeDriver: true, easing: Easing.out(Easing.exp) }),
-      Animated.timing(slideAnim, { toValue: 0, duration: 600, delay: delay, useNativeDriver: true, easing: Easing.out(Easing.exp) })
+      Animated.timing(opacity, {
+        toValue: 1,
+        duration: 520,
+        delay,
+        useNativeDriver: true,
+        easing: Easing.out(Easing.cubic),
+      }),
+      Animated.timing(translateY, {
+        toValue: 0,
+        duration: 520,
+        delay,
+        useNativeDriver: true,
+        easing: Easing.out(Easing.cubic),
+      }),
     ]).start();
-  }, []);
+  }, [delay, opacity, translateY]);
 
   return (
-    <Animated.View style={[{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }, style]}>
-      {children}
-    </Animated.View>
+    <Animated.View style={[{ opacity, transform: [{ translateY }] }, style]}>{children}</Animated.View>
   );
 };
 
 const LivePulse = () => {
-  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const scale = useRef(new Animated.Value(1)).current;
   useEffect(() => {
-    Animated.loop(Animated.sequence([
-      Animated.timing(pulseAnim, { toValue: 1.5, duration: 1000, useNativeDriver: true }),
-      Animated.timing(pulseAnim, { toValue: 1, duration: 1000, useNativeDriver: true }),
-    ])).start();
-  }, []);
-  return <Animated.View style={[styles.liveDot, { transform: [{ scale: pulseAnim }] }]} />;
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(scale, { toValue: 1.5, duration: 900, useNativeDriver: true }),
+        Animated.timing(scale, { toValue: 1, duration: 900, useNativeDriver: true }),
+      ])
+    ).start();
+  }, [scale]);
+  return <Animated.View style={[styles.liveDot, { transform: [{ scale }] }]} />;
 };
+
+function useCountdown(target: Date) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+  const diff = Math.max(0, target.getTime() - now);
+  return {
+    days: Math.floor(diff / 86_400_000),
+    hours: Math.floor((diff % 86_400_000) / 3_600_000),
+    ended: diff <= 0,
+  };
+}
 
 function useLiveTimer(game: any) {
   const [displayTime, setDisplayTime] = useState("");
-
   useEffect(() => {
     if (!game) return;
     const status = game.status?.toLowerCase() ?? "";
@@ -86,397 +160,337 @@ function useLiveTimer(game: any) {
       setDisplayTime("EN VIVO");
       return;
     }
-
-    const updateClock = () => {
+    const tick = () => {
       let remaining = game.seconds_remaining ?? 1200;
       if (game.clock_running && game.clock_last_started_at) {
-        const startedAt = new Date(game.clock_last_started_at).getTime();
-        const now = new Date().getTime();
-        remaining = Math.max(0, remaining - Math.floor((now - startedAt) / 1000));
+        remaining = Math.max(
+          0,
+          remaining - Math.floor((Date.now() - new Date(game.clock_last_started_at).getTime()) / 1000)
+        );
       }
-      const m = Math.floor(remaining / 60).toString().padStart(2, '0');
-      const s = (remaining % 60).toString().padStart(2, '0');
-      setDisplayTime(`${game.current_period ?? '1H'} • ${m}:${s}`);
+      const m = Math.floor(remaining / 60).toString().padStart(2, "0");
+      const s = (remaining % 60).toString().padStart(2, "0");
+      setDisplayTime(`${game.current_period ?? "1H"} · ${m}:${s}`);
     };
-
-    updateClock();
-    let interval: ReturnType<typeof setInterval>;
-    if (game.clock_running) interval = setInterval(updateClock, 1000);
-    return () => clearInterval(interval);
+    tick();
+    let interval: ReturnType<typeof setInterval> | undefined;
+    if (game.clock_running) interval = setInterval(tick, 1000);
+    return () => {
+      if (interval) clearInterval(interval);
+    };
   }, [game]);
-
   return displayTime;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 2. COMPONENTES DE UI MODERNOS
-// ─────────────────────────────────────────────────────────────────────────────
-
-// TOP NAV BAR: Efecto cristal fijo arriba, ocupa mínimo espacio
-const FloatingTopNav = ({ user, topPad, onProfilePress, isTablet }: any) => {
-  const theme = useColorScheme() ?? "light";
-  const isDark = theme === "dark";
-
-  return (
-    <BlurView 
-      intensity={isDark ? 40 : 80} 
-      tint={isDark ? "dark" : "light"} 
-      style={[styles.floatingNavContainer, { paddingTop: topPad + 10 }]}
-    >
-      <View style={[styles.navInner, isTablet && { paddingHorizontal: 20 }]}>
-        <Image
-          source={{ uri: "https://www.flagdurango.com.mx/images/logo-flag-durango.png" }}
-          style={[styles.headerLogoModern, { tintColor: isDark ? "#FFFFFF" : "#111827" }]}
-          resizeMode="contain"
-        />
-        <Pressable onPress={onProfilePress} style={({ pressed }) => [{ transform: [{ scale: pressed ? 0.95 : 1 }] }]}>
-          {user ? (
-             <View style={[styles.avatarMini, { backgroundColor: LEAGUE_GRADIENT[1] }]}>
-               <Text style={styles.avatarMiniText}>{user.username.charAt(0).toUpperCase()}</Text>
-             </View>
-          ) : (
-            <Ionicons name="person-circle" size={32} color={LEAGUE_GRADIENT[1]} />
-          )}
-        </Pressable>
-      </View>
-    </BlurView>
-  );
-};
-
-// GREETING: Ahora vive dentro de la lista para hacer scroll
-const GreetingScrollable = ({ user, dateStr }: any) => {
-  const theme = useColorScheme() ?? "light";
-  const currentColors = Colors[theme];
-
-  return (
-    <View style={styles.greetingContainerModern}>
-      <Text style={[styles.dateTextModern, { color: currentColors.textMuted }]}>{dateStr.toUpperCase()}</Text>
-      <Text style={[styles.greetingTextModern, { color: currentColors.text }]}>¿Listo para jugar,</Text>
-      <View style={styles.gradientTextWrapper}>
-        <MaskedView maskElement={<Text style={styles.greetingTextGradient}>{user ? user.username : "Campeón"}? 🏈</Text>}>
-          <LinearGradient colors={LEAGUE_GRADIENT} start={{x: 0, y: 0}} end={{x: 1, y: 0}}>
-            <Text style={[styles.greetingTextGradient, { opacity: 0 }]}>{user ? user.username : "Campeón"}? 🏈</Text>
-          </LinearGradient>
-        </MaskedView>
-      </View>
+const TopBar = ({ user, topPad, onProfilePress, screenBg, textColor }: any) => (
+  <View style={[styles.topBar, { paddingTop: topPad + 4, backgroundColor: screenBg }]}>
+    <View>
+      <Text style={styles.greetEyebrow}>FLAG DURANGO</Text>
+      <Text style={[styles.greetHello, { color: textColor }]}>
+        Hola, {user?.username ? user.username.split(" ")[0] : "Campeón"}
+      </Text>
     </View>
-  );
-};
-
-const FilterOption = ({ label, isSelected, onPress, currentColors }: any) => (
-  <Pressable
-    onPress={onPress}
-    style={[
-      styles.filterOptionModal,
-      { backgroundColor: isSelected ? LEAGUE_GRADIENT[1] : currentColors.bgSecondary }
-    ]}
-  >
-    <Text style={[styles.filterOptionTextModal, { color: isSelected ? '#FFFFFF' : currentColors.text }]}>{label}</Text>
-  </Pressable>
+    <Pressable onPress={onProfilePress} hitSlop={10} style={({ pressed }) => [{ opacity: pressed ? 0.8 : 1 }]}>
+      {user ? (
+        <LinearGradient colors={BRAND_GRADIENT} style={styles.avatar}>
+          <Text style={styles.avatarText}>{user.username.charAt(0).toUpperCase()}</Text>
+        </LinearGradient>
+      ) : (
+        <View style={[styles.avatarOutline, premiumShadow, { backgroundColor: screenBg === DASH_BG ? "#FFF" : Colors.dark.card }]}>
+          <Ionicons name="person" size={18} color={BRAND_GRADIENT[0]} />
+        </View>
+      )}
+    </Pressable>
+  </View>
 );
 
-// NUEVA FILTER BAR: Píldoras independientes y limpias
-const ActiveFiltersBar = ({ onOpenModal, activeJornada, activeCategory, activeField }: any) => {
-  const theme = useColorScheme() ?? "light";
-  const currentColors = Colors[theme];
+/* ─── HERO IMPACTANTE ─── */
+const HeroCard = () => {
+  const kickoff = useCountdown(KICKOFF_DATE);
+  const reg = useCountdown(REGISTRATION_CLOSE);
 
   return (
-    <View style={styles.filterBarContainer}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterPillScroll}>
-        
-        {/* Botón de Ajustes Circular Elegante */}
-        <TouchableOpacity style={[styles.adjustBtnCircle, { backgroundColor: currentColors.card, shadowColor: theme === 'dark' ? '#000' : '#cbd5e1' }]} onPress={onOpenModal}>
-          <Ionicons name="options-outline" size={20} color={currentColors.text} />
-        </TouchableOpacity>
-        
-        {/* Píldoras Activas con Gradiente */}
-        <View style={[styles.modernPill, activeJornada === "TODAS" ? { backgroundColor: currentColors.card } : {}]}>
-          {activeJornada === "TODAS" ? (
-             <Text style={[styles.modernPillText, { color: currentColors.text }]}>Jornadas</Text>
-          ) : (
-             <LinearGradient colors={LEAGUE_GRADIENT} start={{x:0, y:0}} end={{x:1, y:0}} style={styles.pillGradient}>
-               <Text style={[styles.modernPillText, { color: '#FFF' }]}>Jornada {activeJornada}</Text>
-             </LinearGradient>
-          )}
-        </View>
-        
-        {activeCategory !== "TODAS" && (
-          <View style={styles.modernPill}>
-             <LinearGradient colors={LEAGUE_GRADIENT} start={{x:0, y:0}} end={{x:1, y:0}} style={styles.pillGradient}>
-               <Text style={[styles.modernPillText, { color: '#FFF' }]}>{activeCategory}</Text>
-             </LinearGradient>
+    <FadeIn delay={30} style={styles.padH}>
+      <View style={[styles.heroCard, premiumShadow]}>
+        <Image source={{ uri: HERO_IMAGE }} style={styles.heroImage} resizeMode="cover" />
+        <LinearGradient
+          colors={["rgba(12,24,58,0.15)", "rgba(12,24,58,0.55)", "rgba(12,24,58,0.95)"]}
+          locations={[0, 0.4, 1]}
+          style={StyleSheet.absoluteFillObject}
+        />
+        <LinearGradient
+          colors={[`${BRAND_GRADIENT[0]}55`, "transparent"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.heroAccentWash}
+        />
+
+        <View style={styles.heroContent}>
+          <View style={styles.heroTopRow}>
+            <View style={styles.heroBadge}>
+              <View style={styles.heroBadgeDot} />
+              <Text style={styles.heroBadgeText}>Otoño 2026 · FMFA</Text>
+            </View>
+            <Image
+              source={{ uri: "https://www.flagdurango.com.mx/images/logo-flag-durango.png" }}
+              style={styles.heroBrandLogo}
+              resizeMode="contain"
+            />
           </View>
-        )}
 
-        {activeField !== "TODOS" && (
-          <View style={styles.modernPill}>
-             <LinearGradient colors={LEAGUE_GRADIENT} start={{x:0, y:0}} end={{x:1, y:0}} style={styles.pillGradient}>
-               <Text style={[styles.modernPillText, { color: '#FFF' }]}>Campo {activeField}</Text>
-             </LinearGradient>
-          </View>
-        )}
+          <Text style={styles.heroKicker}>21 años de historia</Text>
+          <Text style={styles.heroTitle}>Incorporación oficial a la FMFA</Text>
+          <Text style={styles.heroSub}>
+            La nueva era empieza el 20 de septiembre en Deportivo Tapias.
+          </Text>
 
-      </ScrollView>
-    </View>
-  );
-};
-
-const CommunityCard = () => {
-  const theme = useColorScheme() ?? "light";
-  const currentColors = Colors[theme];
-
-  return (
-    <FadeInView delay={300} style={styles.communityWrapper}>
-      <LinearGradient colors={[`${LEAGUE_GRADIENT[0]}15`, `${LEAGUE_GRADIENT[2]}15`]} start={{x:0,y:0}} end={{x:1,y:1}} style={[styles.communityCard, { borderColor: `${LEAGUE_GRADIENT[1]}30` }]}>
-        <View style={styles.communityContent}>
-          <Text style={[styles.communityTitle, { color: currentColors.text }]}>Únete a la Acción 📸</Text>
-          <Text style={[styles.communitySub, { color: currentColors.textSecondary }]}>Las mejores fotos y exclusivas.</Text>
-        </View>
-        <View style={styles.socialButtonsRow}>
-          <Pressable style={({ pressed }) => [styles.socialBtnCircle, { backgroundColor: '#E1306C', opacity: pressed ? 0.8 : 1 }]} onPress={() => Linking.openURL('https://www.instagram.com/flag.durango/')}>
-            <Ionicons name="logo-instagram" size={20} color="#FFF" />
-          </Pressable>
-          <Pressable style={({ pressed }) => [styles.socialBtnCircle, { backgroundColor: '#1877F2', opacity: pressed ? 0.8 : 1 }]} onPress={() => Linking.openURL('https://www.facebook.com/TBFDurango')}>
-            <Ionicons name="logo-facebook" size={20} color="#FFF" />
-          </Pressable>
-        </View>
-      </LinearGradient>
-    </FadeInView>
-  );
-};
-
-const HomeSeasonPanel = ({ selectedSeason, games, teams, topTeam, topPlayer, currentColors }: any) => {
-  const upcomingCount = games.filter((game: any) => ["programado", "proximo", "pendiente"].includes(game.status?.toLowerCase() ?? "")).length;
-  const recentCount = games.filter((game: any) => ["finalizado", "final", "terminado"].includes(game.status?.toLowerCase() ?? "")).length;
-  const { seasons, selectedSeasonId, activeSeason, isLoading, setSelectedSeason } = useSelectedSeason();
-  const panelColors = currentColors;
-
-  return (
-    <FadeInView delay={120} style={styles.seasonPanelWrap}>
-      <View style={[styles.seasonPanel, { backgroundColor: panelColors.card, borderColor: panelColors.border }]}>
-        <View style={styles.seasonPanelHeader}>
-          <View style={styles.seasonHeading}>
-            <Text style={[styles.seasonEyebrow, { color: panelColors.textSecondary }]}>Temporada</Text>
-            <View style={styles.seasonTitleRow}>
-              <Text style={[styles.seasonPanelTitle, { color: panelColors.text }]} numberOfLines={1}>{seasonLabel(selectedSeason)}</Text>
-              {(selectedSeason?.id === activeSeason?.id || isSeasonActive(selectedSeason)) && (
-                <View style={styles.seasonActiveBadge}>
-                  <View style={styles.seasonActiveDot} />
-                  <Text style={styles.seasonActiveText}>Activa</Text>
-                </View>
-              )}
+          <View style={styles.countdownRow}>
+            <View style={styles.countBox}>
+              <Text style={styles.countNum}>{kickoff.ended ? "0" : kickoff.days}</Text>
+              <Text style={styles.countLbl}>Días</Text>
+            </View>
+            <View style={styles.countBox}>
+              <Text style={styles.countNum}>{kickoff.ended ? "0" : kickoff.hours}</Text>
+              <Text style={styles.countLbl}>Hrs</Text>
+            </View>
+            <View style={styles.countMeta}>
+              <Text style={styles.countMetaTitle}>Kickoff</Text>
+              <Text style={styles.countMetaText}>20 septiembre 2026</Text>
+              <View style={styles.regPill}>
+                <Ionicons name="time-outline" size={12} color="#FFB088" />
+                <Text style={styles.regPillText}>
+                  {reg.ended ? "Registros cerrados" : "Cierre: 14 de septiembre"}
+                </Text>
+              </View>
             </View>
           </View>
-          <View style={[styles.seasonBadge, { backgroundColor: panelColors.cardLight, borderColor: panelColors.borderLight }]}>
-            <Ionicons name="american-football-outline" size={16} color={panelColors.blue} />
-          </View>
-        </View>
-
-        <View style={[styles.seasonSwitcher, { backgroundColor: panelColors.bgSecondary, borderColor: panelColors.border }]}>
-          {isLoading ? (
-            <Text style={[styles.seasonSwitcherLoading, { color: panelColors.textSecondary }]}>Cargando temporadas...</Text>
-          ) : (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.seasonSwitcherContent}>
-              {seasons.map((season) => {
-                const isSelected = season.id === selectedSeasonId;
-                const isActive = season.id === activeSeason?.id || isSeasonActive(season);
-
-                return (
-                  <Pressable
-                    key={season.id}
-                    onPress={() => setSelectedSeason(season.id)}
-                    style={({ pressed }) => [
-                      styles.seasonOption,
-                      isSelected && { backgroundColor: panelColors.cardLight, borderColor: panelColors.borderLight },
-                      pressed && styles.seasonOptionPressed,
-                    ]}
-                  >
-                    {isActive && (
-                      <View style={styles.seasonOptionStatus}>
-                        <View style={[styles.seasonOptionDot, { backgroundColor: panelColors.green }]} />
-                        <Text style={[styles.seasonOptionStatusText, { color: panelColors.green }]}>Activa</Text>
-                      </View>
-                    )}
-                    <Text style={[styles.seasonOptionText, { color: isSelected ? panelColors.text : panelColors.textSecondary }]} numberOfLines={1}>
-                      {seasonLabel(season)}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-          )}
-        </View>
-
-        <View style={[styles.homeStatsGrid, { borderColor: panelColors.border }]}>
-          <View style={styles.homeMiniStat}>
-            <Text style={[styles.homeMiniValue, { color: panelColors.text }]}>{upcomingCount}</Text>
-            <Text style={[styles.homeMiniLabel, { color: panelColors.textSecondary }]}>Próximos</Text>
-          </View>
-          <View style={[styles.homeStatDivider, { backgroundColor: panelColors.border }]} />
-          <View style={styles.homeMiniStat}>
-            <Text style={[styles.homeMiniValue, { color: panelColors.text }]}>{recentCount}</Text>
-            <Text style={[styles.homeMiniLabel, { color: panelColors.textSecondary }]}>Resultados</Text>
-          </View>
-          <View style={[styles.homeStatDivider, { backgroundColor: panelColors.border }]} />
-          <View style={styles.homeMiniStat}>
-            <Text style={[styles.homeMiniValue, { color: panelColors.text }]}>{teams.length}</Text>
-            <Text style={[styles.homeMiniLabel, { color: panelColors.textSecondary }]}>Equipos</Text>
-          </View>
-        </View>
-
-        <View style={styles.homeHighlightsRow}>
-          <Pressable onPress={() => navigateFromHome("/standings")} style={({ pressed }) => [styles.highlightCard, { backgroundColor: panelColors.bgSecondary, borderColor: panelColors.border }, pressed && styles.highlightPressed]}>
-            <View style={styles.highlightHeader}>
-              <Ionicons name="trophy-outline" size={13} color={panelColors.orange} />
-              <Text style={[styles.highlightLabel, { color: panelColors.textSecondary }]}>Líder</Text>
-            </View>
-            <Text style={[styles.highlightValue, { color: panelColors.text }]} numberOfLines={1}>{topTeam?.team_name || "Por definirse"}</Text>
-            <Text style={[styles.highlightSub, { color: panelColors.textSecondary }]}>{topTeam ? `${topTeam.points ?? 0} pts` : "Aún sin tabla"}</Text>
-          </Pressable>
-          <Pressable onPress={() => navigateFromHome("/power-ranking")} style={({ pressed }) => [styles.highlightCard, { backgroundColor: panelColors.bgSecondary, borderColor: panelColors.border }, pressed && styles.highlightPressed]}>
-            <View style={styles.highlightHeader}>
-              <Ionicons name="flash-outline" size={13} color={panelColors.pink} />
-              <Text style={[styles.highlightLabel, { color: panelColors.textSecondary }]}>Jugador top</Text>
-            </View>
-            <Text style={[styles.highlightValue, { color: panelColors.text }]} numberOfLines={1}>{topPlayer?.name || "Por definirse"}</Text>
-            <Text style={[styles.highlightSub, { color: panelColors.textSecondary }]}>{topPlayer ? `${topPlayer.touchdowns_totales ?? 0} TD · ${topPlayer.mvps ?? 0} MVP` : "Sin stats todavía"}</Text>
-          </Pressable>
-        </View>
-
-        <View style={styles.quickActions}>
-          <Pressable onPress={() => navigateFromHome("/matches")} style={({ pressed }) => [styles.quickAction, { borderColor: panelColors.borderLight }, pressed && { backgroundColor: panelColors.cardLight }]}>
-            <Ionicons name="calendar-outline" size={15} color={panelColors.textSecondary} />
-            <Text style={[styles.quickActionText, { color: panelColors.textSecondary }]}>Calendario</Text>
-          </Pressable>
-          <Pressable onPress={() => navigateFromHome("/teams")} style={({ pressed }) => [styles.quickAction, { borderColor: panelColors.borderLight }, pressed && { backgroundColor: panelColors.cardLight }]}>
-            <Ionicons name="shield-outline" size={15} color={panelColors.textSecondary} />
-            <Text style={[styles.quickActionText, { color: panelColors.textSecondary }]}>Equipos</Text>
-          </Pressable>
         </View>
       </View>
-    </FadeInView>
+    </FadeIn>
   );
 };
 
-// Tarjeta de Partido Moderna
-const MatchCard = ({ game, teams, isFeatured = false, index = 0 }: { game: any, teams: any[], isFeatured?: boolean, index?: number }) => {
-  const theme = useColorScheme() ?? "light";
-  const currentColors = Colors[theme];
-  const isDark = theme === "dark";
-  const scaleAnim = useRef(new Animated.Value(1)).current;
-  const timeStr = useLiveTimer(game);
-
-  if (!game) return null;
-
-  const homeTeam = teams.find((t) => t.name === game.home_team);
-  const awayTeam = teams.find((t) => t.name === game.away_team);
-  const isLive = ["en vivo", "en_vivo", "en curso"].includes(game.status?.toLowerCase() ?? "");
-  const isFinished = ["finalizado", "final"].includes(game.status?.toLowerCase() ?? "");
-
-  const handlePressIn = () => { Animated.spring(scaleAnim, { toValue: 0.97, useNativeDriver: true }).start(); };
-  const handlePressOut = () => { Animated.spring(scaleAnim, { toValue: 1, friction: 5, tension: 40, useNativeDriver: true }).start(); };
-  const TeamRow = ({ team, name, score, isWinner }: any) => (
-    <View style={styles.teamRow}>
-      <View style={styles.teamInfo}>
-        <View style={[styles.logoContainer, { backgroundColor: currentColors.bg }]}>
-          {team?.logo_url ? (
-            <Image source={{ uri: team.logo_url }} style={styles.teamLogo} resizeMode="contain" />
-          ) : (
-            <Text style={[styles.logoFallback, { color: currentColors.textMuted }]}>{name?.substring(0,2).toUpperCase() || "?"}</Text>
-          )}
-        </View>
-        <Text style={[styles.teamName, { color: isWinner || isLive ? currentColors.text : currentColors.textSecondary }, isWinner && styles.teamNameWinner]} numberOfLines={1}>
-          {name}
+/* ─── STATS COMPACTOS ─── */
+const QuickStats = ({
+  teamsCount,
+  playedCount,
+  topTeam,
+  colors,
+}: {
+  teamsCount: number;
+  playedCount: number;
+  topTeam: string;
+  colors: any;
+}) => (
+  <FadeIn delay={80} style={styles.padH}>
+    <View style={[styles.statsBar, premiumShadow, { backgroundColor: colors.card }]}>
+      <Pressable style={styles.statCell} onPress={() => navigateFromHome("/teams")}>
+        <Text style={[styles.statNum, { color: colors.text }]}>{teamsCount}</Text>
+        <Text style={styles.statLbl}>Equipos</Text>
+      </Pressable>
+      <View style={styles.statDivider} />
+      <Pressable style={styles.statCell} onPress={() => navigateFromHome("/matches")}>
+        <Text style={[styles.statNum, { color: colors.text }]}>{playedCount}</Text>
+        <Text style={styles.statLbl}>Jugados</Text>
+      </Pressable>
+      <View style={styles.statDivider} />
+      <Pressable style={[styles.statCell, { flex: 1.35 }]} onPress={() => navigateFromHome("/standings")}>
+        <Ionicons name="trophy" size={14} color="#F59E0B" style={{ marginBottom: 2 }} />
+        <Text style={[styles.statLeader, { color: colors.text }]} numberOfLines={1}>
+          {topTeam || "Por definir"}
         </Text>
-      </View>
-      <View style={styles.scoreWrap}>
-        <Text style={[styles.scoreText, { color: isWinner ? LEAGUE_GRADIENT[1] : currentColors.text }, isWinner && styles.scoreTextWinner]}>
-          {score !== null && score !== undefined ? score : "-"}
-        </Text>
-      </View>
+        <Text style={styles.statLbl}>Líder</Text>
+      </Pressable>
     </View>
-  );
+  </FadeIn>
+);
 
-  return (
-    <FadeInView delay={index * 100}>
-      <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
-        <Pressable 
-          onPressIn={handlePressIn} onPressOut={handlePressOut}
-          onPress={() => router.push({ pathname: "/match/[id]", params: { id: game.id } })}
-          style={[
-            styles.matchCard, 
-            { backgroundColor: currentColors.card, shadowColor: isDark ? '#000' : '#cbd5e1' },
-            isFeatured && [styles.featuredCard, { shadowColor: LEAGUE_GRADIENT[1] }]
+/* ─── ATAJOS VISUALES (tochito / americano) ─── */
+const ExploreShortcuts = () => (
+  <FadeIn delay={110}>
+    <Text style={[styles.sectionLabel, styles.padH]}>Explora</Text>
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.exploreScroll}>
+      {EXPLORE_ITEMS.map((item) => (
+        <Pressable
+          key={item.title}
+          onPress={() => navigateFromHome(item.path)}
+          style={({ pressed }) => [
+            styles.exploreCard,
+            premiumShadow,
+            pressed && { opacity: 0.92, transform: [{ scale: 0.98 }] },
           ]}
         >
-          {isFeatured && (
-            <LinearGradient colors={LEAGUE_GRADIENT} start={{x:0, y:0}} end={{x:1, y:0}} style={styles.featuredTopBar} />
-          )}
-
-          <View style={styles.cardHeader}>
-            <Text style={[styles.categoryText, { color: currentColors.textMuted }]}>
-              {game.category?.replace("-", " ").toUpperCase()} • J{game.jornada || "?"}
-            </Text>
-            <View>
-              {isLive ? (
-                <View style={styles.liveBadge}>
-                  <LivePulse />
-                  <Text style={styles.liveBadgeText}>{timeStr}</Text>
-                </View>
-              ) : (
-                <Text style={[styles.statusText, { color: isFeatured ? LEAGUE_GRADIENT[1] : currentColors.textSecondary }]}>
-                  {isFinished ? "FINAL" : game.game_time?.substring(0, 5) || "TBD"}
-                </Text>
-              )}
-            </View>
+          <LinearGradient colors={item.colors} style={StyleSheet.absoluteFillObject} />
+          <View style={styles.exploreDecor}>
+            <Ionicons name={item.icon} size={72} color="rgba(255,255,255,0.12)" />
           </View>
-
-          <View style={styles.cardBody}>
-            <TeamRow team={homeTeam} name={game.home_team} score={game.home_score} isWinner={isFinished && game.home_score > game.away_score} />
-            <View style={styles.spacer} />
-            <TeamRow team={awayTeam} name={game.away_team} score={game.away_score} isWinner={isFinished && game.away_score > game.home_score} />
-          </View>
-
-          <View style={[styles.cardFooter, { borderTopColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }]}>
-            <View style={styles.footerInfo}>
-              <Ionicons name="location" size={14} color={currentColors.textMuted} style={{marginRight: 4}}/>
-              <Text style={[styles.footerText, { color: currentColors.textMuted }]}>
-                {game.venue ? game.venue : "Sede TBD"} • Campo {game.field ? game.field : "TBD"}
-              </Text>
+          <View style={styles.exploreBody}>
+            <View style={styles.exploreIconWrap}>
+              <Ionicons name={item.icon} size={22} color="#FFF" />
             </View>
-            <Ionicons name="chevron-forward" size={16} color={currentColors.textMuted} />
+            <Text style={styles.exploreTitle}>{item.title}</Text>
+            <Text style={styles.exploreSub}>{item.subtitle}</Text>
           </View>
         </Pressable>
-      </Animated.View>
-    </FadeInView>
+      ))}
+    </ScrollView>
+  </FadeIn>
+);
+
+const MatchCard = ({
+  game,
+  teams,
+  featured = false,
+  index = 0,
+}: {
+  game: any;
+  teams: any[];
+  featured?: boolean;
+  index?: number;
+}) => {
+  const theme = useColorScheme() ?? "light";
+  const colors = Colors[theme];
+  const timeStr = useLiveTimer(game);
+  if (!game) return null;
+
+  const home = teams.find((t) => t.name === game.home_team);
+  const away = teams.find((t) => t.name === game.away_team);
+  const isLive = ["en vivo", "en_vivo", "en curso"].includes(game.status?.toLowerCase() ?? "");
+  const isFinished = ["finalizado", "final"].includes(game.status?.toLowerCase() ?? "");
+  const homeWin = isFinished && game.home_score > game.away_score;
+  const awayWin = isFinished && game.away_score > game.home_score;
+
+  const TeamLine = ({ team, name, score, winner }: any) => (
+    <View style={styles.teamLine}>
+      <View style={[styles.teamLogoWrap, { backgroundColor: colors.bgSecondary }]}>
+        {team?.logo_url ? (
+          <Image source={{ uri: team.logo_url }} style={styles.teamLogo} resizeMode="contain" />
+        ) : (
+          <Text style={styles.teamInitials}>{name?.substring(0, 2).toUpperCase() || "?"}</Text>
+        )}
+      </View>
+      <Text
+        style={[
+          styles.teamName,
+          { color: winner || isLive ? colors.text : MUTED },
+          winner && { fontWeight: "900", color: colors.text },
+        ]}
+        numberOfLines={1}
+      >
+        {name}
+      </Text>
+      <Text
+        style={[
+          styles.score,
+          { color: winner ? BRAND_GRADIENT[0] : colors.text },
+          winner && { fontWeight: "900" },
+        ]}
+      >
+        {score ?? "-"}
+      </Text>
+    </View>
+  );
+
+  return (
+    <FadeIn delay={index * 45}>
+      <Pressable
+        onPress={() => router.push({ pathname: "/match/[id]", params: { id: game.id } })}
+        style={[styles.matchCard, premiumShadow, { backgroundColor: colors.card }]}
+      >
+        {featured ? (
+          <LinearGradient colors={BRAND_GRADIENT} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.featuredStrip} />
+        ) : null}
+
+        <View style={styles.matchHeader}>
+          <Text style={styles.matchCat}>
+            {(game.category || "").replace("-", " ").toUpperCase()}
+            {game.jornada ? ` · J${game.jornada}` : ""}
+          </Text>
+          {isLive ? (
+            <View style={styles.liveBadge}>
+              <LivePulse />
+              <Text style={styles.liveText}>{timeStr}</Text>
+            </View>
+          ) : (
+            <Text style={[styles.matchStatus, featured && { color: BRAND_GRADIENT[0] }]}>
+              {isFinished ? "FINAL" : game.game_time?.substring(0, 5) || "TBD"}
+            </Text>
+          )}
+        </View>
+
+        <View style={styles.matchBody}>
+          <TeamLine team={home} name={game.home_team} score={game.home_score} winner={homeWin} />
+          <View style={{ height: 14 }} />
+          <TeamLine team={away} name={game.away_team} score={game.away_score} winner={awayWin} />
+        </View>
+
+        <View style={styles.matchFooter}>
+          <Ionicons name="location-outline" size={14} color={MUTED} />
+          <Text style={styles.matchVenue} numberOfLines={1}>
+            {game.venue || "Sede TBD"}
+            {game.field ? ` · Campo ${game.field}` : ""}
+          </Text>
+          <Ionicons name="chevron-forward" size={16} color={MUTED} />
+        </View>
+      </Pressable>
+    </FadeIn>
   );
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 3. PANTALLA PRINCIPAL
-// ─────────────────────────────────────────────────────────────────────────────
+const CommunityCard = () => (
+  <FadeIn delay={180} style={styles.padH}>
+    <View style={[styles.communityCard, premiumShadow]}>
+      <Image source={{ uri: COMMUNITY_IMAGE }} style={styles.communityImg} resizeMode="cover" />
+      <LinearGradient colors={["rgba(12,24,58,0.2)", "rgba(12,24,58,0.92)"]} style={StyleSheet.absoluteFillObject} />
+      <View style={styles.communityBody}>
+        <Text style={styles.communityEyebrow}>ÚNETE</Text>
+        <Text style={styles.communityTitle}>Vive Flag Durango</Text>
+        <Text style={styles.communitySub}>Highlights, fotos y la comunidad en redes.</Text>
+        <View style={styles.socialRow}>
+          <Pressable
+            style={[styles.socialBtn, { backgroundColor: "#E1306C" }]}
+            onPress={() => Linking.openURL("https://www.instagram.com/flag.durango/")}
+          >
+            <Ionicons name="logo-instagram" size={18} color="#FFF" />
+          </Pressable>
+          <Pressable
+            style={[styles.socialBtn, { backgroundColor: "#1877F2" }]}
+            onPress={() => Linking.openURL("https://www.facebook.com/TBFDurango")}
+          >
+            <Ionicons name="logo-facebook" size={18} color="#FFF" />
+          </Pressable>
+          <Pressable
+            style={[styles.socialBtn, { backgroundColor: "#111111" }]}
+            onPress={() => Linking.openURL("https://www.tiktok.com/@flagdurango")}
+          >
+            <Ionicons name="logo-tiktok" size={18} color="#FFF" />
+          </Pressable>
+        </View>
+      </View>
+    </View>
+  </FadeIn>
+);
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isTablet = width >= 768;
+  const theme = useColorScheme() ?? "light";
+  const colors = Colors[theme];
+  const isDark = theme === "dark";
+  const screenBg = isDark ? colors.bg : DASH_BG;
 
   const { data: games, isLoading: gamesLoading, refetch: refetchGames } = useMatches();
   const { data: teams, isLoading: teamsLoading, refetch: refetchTeams } = useTeams();
   const { selectedSeason } = useSelectedSeason();
   const { data: stats, refetch: refetchStats } = useStats();
-  const { data: playerStats, refetch: refetchPlayers } = usePlayerStats();
+
   const [refreshing, setRefreshing] = useState(false);
   const [user, setUser] = useState<any>(null);
-
-  const theme = useColorScheme() ?? "light";
-  const currentColors = Colors[theme];
-
-  const [isFilterModalVisible, setFilterModalVisible] = useState(false);
-  const [activeJornada, setActiveJornada] = useState("TODAS"); 
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [activeJornada, setActiveJornada] = useState("TODAS");
   const [activeCategory, setActiveCategory] = useState("TODAS");
   const [activeField, setActiveField] = useState("TODOS");
-
   const [tempJornada, setTempJornada] = useState("TODAS");
   const [tempCategory, setTempCategory] = useState("TODAS");
   const [tempField, setTempField] = useState("TODOS");
@@ -486,145 +500,195 @@ export default function HomeScreen() {
   const safeGames = games ?? [];
   const topPad = insets.top;
 
-  const dateStr = useMemo(() => {
-    const today = new Date().toLocaleDateString("es-ES", { day: "numeric", month: "long" });
-    return today;
-  }, []);
-
   useFocusEffect(
     useCallback(() => {
-      AsyncStorage.getItem("userSession").then(res => {
+      AsyncStorage.getItem("userSession").then((res) => {
         if (res) setUser(JSON.parse(res));
-        else setUser(null); 
+        else setUser(null);
       });
     }, [])
   );
 
-  const handleProfilePress = () => {
+  const handleProfile = () => {
     if (!user) router.push("/login");
     else if (user.role === "coach") router.push("/(coach)/dashboard");
-    else if (user.role === "admin") router.push("/admin"); 
+    else if (user.role === "admin") router.push("/admin");
     else router.push("/(player)/dashboard");
   };
 
   const availableJornadas = useMemo(() => {
     if (!games) return [];
-    const j = Array.from(new Set(games.map(g => g.jornada).filter(Boolean)));
-    return j.sort((a, b) => {
-      const numA = parseInt(String(a).replace(/\D/g, "")) || 0;
-      const numB = parseInt(String(b).replace(/\D/g, "")) || 0;
-      return numA - numB;
+    return Array.from(new Set(games.map((g) => g.jornada).filter(Boolean))).sort((a, b) => {
+      return (parseInt(String(a).replace(/\D/g, "")) || 0) - (parseInt(String(b).replace(/\D/g, "")) || 0);
     });
   }, [games]);
 
   const availableCategories = useMemo(() => {
     if (!games) return [];
-    const cats = Array.from(new Set(games.map(g => g.category?.replace("-", " ").toUpperCase() || "OTRA")));
-    return cats.filter(Boolean).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+    return Array.from(new Set(games.map((g) => g.category?.replace("-", " ").toUpperCase() || "OTRA")))
+      .filter(Boolean)
+      .sort();
   }, [games]);
 
   const availableFields = useMemo(() => {
     if (!games) return [];
-    const flds = Array.from(new Set(games.map(g => g.field ? String(g.field).toUpperCase() : "TBD")));
-    return flds.filter(f => f !== "TBD").sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+    return Array.from(new Set(games.map((g) => (g.field ? String(g.field).toUpperCase() : "TBD"))))
+      .filter((f) => f !== "TBD")
+      .sort();
   }, [games]);
 
-  const openFilterModal = () => {
-    setTempJornada(activeJornada);
-    setTempCategory(activeCategory);
-    setTempField(activeField);
-    setFilterModalVisible(true);
-  };
-
-  const applyFilters = () => {
-    setActiveJornada(tempJornada);
-    setActiveCategory(tempCategory);
-    setActiveField(tempField);
-    setFilterModalVisible(false);
-  };
-
-  const resetFilters = () => {
-    setTempJornada("TODAS");
-    setTempCategory("TODAS");
-    setTempField("TODOS");
-  };
-
   const { featuredGame, sections } = useMemo(() => {
-    if (!games || games.length === 0) return { featuredGame: null, sections: [] };
+    if (!games?.length) return { featuredGame: null, sections: [] as any[] };
 
-    const filteredGames = games.filter(g => {
+    const filtered = games.filter((g) => {
       const gCat = g.category?.replace("-", " ").toUpperCase() || "OTRA";
       const gField = g.field ? String(g.field).toUpperCase() : "TBD";
-      
-      const matchCat = activeCategory === "TODAS" || gCat === activeCategory;
+      const matchCat =
+        activeCategory === "TODAS" || gCat === activeCategory || gCat.startsWith(activeCategory);
       const matchField = activeField === "TODOS" || gField === activeField;
       const matchJornada = activeJornada === "TODAS" || String(g.jornada) === String(activeJornada);
-      
       return matchCat && matchField && matchJornada;
     });
 
-    if (filteredGames.length === 0) return { featuredGame: null, sections: [] };
+    if (!filtered.length) return { featuredGame: null, sections: [] };
 
-    let featGame = filteredGames.find(g => ["en vivo", "en_vivo", "en curso"].includes(g.status?.toLowerCase() ?? ""));
-    if (!featGame) featGame = filteredGames.filter(g => ["programado", "proximo"].includes(g.status?.toLowerCase() ?? "")).sort((a, b) => new Date(a.game_date).getTime() - new Date(b.game_date).getTime())[0];
-    if (!featGame) featGame = filteredGames[0];
+    let feat =
+      filtered.find((g) => ["en vivo", "en_vivo", "en curso"].includes(g.status?.toLowerCase() ?? "")) ||
+      filtered
+        .filter((g) => ["programado", "proximo"].includes(g.status?.toLowerCase() ?? ""))
+        .sort((a, b) => new Date(a.game_date).getTime() - new Date(b.game_date).getTime())[0] ||
+      filtered[0];
 
-    const restGames = filteredGames.filter(g => g.id !== featGame.id);
+    const rest = filtered.filter((g) => g.id !== feat.id);
+    const live = rest.filter((g) => ["en vivo", "en_vivo", "en curso"].includes(g.status?.toLowerCase() ?? ""));
+    const upcoming = rest
+      .filter((g) => ["programado", "proximo"].includes(g.status?.toLowerCase() ?? ""))
+      .sort((a, b) => new Date(a.game_date).getTime() - new Date(b.game_date).getTime());
+    const finished = rest
+      .filter((g) => ["finalizado", "final"].includes(g.status?.toLowerCase() ?? ""))
+      .sort((a, b) => new Date(b.game_date).getTime() - new Date(a.game_date).getTime());
 
-    const live = restGames.filter(g => ["en vivo", "en_vivo", "en curso"].includes(g.status?.toLowerCase() ?? ""));
-    const upcoming = restGames.filter(g => ["programado", "proximo"].includes(g.status?.toLowerCase() ?? "")).sort((a, b) => new Date(a.game_date).getTime() - new Date(b.game_date).getTime());
-    const finished = restGames.filter(g => ["finalizado", "final"].includes(g.status?.toLowerCase() ?? "")).sort((a, b) => new Date(b.game_date).getTime() - new Date(a.game_date).getTime());
+    const sects: any[] = [];
+    if (live.length) sects.push({ title: "En vivo", data: live.slice(0, 3), type: "live" });
+    if (upcoming.length) sects.push({ title: "Próximos", data: upcoming.slice(0, 4), type: "upcoming" });
+    if (finished.length) sects.push({ title: "Últimos resultados", data: finished.slice(0, 4), type: "finished" });
 
-    const sects = [];
-    if (live.length > 0) sects.push({ title: "EN VIVO", data: live.slice(0, 3), type: 'live' });
-    if (upcoming.length > 0) sects.push({ title: "PROXIMOS PARTIDOS", data: upcoming.slice(0, 3), type: 'upcoming' });
-    if (finished.length > 0) sects.push({ title: "ULTIMOS RESULTADOS", data: finished.slice(0, 3), type: 'finished' });
-
-    return { featuredGame: featGame, sections: sects };
+    return { featuredGame: feat, sections: sects };
   }, [games, activeJornada, activeCategory, activeField]);
 
-  const topTeam = useMemo(() => {
-    return [...(stats ?? [])].sort((a: any, b: any) => {
+  const topTeamName = useMemo(() => {
+    const top = [...(stats ?? [])].sort((a: any, b: any) => {
       if ((b.points ?? 0) !== (a.points ?? 0)) return (b.points ?? 0) - (a.points ?? 0);
       return (b.points_difference ?? 0) - (a.points_difference ?? 0);
-    })[0] ?? null;
+    })[0];
+    return top?.team_name || "";
   }, [stats]);
 
-  const topPlayer = useMemo(() => {
-    return [...(playerStats ?? [])]
-      .map((player: any) => ({
-        ...player,
-        score:
-          Number(player.mvps || 0) * 1000 +
-          Number(player.touchdowns_totales || 0) * 75 +
-          Number(player.pases_completos || 0) * 8 +
-          Number(player.sacks || 0) * 45 +
-          Number(player.intercepciones || 0) * 50,
-      }))
-      .filter((player: any) => player.score > 0)
-      .sort((a: any, b: any) => b.score - a.score)[0] ?? null;
-  }, [playerStats]);
+  const playedCount = useMemo(
+    () =>
+      safeGames.filter((g) =>
+        ["finalizado", "final", "terminado"].includes(g.status?.toLowerCase() ?? "")
+      ).length,
+    [safeGames]
+  );
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([refetchGames(), refetchTeams(), refetchStats(), refetchPlayers()]);
+    await Promise.all([refetchGames(), refetchTeams(), refetchStats()]);
     setRefreshing(false);
-  }, [refetchGames, refetchPlayers, refetchStats, refetchTeams]);
+  }, [refetchGames, refetchTeams, refetchStats]);
 
-  // Si está cargando, mostramos los Skeletons dentro del scroll
+  const FilterChip = ({ label, selected, onPress }: any) => (
+    <Pressable
+      onPress={onPress}
+      style={[styles.modalChip, { backgroundColor: selected ? BRAND_GRADIENT[0] : colors.bgSecondary }]}
+    >
+      <Text style={[styles.modalChipText, { color: selected ? "#FFF" : colors.text }]}>{label}</Text>
+    </Pressable>
+  );
+
+  const listHeader = (
+    <View style={styles.contentMax}>
+      <HeroCard />
+
+      <QuickStats
+        teamsCount={safeTeams.length}
+        playedCount={playedCount}
+        topTeam={topTeamName}
+        colors={colors}
+      />
+
+      <ExploreShortcuts />
+
+      {selectedSeason ? (
+        <Text style={[styles.seasonHint, styles.padH]}>{seasonLabel(selectedSeason)}</Text>
+      ) : null}
+
+      <View style={styles.sectionHead}>
+        <Text style={styles.sectionLabel}>Categorías</Text>
+        <Pressable onPress={() => setFilterOpen(true)} hitSlop={8} style={styles.filterBtn}>
+          <Ionicons name="options-outline" size={16} color={BRAND_GRADIENT[0]} />
+        </Pressable>
+      </View>
+
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pillsScroll}>
+        {CATEGORY_CHIPS.map((chip) => {
+          const selected =
+            activeCategory === "TODAS"
+              ? chip.id === "TODAS"
+              : activeCategory.toUpperCase().startsWith(chip.id);
+          return (
+            <Pressable
+              key={chip.id}
+              onPress={() => setActiveCategory(chip.id)}
+              style={[
+                styles.pill,
+                premiumShadow,
+                selected
+                  ? null
+                  : { backgroundColor: isDark ? colors.card : "#FFFFFF" },
+              ]}
+            >
+              {selected ? (
+                <LinearGradient colors={BRAND_GRADIENT} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.pillGrad}>
+                  <Ionicons name={chip.icon} size={14} color="#FFF" />
+                  <Text style={[styles.pillText, { color: "#FFF" }]}>{chip.label}</Text>
+                </LinearGradient>
+              ) : (
+                <View style={styles.pillInner}>
+                  <Ionicons name={chip.icon} size={14} color={MUTED} />
+                  <Text style={[styles.pillText, { color: colors.text }]}>{chip.label}</Text>
+                </View>
+              )}
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+
+      {featuredGame ? (
+        <View style={styles.padH}>
+          <View style={styles.featuredHead}>
+            <Text style={styles.sectionLabel}>Destacado</Text>
+            <LinearGradient colors={BRAND_GRADIENT} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.liveNowPill}>
+              <Text style={styles.liveNowText}>HOY EN FLAG</Text>
+            </LinearGradient>
+          </View>
+          <MatchCard game={featuredGame} teams={safeTeams} featured />
+        </View>
+      ) : null}
+    </View>
+  );
+
   if (isLoading) {
     return (
-      <View style={[styles.container, { backgroundColor: currentColors.bg }]}>
-        <FloatingTopNav user={user} topPad={topPad} onProfilePress={handleProfilePress} isTablet={isTablet} />
-        <ScrollView style={{flex: 1}} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingTop: topPad + 80, paddingBottom: 100 }}>
-          <View style={styles.contentWrapper}>
-             <GreetingScrollable user={user} dateStr={dateStr} />
-             <View style={{ paddingHorizontal: 24, marginBottom: 20, marginTop: 20 }}>
-               <Text style={[styles.sectionTitleLabel, { color: currentColors.textMuted }]}>CARGANDO JUEGOS...</Text>
-             </View>
-             <View style={{ gap: 16 }}>
-               {[1, 2, 3, 4].map((k) => <MatchCardSkeleton key={k} />)}
-             </View>
+      <View style={[styles.root, { backgroundColor: screenBg }]}>
+        <TopBar user={user} topPad={topPad} onProfilePress={handleProfile} screenBg={screenBg} textColor={colors.text} />
+        <ScrollView contentContainerStyle={{ paddingTop: topPad + 72, paddingBottom: 100 }}>
+          <HeroCard />
+          <View style={{ paddingHorizontal: 20, gap: 14, marginTop: 8 }}>
+            {[1, 2, 3].map((k) => (
+              <MatchCardSkeleton key={k} />
+            ))}
           </View>
         </ScrollView>
       </View>
@@ -632,139 +696,141 @@ export default function HomeScreen() {
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: currentColors.bg }]}>
-      
-      {/* 1. TOP NAV BAR FIJA Y FLOTANTE */}
-      <FloatingTopNav user={user} topPad={topPad} onProfilePress={handleProfilePress} isTablet={isTablet} />
+    <View style={[styles.root, { backgroundColor: screenBg }]}>
+      <TopBar user={user} topPad={topPad} onProfilePress={handleProfile} screenBg={screenBg} textColor={colors.text} />
 
-      {/* 2. LISTA ESCROLEABLE (El saludo hace scroll junto con los juegos) */}
       <SectionList
         sections={sections}
         keyExtractor={(item) => item.id.toString()}
-        // Añadimos padding superior para que el contenido empiece por debajo de la Navbar fija
-        contentContainerStyle={[styles.listContent, { paddingTop: topPad + 60, paddingBottom: isTablet ? insets.bottom + 100 : 90 }]}
+        contentContainerStyle={{
+          paddingTop: topPad + 68,
+          paddingBottom: isTablet ? insets.bottom + 110 : 100,
+        }}
         showsVerticalScrollIndicator={false}
-        stickySectionHeadersEnabled={false} 
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={LEAGUE_GRADIENT[1]} progressViewOffset={topPad + 60} />}
-        
-        ListHeaderComponent={
-          <View style={styles.contentWrapper}>
-            <HomeSeasonPanel
-              selectedSeason={selectedSeason}
-              games={safeGames}
-              teams={safeTeams}
-              topTeam={topTeam}
-              topPlayer={topPlayer}
-              currentColors={currentColors}
-            />
-
-            {(activeJornada !== "TODAS" || activeCategory !== "TODAS" || activeField !== "TODOS") && (
-              <ActiveFiltersBar
-                onOpenModal={openFilterModal}
-                activeJornada={activeJornada}
-                activeCategory={activeCategory}
-                activeField={activeField}
-              />
-            )}
-
-            <View style={styles.featuredContainer}>
-              {featuredGame && (
-                <FadeInView delay={100}>
-                  <View style={styles.sectionHeaderRow}>
-                    <Text style={[styles.sectionTitleLabel, { color: currentColors.text, marginBottom: 0 }]}>PARTIDO DESTACADO</Text>
-                    <TouchableOpacity onPress={openFilterModal} style={[styles.inlineFilterBtn, { backgroundColor: currentColors.bgSecondary }]}>
-                      <Ionicons name="options-outline" size={17} color={currentColors.text} />
-                    </TouchableOpacity>
-                  </View>
-                  <MatchCard game={featuredGame} teams={safeTeams} isFeatured={true} />
-                </FadeInView>
-              )}
-            </View>
-          </View>
+        stickySectionHeadersEnabled={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={BRAND_GRADIENT[0]}
+            progressViewOffset={topPad + 68}
+          />
         }
-
-        renderSectionHeader={({ section: { title, type } }) => (
-          <View style={[styles.sectionHeader, styles.contentWrapper]}>
-            <Text style={[styles.sectionTitleLabel, { color: currentColors.textMuted }, type === 'live' && styles.sectionTitleLive]}>
-              {title}
+        ListHeaderComponent={listHeader}
+        renderSectionHeader={({ section }: any) => (
+          <View style={[styles.padH, styles.contentMax, { marginTop: 10 }]}>
+            <Text style={[styles.sectionLabel, section.type === "live" && { color: "#EF4444" }]}>
+              {section.title}
             </Text>
           </View>
         )}
-
         renderItem={({ item, index }) => (
-          <View style={styles.contentWrapper}>
+          <View style={[styles.padH, styles.contentMax]}>
             <MatchCard game={item} teams={safeTeams} index={index} />
           </View>
         )}
-
         ListEmptyComponent={
           !featuredGame ? (
-            <FadeInView delay={200} style={styles.contentWrapper}>
-              <View style={[styles.emptyCard, { backgroundColor: currentColors.card }]}>
-                <Ionicons name="american-football-outline" size={48} color={currentColors.textMuted} style={{ marginBottom: 16 }} />
-                <Text style={[styles.emptyTitle, { color: currentColors.text }]}>No hay juegos</Text>
-                <Text style={[styles.emptySubtitle, { color: currentColors.textSecondary }]}>
-                  Cambia tus filtros o revisa más tarde para ver nuevos encuentros.
-                </Text>
+            <View style={[styles.padH, styles.contentMax]}>
+              <View style={[styles.emptyCard, premiumShadow, { backgroundColor: colors.card }]}>
+                <Ionicons name="american-football-outline" size={42} color={MUTED} />
+                <Text style={[styles.emptyTitle, { color: colors.text }]}>Sin partidos</Text>
+                <Text style={styles.emptySub}>Prueba otros filtros o vuelve más tarde.</Text>
               </View>
-            </FadeInView>
+            </View>
           ) : null
         }
-        
         ListFooterComponent={
-          <View style={styles.contentWrapper}>
+          <View style={styles.contentMax}>
             <CommunityCard />
           </View>
         }
       />
 
-      {/* MODAL DE FILTROS PREMIUM */}
-      <Modal visible={isFilterModalVisible} animationType="slide" transparent={true} onRequestClose={() => setFilterModalVisible(false)}>
+      <Modal visible={filterOpen} animationType="slide" transparent onRequestClose={() => setFilterOpen(false)}>
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: currentColors.bg }, isTablet && { width: 500, alignSelf: 'center', borderRadius: 32, marginBottom: 'auto', marginTop: 'auto', maxHeight: '85%' }]}>
-            <View style={styles.modalDragHandleWrap}>
-              <View style={[styles.modalDragHandle, { backgroundColor: currentColors.borderLight }]} />
-            </View>
-            <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: currentColors.text }]}>Filtros</Text>
-              <TouchableOpacity onPress={() => setFilterModalVisible(false)} style={[styles.modalCloseBtn, { backgroundColor: currentColors.bgSecondary }]}>
-                <Ionicons name="close" size={20} color={currentColors.text} />
+          <View
+            style={[
+              styles.modalSheet,
+              { backgroundColor: colors.bg },
+              isTablet && {
+                width: 480,
+                alignSelf: "center",
+                borderRadius: 28,
+                marginVertical: "auto" as any,
+                maxHeight: "85%",
+              },
+            ]}
+          >
+            <View style={styles.modalHandle} />
+            <View style={styles.modalHead}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Filtros</Text>
+              <TouchableOpacity
+                onPress={() => setFilterOpen(false)}
+                style={[styles.modalClose, { backgroundColor: colors.bgSecondary }]}
+              >
+                <Ionicons name="close" size={18} color={colors.text} />
               </TouchableOpacity>
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalScroll}>
-              <Text style={[styles.filterGroupTitle, { color: currentColors.textMuted }]}>JORNADA</Text>
-              <View style={styles.filterGroup}>
-                <FilterOption label="Todas" isSelected={tempJornada === "TODAS"} onPress={() => setTempJornada("TODAS")} currentColors={currentColors} />
-                {availableJornadas.map(j => (
-                  <FilterOption key={j} label={`Jornada ${j}`} isSelected={tempJornada === String(j)} onPress={() => setTempJornada(String(j))} currentColors={currentColors} />
+            <ScrollView contentContainerStyle={{ paddingHorizontal: 22, paddingBottom: 28 }}>
+              <Text style={styles.modalGroup}>Jornada</Text>
+              <View style={styles.modalChips}>
+                <FilterChip label="Todas" selected={tempJornada === "TODAS"} onPress={() => setTempJornada("TODAS")} />
+                {availableJornadas.map((j) => (
+                  <FilterChip
+                    key={String(j)}
+                    label={`J${j}`}
+                    selected={tempJornada === String(j)}
+                    onPress={() => setTempJornada(String(j))}
+                  />
                 ))}
               </View>
 
-              <Text style={[styles.filterGroupTitle, { color: currentColors.textMuted }]}>CATEGORÍA</Text>
-              <View style={styles.filterGroup}>
-                <FilterOption label="Todas" isSelected={tempCategory === "TODAS"} onPress={() => setTempCategory("TODAS")} currentColors={currentColors} />
-                {availableCategories.map(cat => (
-                  <FilterOption key={cat} label={cat} isSelected={tempCategory === cat} onPress={() => setTempCategory(cat)} currentColors={currentColors} />
+              <Text style={styles.modalGroup}>Categoría</Text>
+              <View style={styles.modalChips}>
+                <FilterChip label="Todas" selected={tempCategory === "TODAS"} onPress={() => setTempCategory("TODAS")} />
+                {availableCategories.map((c) => (
+                  <FilterChip key={c} label={c} selected={tempCategory === c} onPress={() => setTempCategory(c)} />
                 ))}
               </View>
 
-              <Text style={[styles.filterGroupTitle, { color: currentColors.textMuted }]}>CAMPO</Text>
-              <View style={styles.filterGroup}>
-                <FilterOption label="Todos" isSelected={tempField === "TODOS"} onPress={() => setTempField("TODOS")} currentColors={currentColors} />
-                {availableFields.map(fld => (
-                  <FilterOption key={fld} label={`Campo ${fld}`} isSelected={tempField === fld} onPress={() => setTempField(fld)} currentColors={currentColors} />
+              <Text style={styles.modalGroup}>Campo</Text>
+              <View style={styles.modalChips}>
+                <FilterChip label="Todos" selected={tempField === "TODOS"} onPress={() => setTempField("TODOS")} />
+                {availableFields.map((f) => (
+                  <FilterChip
+                    key={f}
+                    label={`Campo ${f}`}
+                    selected={tempField === f}
+                    onPress={() => setTempField(f)}
+                  />
                 ))}
               </View>
             </ScrollView>
 
-            <View style={[styles.modalFooter, { borderTopColor: currentColors.borderLight, backgroundColor: currentColors.card }]}>
-              <TouchableOpacity style={styles.resetBtn} onPress={resetFilters}>
-                <Text style={[styles.resetBtnText, { color: currentColors.textSecondary }]}>Limpiar</Text>
+            <View style={[styles.modalFooter, { backgroundColor: colors.card }]}>
+              <TouchableOpacity
+                onPress={() => {
+                  setTempJornada("TODAS");
+                  setTempCategory("TODAS");
+                  setTempField("TODOS");
+                }}
+                style={{ paddingHorizontal: 16, paddingVertical: 12 }}
+              >
+                <Text style={{ color: MUTED, fontWeight: "800" }}>Limpiar</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.applyBtn} onPress={applyFilters}>
-                <LinearGradient colors={LEAGUE_GRADIENT} style={styles.applyBtnGradient} start={{x:0, y:0}} end={{x:1, y:0}}>
-                  <Text style={styles.applyBtnText}>Aplicar Filtros</Text>
+              <TouchableOpacity
+                style={{ flex: 1 }}
+                onPress={() => {
+                  setActiveJornada(tempJornada);
+                  setActiveCategory(tempCategory);
+                  setActiveField(tempField);
+                  setFilterOpen(false);
+                }}
+              >
+                <LinearGradient colors={BRAND_GRADIENT} style={styles.applyBtn} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
+                  <Text style={styles.applyText}>Aplicar</Text>
                 </LinearGradient>
               </TouchableOpacity>
             </View>
@@ -775,146 +841,320 @@ export default function HomeScreen() {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 5. ESTILOS PREMIUM (TOTALMENTE RENOVADOS)
-// ─────────────────────────────────────────────────────────────────────────────
-
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  contentWrapper: { width: "100%", maxWidth: 800, alignSelf: "center" },
+  root: { flex: 1 },
+  contentMax: { width: "100%", maxWidth: 800, alignSelf: "center" },
+  padH: { paddingHorizontal: 20 },
 
-  // --- TOP NAV BAR FLOTANTE ---
-  floatingNavContainer: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 100, borderBottomWidth: 0 },
-  navInner: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 24, paddingBottom: 10 },
-  headerLogoModern: { width: 100, height: 32 },
-  avatarMini: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
-  avatarMiniText: { color: '#FFFFFF', fontSize: 13, fontWeight: '900' },
+  topBar: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 100,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingBottom: 10,
+  },
+  greetEyebrow: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: MUTED,
+    letterSpacing: 1.4,
+    marginBottom: 2,
+  },
+  greetHello: { fontSize: 20, fontWeight: "900", letterSpacing: -0.4 },
+  avatar: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
+  avatarOutline: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarText: { color: "#FFF", fontSize: 15, fontWeight: "800" },
 
-  // --- GREETING SCROLLABLE ---
-  greetingContainerModern: { alignItems: "flex-start", marginBottom: 15, paddingHorizontal: 24, marginTop: 10 },
-  dateTextModern: { fontSize: 13, fontWeight: "800", letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 5 },
-  greetingTextModern: { fontSize: 36, fontWeight: "900", letterSpacing: -1.2, lineHeight: 42, marginBottom: -6 },
-  gradientTextWrapper: { height: 45, justifyContent: 'flex-start' },
-  greetingTextGradient: { fontSize: 36, fontWeight: "900", letterSpacing: -1.2, lineHeight: 42 },
+  heroCard: {
+    borderRadius: 28,
+    overflow: "hidden",
+    marginBottom: 18,
+    minHeight: 340,
+  },
+  heroImage: { ...StyleSheet.absoluteFillObject, width: "100%", height: "100%" },
+  heroAccentWash: { position: "absolute", top: 0, left: 0, right: 0, height: 120 },
+  heroContent: { flex: 1, minHeight: 340, justifyContent: "flex-end", padding: 22 },
+  heroTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 18,
+  },
+  heroBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    backgroundColor: "rgba(255,255,255,0.16)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.22)",
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 999,
+  },
+  heroBadgeDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: "#34D399" },
+  heroBadgeText: { color: "#FFF", fontSize: 11, fontWeight: "800", letterSpacing: 0.3 },
+  heroBrandLogo: { width: 72, height: 26, tintColor: "#FFF" },
+  heroKicker: {
+    color: "rgba(255,255,255,0.72)",
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 1.2,
+    textTransform: "uppercase",
+    marginBottom: 6,
+  },
+  heroTitle: {
+    color: "#FFF",
+    fontSize: 28,
+    fontWeight: "900",
+    letterSpacing: -0.8,
+    lineHeight: 34,
+    marginBottom: 8,
+  },
+  heroSub: {
+    color: "rgba(255,255,255,0.82)",
+    fontSize: 14,
+    fontWeight: "500",
+    lineHeight: 20,
+    marginBottom: 18,
+    maxWidth: 320,
+  },
+  countdownRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  countBox: {
+    width: 62,
+    height: 68,
+    borderRadius: 16,
+    backgroundColor: "rgba(255,255,255,0.14)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.18)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  countNum: { color: "#FFF", fontSize: 26, fontWeight: "900", letterSpacing: -1 },
+  countLbl: { color: "rgba(255,255,255,0.7)", fontSize: 10, fontWeight: "800", marginTop: 2, textTransform: "uppercase" },
+  countMeta: { flex: 1, paddingLeft: 4 },
+  countMetaTitle: { color: "#FFF", fontSize: 15, fontWeight: "800", marginBottom: 2 },
+  countMetaText: { color: "rgba(255,255,255,0.75)", fontSize: 12, fontWeight: "600", marginBottom: 8 },
+  regPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    alignSelf: "flex-start",
+    backgroundColor: "rgba(255,107,26,0.2)",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+  },
+  regPillText: { color: "#FFB088", fontSize: 11, fontWeight: "700" },
 
-  seasonPanelWrap: { paddingHorizontal: 20, marginTop: 10, marginBottom: 8 },
-  seasonPanel: { borderRadius: 18, borderCurve: "continuous", borderWidth: 1, padding: 16, gap: 12, boxShadow: "0 6px 18px rgba(15, 23, 42, 0.08)" },
-  seasonPanelHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
-  seasonHeading: { flex: 1, minWidth: 0, gap: 5 },
-  seasonTitleRow: { flexDirection: "row", alignItems: "center", gap: 8, minWidth: 0 },
-  seasonEyebrow: { fontSize: 10, fontWeight: "700", letterSpacing: 0, textTransform: "uppercase" },
-  seasonPanelTitle: { flexShrink: 1, fontSize: 18, lineHeight: 22, fontWeight: "800", letterSpacing: 0 },
-  seasonActiveBadge: { flexDirection: "row", alignItems: "center", gap: 5, borderRadius: 999, backgroundColor: `${Colors.dark.green}18`, paddingHorizontal: 7, paddingVertical: 3 },
-  seasonActiveDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: Colors.dark.green },
-  seasonActiveText: { color: Colors.dark.green, fontSize: 8, fontWeight: "800", letterSpacing: 0, textTransform: "uppercase" },
-  seasonBadge: { width: 34, height: 34, borderRadius: 10, borderCurve: "continuous", borderWidth: 1, alignItems: "center", justifyContent: "center" },
-  seasonSwitcher: { minHeight: 36, borderRadius: 10, borderCurve: "continuous", borderWidth: 1, padding: 3, overflow: "hidden", justifyContent: "center" },
-  seasonSwitcherContent: { alignItems: "center", gap: 3 },
-  seasonSwitcherLoading: { paddingHorizontal: 8, fontSize: 11, fontWeight: "600" },
-  seasonOption: { minHeight: 28, maxWidth: 180, borderRadius: 7, borderCurve: "continuous", borderWidth: 1, borderColor: "transparent", paddingHorizontal: 9, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 },
-  seasonOptionPressed: { opacity: 0.72 },
-  seasonOptionStatus: { flexDirection: "row", alignItems: "center", gap: 4 },
-  seasonOptionDot: { width: 5, height: 5, borderRadius: 3 },
-  seasonOptionStatusText: { fontSize: 8, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0 },
-  seasonOptionText: { flexShrink: 1, fontSize: 11, fontWeight: "700", letterSpacing: 0 },
-  homeStatsGrid: { minHeight: 54, flexDirection: "row", alignItems: "center", borderTopWidth: 1, borderBottomWidth: 1, paddingVertical: 8 },
-  homeMiniStat: { flex: 1, minWidth: 0, alignItems: "center", justifyContent: "center", gap: 2 },
-  homeMiniValue: { fontSize: 18, lineHeight: 21, fontWeight: "800", fontVariant: ["tabular-nums"] },
-  homeMiniLabel: { fontSize: 9, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0 },
-  homeStatDivider: { width: 1, height: 25 },
-  homeHighlightsRow: { flexDirection: "row", gap: 8 },
-  highlightCard: { flex: 1, minWidth: 0, minHeight: 78, borderRadius: 10, borderCurve: "continuous", borderWidth: 1, padding: 11, justifyContent: "center" },
-  highlightPressed: { opacity: 0.78 },
-  highlightHeader: { flexDirection: "row", alignItems: "center", gap: 5, marginBottom: 6 },
-  highlightLabel: { fontSize: 9, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0 },
-  highlightValue: { fontSize: 13, lineHeight: 17, fontWeight: "800", letterSpacing: 0 },
-  highlightSub: { fontSize: 10, fontWeight: "600", marginTop: 2 },
-  quickActions: { flexDirection: "row", gap: 8 },
-  quickAction: { flex: 1, minHeight: 34, borderRadius: 9, borderCurve: "continuous", borderWidth: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 },
-  quickActionText: { fontSize: 11, fontWeight: "700", letterSpacing: 0 },
+  statsBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 20,
+    paddingVertical: 14,
+    paddingHorizontal: 8,
+    marginBottom: 20,
+  },
+  statCell: { flex: 1, alignItems: "center", paddingHorizontal: 4 },
+  statDivider: { width: 1, height: 34, backgroundColor: "#E8EEF7" },
+  statNum: { fontSize: 22, fontWeight: "900", letterSpacing: -0.6 },
+  statLeader: { fontSize: 12, fontWeight: "800", textAlign: "center", marginBottom: 1 },
+  statLbl: { fontSize: 10, fontWeight: "700", color: MUTED, textTransform: "uppercase", marginTop: 2 },
 
-  // --- FILTER BAR MODERNA (PÍLDORAS INDIVIDUALES) ---
-  filterBarContainer: { paddingVertical: 5 },
-  filterPillScroll: { alignItems: 'center', gap: 10, paddingHorizontal: 24, paddingVertical: 5 },
-  
-  adjustBtnCircle: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', elevation: 3, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.1, shadowRadius: 5 },
-  
-  modernPill: { height: 42, borderRadius: 21, overflow: 'hidden', elevation: 3, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.1, shadowRadius: 5 },
-  pillGradient: { flex: 1, paddingHorizontal: 20, alignItems: 'center', justifyContent: 'center' },
-  modernPillText: { fontSize: 13, fontWeight: '800', paddingHorizontal: 20, lineHeight: 42 },
+  sectionLabel: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: MUTED,
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
+    marginBottom: 12,
+  },
+  sectionHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    marginTop: 6,
+  },
+  filterBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 12,
+    backgroundColor: "rgba(30,93,187,0.1)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  seasonHint: { fontSize: 12, fontWeight: "600", color: MUTED, marginBottom: 4, marginTop: -2 },
 
-  listContent: { paddingTop: 0 },
-  
-  featuredContainer: { marginTop: 14, paddingHorizontal: 24, marginBottom: 5 },
-  sectionHeaderRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 14 },
-  inlineFilterBtn: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
-  sectionTitleLabel: { fontSize: 13, fontWeight: "900", letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 14 },
-  sectionHeader: { marginTop: 25, paddingHorizontal: 24 },
-  sectionTitleLive: { color: "#EF4444" },
+  exploreScroll: { paddingHorizontal: 20, gap: 12, paddingBottom: 18 },
+  exploreCard: {
+    width: 148,
+    height: 170,
+    borderRadius: 22,
+    overflow: "hidden",
+  },
+  exploreDecor: { position: "absolute", top: 8, right: -8, opacity: 1 },
+  exploreBody: { flex: 1, justifyContent: "flex-end", padding: 14 },
+  exploreIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 10,
+    backgroundColor: "rgba(255,255,255,0.2)",
+  },
+  exploreTitle: { color: "#FFF", fontSize: 17, fontWeight: "900", letterSpacing: -0.3 },
+  exploreSub: { color: "rgba(255,255,255,0.8)", fontSize: 12, fontWeight: "600", marginTop: 2 },
 
-  // --- MATCH CARD "SLEEK" (Sin bordes rígidos) ---
-  matchCard: { borderRadius: 24, marginHorizontal: 24, marginBottom: 16, overflow: 'hidden', elevation: 8, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.06, shadowRadius: 16 },
-  featuredCard: { shadowOpacity: 0.15, shadowRadius: 24, elevation: 12 },
-  featuredTopBar: { height: 4, width: '100%' },
-  
-  cardHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 20, paddingTop: 18, paddingBottom: 10 },
-  statusText: { fontSize: 12, fontWeight: "900", letterSpacing: 0.5 },
-  categoryText: { fontSize: 12, fontWeight: "800", letterSpacing: 0.5 },
-  
-  cardBody: { paddingHorizontal: 20, paddingBottom: 20 },
-  spacer: { height: 16 }, 
-  
-  teamRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  teamInfo: { flexDirection: "row", alignItems: "center", flex: 1 },
-  logoContainer: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", overflow: "hidden", marginRight: 14 },
+  pillsScroll: { paddingHorizontal: 20, gap: 10, paddingBottom: 18 },
+  pill: { borderRadius: 999, overflow: "hidden" },
+  pillGrad: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 11,
+  },
+  pillInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 11,
+  },
+  pillText: { fontSize: 13, fontWeight: "700" },
+
+  featuredHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
+  liveNowPill: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999 },
+  liveNowText: { color: "#FFF", fontSize: 10, fontWeight: "900", letterSpacing: 0.8 },
+
+  matchCard: {
+    borderRadius: 24,
+    overflow: "hidden",
+    marginBottom: 14,
+  },
+  featuredStrip: { height: 4, width: "100%" },
+  matchHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 18,
+    paddingTop: 16,
+    paddingBottom: 10,
+  },
+  matchCat: { fontSize: 11, fontWeight: "800", color: MUTED, letterSpacing: 0.4 },
+  matchStatus: { fontSize: 12, fontWeight: "800", color: MUTED },
+  matchBody: { paddingHorizontal: 18, paddingBottom: 14 },
+  teamLine: { flexDirection: "row", alignItems: "center" },
+  teamLogoWrap: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+    marginRight: 12,
+  },
   teamLogo: { width: "100%", height: "100%" },
-  logoFallback: { fontSize: 12, fontWeight: "900" },
-  teamName: { fontSize: 16, fontWeight: "700", flex: 1, paddingRight: 10, letterSpacing: -0.3 },
-  teamNameWinner: { fontWeight: "900" },
-  
-  scoreWrap: { alignItems: 'flex-end', justifyContent: 'center', minWidth: 40 },
-  scoreText: { fontSize: 22, fontWeight: "700" },
-  scoreTextWinner: { fontSize: 24, fontWeight: "900" },
-  
-  cardFooter: { paddingHorizontal: 20, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderTopWidth: 1 },
-  footerInfo: { flexDirection: 'row', alignItems: 'center' },
-  footerText: { fontSize: 12, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.5 },
-
-  liveBadge: { flexDirection: "row", alignItems: "center", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, backgroundColor: 'rgba(239, 68, 68, 0.1)' },
+  teamInitials: { fontSize: 12, fontWeight: "900", color: MUTED },
+  teamName: { flex: 1, fontSize: 16, fontWeight: "700", paddingRight: 8 },
+  score: { fontSize: 28, fontWeight: "800", minWidth: 40, textAlign: "right", letterSpacing: -0.5 },
+  matchFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 18,
+    paddingVertical: 13,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "#EEF2F7",
+  },
+  matchVenue: { flex: 1, fontSize: 12, fontWeight: "600", color: MUTED },
+  liveBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(239,68,68,0.1)",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 10,
+  },
   liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "#EF4444", marginRight: 6 },
-  liveBadgeText: { color: "#EF4444", fontSize: 11, fontWeight: "900", letterSpacing: 0.5 },
+  liveText: { color: "#EF4444", fontSize: 11, fontWeight: "900" },
 
-  // --- EMPTY STATE MODERNO ---
-  emptyCard: { alignItems: "center", justifyContent: "center", paddingVertical: 60, marginHorizontal: 24, marginTop: 15, borderRadius: 32 },
-  emptyTitle: { fontSize: 18, fontWeight: "900", marginBottom: 8, textAlign: "center", letterSpacing: -0.5 },
-  emptySubtitle: { fontSize: 14, textAlign: "center", paddingHorizontal: 30, lineHeight: 22 },
+  communityCard: {
+    borderRadius: 26,
+    overflow: "hidden",
+    marginBottom: 20,
+    height: 190,
+    marginTop: 8,
+  },
+  communityImg: { ...StyleSheet.absoluteFillObject },
+  communityBody: { flex: 1, justifyContent: "flex-end", padding: 20 },
+  communityEyebrow: { color: "rgba(255,255,255,0.7)", fontSize: 11, fontWeight: "800", letterSpacing: 1.2, marginBottom: 4 },
+  communityTitle: { color: "#FFF", fontSize: 22, fontWeight: "900", letterSpacing: -0.4 },
+  communitySub: { color: "rgba(255,255,255,0.8)", fontSize: 13, marginTop: 4, marginBottom: 12 },
+  socialRow: { flexDirection: "row", gap: 10 },
+  socialBtn: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
 
-  // --- COMUNIDAD ---
-  communityWrapper: { paddingHorizontal: 24, marginTop: 25, marginBottom: 40 },
-  communityCard: { borderRadius: 28, padding: 24, flexDirection: 'row', alignItems: "center", borderWidth: 1 },
-  communityContent: { flex: 1, paddingRight: 15 },
-  communityTitle: { fontSize: 18, fontWeight: "900", marginBottom: 4, letterSpacing: -0.5 },
-  communitySub: { fontSize: 13, lineHeight: 18 },
-  socialButtonsRow: { flexDirection: "row", gap: 12 },
-  socialBtnCircle: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  emptyCard: { alignItems: "center", paddingVertical: 48, borderRadius: 24 },
+  emptyTitle: { fontSize: 17, fontWeight: "800", marginTop: 14 },
+  emptySub: { fontSize: 13, color: MUTED, marginTop: 6, textAlign: "center" },
 
-  // --- MODAL PREMIUM BOTTON SHEET ---
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  modalContent: { borderTopLeftRadius: 32, borderTopRightRadius: 32, height: '80%' },
-  modalDragHandleWrap: { width: '100%', alignItems: 'center', paddingTop: 12, paddingBottom: 8 },
-  modalDragHandle: { width: 40, height: 5, borderRadius: 3 },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 24, paddingBottom: 20 },
-  modalTitle: { fontSize: 22, fontWeight: '900', letterSpacing: -0.5 },
-  modalCloseBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
-  modalScroll: { paddingHorizontal: 24, paddingBottom: 40 },
-  filterGroupTitle: { fontSize: 12, fontWeight: '900', letterSpacing: 1.5, marginBottom: 14, marginTop: 10, textTransform: 'uppercase' },
-  filterGroup: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 28 },
-  filterOptionModal: { paddingHorizontal: 18, paddingVertical: 12, borderRadius: 20 },
-  filterOptionTextModal: { fontSize: 14, fontWeight: '700' },
-  modalFooter: { flexDirection: 'row', paddingHorizontal: 24, paddingTop: 16, borderTopWidth: 1, paddingBottom: Platform.OS === 'ios' ? 40 : 24, alignItems: 'center' },
-  resetBtn: { paddingVertical: 14, paddingHorizontal: 20, justifyContent: 'center' },
-  resetBtnText: { fontSize: 15, fontWeight: '800' },
-  applyBtn: { flex: 1, borderRadius: 24, overflow: 'hidden' },
-  applyBtnGradient: { paddingVertical: 16, alignItems: 'center', justifyContent: 'center' },
-  applyBtnText: { color: '#FFF', fontSize: 16, fontWeight: '900', letterSpacing: 0.5 }
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" },
+  modalSheet: { borderTopLeftRadius: 28, borderTopRightRadius: 28, height: "78%" },
+  modalHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#CBD5E1",
+    alignSelf: "center",
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  modalHead: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 22,
+    paddingBottom: 14,
+  },
+  modalTitle: { fontSize: 22, fontWeight: "900" },
+  modalClose: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center" },
+  modalGroup: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: MUTED,
+    letterSpacing: 1,
+    textTransform: "uppercase",
+    marginBottom: 12,
+    marginTop: 10,
+  },
+  modalChips: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 18 },
+  modalChip: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 14 },
+  modalChipText: { fontSize: 13, fontWeight: "700" },
+  modalFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 22,
+    paddingTop: 14,
+    paddingBottom: Platform.OS === "ios" ? 36 : 20,
+    gap: 8,
+  },
+  applyBtn: { paddingVertical: 15, borderRadius: 16, alignItems: "center" },
+  applyText: { color: "#FFF", fontSize: 15, fontWeight: "800" },
 });

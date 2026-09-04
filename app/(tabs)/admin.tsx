@@ -30,8 +30,8 @@ export default function AdminDashboardScreen() {
             await AsyncStorage.removeItem("user");
             await AsyncStorage.removeItem("userSession");
             
-            // 3. Mandamos al login limpiecitos
-            router.replace('/login');
+            // 3. Volvemos al inicio (replace evita GO_BACK sin historial)
+            router.replace('/');
           }
         }
       ]

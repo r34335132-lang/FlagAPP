@@ -1,65 +1,287 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  ScrollView, 
-  Platform, 
-  Pressable, 
-  RefreshControl, 
-  ActivityIndicator, 
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  Platform,
+  Pressable,
+  RefreshControl,
+  ActivityIndicator,
   Image,
   useColorScheme,
   useWindowDimensions,
   Animated,
-  Easing
+  Easing,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useRouter } from "expo-router"; 
+import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import Svg, { Circle } from "react-native-svg";
 import { SeasonSelector } from "@/components/SeasonSelector";
 import { useSelectedSeason } from "@/hooks/useSeasons";
 import { useStats } from "@/hooks/useStats";
 import { useTeams } from "@/hooks/useTeams";
 import { usePlayerStats } from "@/hooks/usePlayerStats";
-import { StandingsTable } from "@/components/StandingsTable";
-import { BRAND_GRADIENT, Colors } from "@/constants/colors"; 
+import { BRAND_GRADIENT, Colors } from "@/constants/colors";
 
-const MAIN_CATEGORIES = [
-  { id: "all", label: "TODOS" },
-  { id: "varonil", label: "VARONIL" },
-  { id: "femenil", label: "FEMENIL" },
-  { id: "mixto", label: "MIXTO" },
-  { id: "teens", label: "TEENS" },
+const DASH_BG = "#F7F9FC";
+
+const CATEGORY_GROUPS = [
+  { id: "femenil", label: "Femenil", tiers: ["copper", "silver", "gold"] },
+  { id: "mixto", label: "Mixto", tiers: ["silver", "gold"] },
+  { id: "varonil", label: "Varonil", tiers: ["silver", "gold"] },
+  { id: "teens", label: "Teens", tiers: [] },
 ];
 
-type StatType = "touchdowns_totales" | "pases_completos" | "puntos_extra" | "sacks" | "intercepciones" | "banderas_jaladas" | "mvps";
-type StatCategory = "ofensiva" | "defensa" | "premios"; // 🔥 Cambiado a 'ofensiva'
+const MAIN_CATEGORIES = [
+  { id: "all", label: "Todas" },
+  ...CATEGORY_GROUPS.map((g) => ({ id: g.id, label: g.label })),
+];
 
-// ─────────────────────────────────────────────────────────────────────────────
-// ANIMACIÓN CASCADA
-// ─────────────────────────────────────────────────────────────────────────────
-const FadeInView = ({ children, delay = 0 }: { children: any, delay?: number }) => {
+const TIER_COLORS: Record<string, string> = {
+  copper: "#B87333",
+  silver: "#94A3B8",
+  gold: "#F59E0B",
+};
+
+type StatType =
+  | "touchdowns_totales"
+  | "pases_completos"
+  | "puntos_extra"
+  | "sacks"
+  | "intercepciones"
+  | "banderas_jaladas"
+  | "mvps";
+type StatCategory = "ofensiva" | "defensa" | "premios";
+
+const softShadow = Platform.select({
+  ios: {
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+  },
+  android: { elevation: 2 },
+  default: {
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+  },
+});
+
+const FadeInView = ({ children, delay = 0 }: { children: any; delay?: number }) => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(15)).current;
+  const slideAnim = useRef(new Animated.Value(12)).current;
 
   useEffect(() => {
     Animated.parallel([
-      Animated.timing(fadeAnim, { toValue: 1, duration: 400, delay, useNativeDriver: true, easing: Easing.out(Easing.cubic) }),
-      Animated.timing(slideAnim, { toValue: 0, duration: 400, delay, useNativeDriver: true, easing: Easing.out(Easing.cubic) })
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 380,
+        delay,
+        useNativeDriver: true,
+        easing: Easing.out(Easing.cubic),
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 380,
+        delay,
+        useNativeDriver: true,
+        easing: Easing.out(Easing.cubic),
+      }),
     ]).start();
-  }, [delay]);
+  }, [delay, fadeAnim, slideAnim]);
 
-  return <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>{children}</Animated.View>;
+  return (
+    <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
+      {children}
+    </Animated.View>
+  );
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// PANTALLA PRINCIPAL
-// ─────────────────────────────────────────────────────────────────────────────
+function ProgressRing({
+  progress,
+  size = 52,
+  stroke = 5,
+  color,
+  trackColor,
+  label,
+}: {
+  progress: number;
+  size?: number;
+  stroke?: number;
+  color: string;
+  trackColor: string;
+  label: string;
+}) {
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  const clamped = Math.max(0, Math.min(1, progress));
+  const offset = c * (1 - clamped);
+
+  return (
+    <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
+      <Svg width={size} height={size} style={{ position: "absolute" }}>
+        <Circle cx={size / 2} cy={size / 2} r={r} stroke={trackColor} strokeWidth={stroke} fill="none" />
+        <Circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          stroke={color}
+          strokeWidth={stroke}
+          fill="none"
+          strokeDasharray={`${c} ${c}`}
+          strokeDashoffset={offset}
+          strokeLinecap="round"
+          transform={`rotate(-90 ${size / 2} ${size / 2})`}
+        />
+      </Svg>
+      <Text style={{ fontSize: 11, fontWeight: "900", color }}>{label}</Text>
+    </View>
+  );
+}
+
+function ProgressBar({
+  value,
+  max,
+  color,
+  trackColor,
+}: {
+  value: number;
+  max: number;
+  color: string;
+  trackColor: string;
+}) {
+  const pct = max > 0 ? Math.min(100, (value / max) * 100) : 0;
+  return (
+    <View style={[styles.barTrack, { backgroundColor: trackColor }]}>
+      <View style={[styles.barFill, { width: `${pct}%`, backgroundColor: color }]} />
+    </View>
+  );
+}
+
+function TeamStatCard({
+  team,
+  rank,
+  teams,
+  maxPoints,
+  currentColors,
+}: {
+  team: any;
+  rank: number;
+  teams: any[];
+  maxPoints: number;
+  currentColors: any;
+}) {
+  const wins = team.games_won ?? team.wins ?? 0;
+  const losses = team.games_lost ?? team.losses ?? 0;
+  const played = team.games_played ?? wins + losses + (team.games_tied ?? team.draws ?? 0);
+  const winRate = played > 0 ? wins / played : 0;
+  const points = team.points ?? 0;
+  const pf = team.points_for ?? 0;
+  const pa = team.points_against ?? 0;
+  const diff = team.points_difference ?? pf - pa;
+  const teamInfo = teams?.find((t) => t.name === team.team_name);
+  const hasLogo = teamInfo?.logo_url && !teamInfo.logo_url.startsWith("blob:");
+  const tier = team.team_category?.split("-")?.[1]?.toLowerCase();
+  const tierColor = (tier && TIER_COLORS[tier]) || BRAND_GRADIENT[0];
+
+  return (
+    <View
+      style={[
+        styles.teamCard,
+        softShadow,
+        { backgroundColor: currentColors.card, borderColor: currentColors.borderLight },
+      ]}
+    >
+      <View style={styles.teamCardTop}>
+        <View style={styles.rankCircle}>
+          <Text style={[styles.rankNum, { color: rank <= 3 ? tierColor : currentColors.textMuted }]}>
+            {rank}
+          </Text>
+        </View>
+        <View style={[styles.teamLogoWrap, { backgroundColor: currentColors.bgSecondary }]}>
+          {hasLogo ? (
+            <Image source={{ uri: teamInfo.logo_url }} style={styles.teamLogo} resizeMode="contain" />
+          ) : (
+            <Text style={[styles.teamInitials, { color: currentColors.textMuted }]}>
+              {team.team_name?.substring(0, 2).toUpperCase()}
+            </Text>
+          )}
+        </View>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={[styles.teamName, { color: currentColors.text }]} numberOfLines={1}>
+            {team.team_name}
+          </Text>
+          <Text style={[styles.teamMeta, { color: currentColors.textMuted }]}>
+            {played} PJ · {wins}G · {losses}P
+            {tier ? ` · ${tier.toUpperCase()}` : ""}
+          </Text>
+        </View>
+        <ProgressRing
+          progress={winRate}
+          color={Colors.light.green}
+          trackColor={currentColors.bgSecondary}
+          label={`${Math.round(winRate * 100)}%`}
+        />
+      </View>
+
+      <View style={styles.metricsRow}>
+        <View style={styles.metricBlock}>
+          <Text style={[styles.metricValue, { color: currentColors.text }]}>{points}</Text>
+          <Text style={[styles.metricLabel, { color: currentColors.textMuted }]}>PTS</Text>
+          <ProgressBar value={points} max={maxPoints || 1} color={BRAND_GRADIENT[0]} trackColor={currentColors.bgSecondary} />
+        </View>
+        <View style={styles.metricBlock}>
+          <Text style={[styles.metricValue, { color: Colors.light.green }]}>{wins}</Text>
+          <Text style={[styles.metricLabel, { color: currentColors.textMuted }]}>VICTORIAS</Text>
+          <ProgressBar value={wins} max={played || 1} color={Colors.light.green} trackColor={currentColors.bgSecondary} />
+        </View>
+        <View style={styles.metricBlock}>
+          <Text style={[styles.metricValue, { color: Colors.light.loss }]}>{losses}</Text>
+          <Text style={[styles.metricLabel, { color: currentColors.textMuted }]}>DERROTAS</Text>
+          <ProgressBar value={losses} max={played || 1} color={Colors.light.loss} trackColor={currentColors.bgSecondary} />
+        </View>
+      </View>
+
+      <View style={[styles.diffRow, { borderTopColor: currentColors.borderLight }]}>
+        <Text style={[styles.diffText, { color: currentColors.textSecondary }]}>
+          PF {pf} · PC {pa}
+        </Text>
+        <Text
+          style={[
+            styles.diffValue,
+            { color: diff > 0 ? Colors.light.green : diff < 0 ? Colors.light.loss : currentColors.textMuted },
+          ]}
+        >
+          DIF {diff > 0 ? `+${diff}` : diff}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+const StatChip = ({ type, label, active, onPress, colors }: any) => {
+  const isActive = active === type;
+  return (
+    <Pressable
+      style={[
+        styles.statChip,
+        softShadow,
+        { backgroundColor: isActive ? BRAND_GRADIENT[0] : colors.card, borderColor: colors.borderLight },
+      ]}
+      onPress={() => onPress(type)}
+    >
+      <Text style={[styles.statChipText, { color: isActive ? "#FFF" : colors.textSecondary }]}>{label}</Text>
+    </Pressable>
+  );
+};
+
 export default function StandingsScreen() {
   const insets = useSafeAreaInsets();
-  const router = useRouter(); 
-  
+  const router = useRouter();
   const { width } = useWindowDimensions();
   const isTablet = width >= 768;
 
@@ -67,20 +289,17 @@ export default function StandingsScreen() {
   const { data: stats, isLoading: statsLoading, refetch: refetchStats } = useStats(selectedSeasonId);
   const { data: teams, isLoading: teamsLoading, refetch: refetchTeams } = useTeams(selectedSeasonId);
   const { data: playerStats, isLoading: playersLoading, refetch: refetchPlayers } = usePlayerStats(selectedSeasonId);
-  
+
   const [refreshing, setRefreshing] = useState(false);
   const [viewMode, setViewMode] = useState<"teams" | "players">("teams");
-  
-  const [activeStatCategory, setActiveStatCategory] = useState<StatCategory>("ofensiva"); // 🔥 Por defecto Ofensiva
+  const [activeStatCategory, setActiveStatCategory] = useState<StatCategory>("ofensiva");
   const [statType, setStatType] = useState<StatType>("touchdowns_totales");
-  
   const [selectedMainCat, setSelectedMainCat] = useState("all");
   const [selectedSubCat, setSelectedSubCat] = useState("all");
 
   const theme = useColorScheme() ?? "light";
   const currentColors = Colors[theme];
-  const isDark = theme === "dark";
-
+  const screenBg = theme === "dark" ? currentColors.bg : DASH_BG;
   const topPad = insets.top + (Platform.OS === "web" ? 20 : 10);
   const isLoading = statsLoading || teamsLoading || playersLoading;
 
@@ -99,352 +318,524 @@ export default function StandingsScreen() {
     setRefreshing(false);
   };
 
-  // Lógica de datos de equipos
   const statsWithZeros = useMemo(() => {
     if (!teams) return stats || [];
     const statsMap = new Map((stats || []).map((s: any) => [s.team_name || s.name, s]));
-    
+
     const allStats = teams.map((team: any) => {
       if (statsMap.has(team.name)) return statsMap.get(team.name);
-      return { 
-        team_id: team.id, team_name: team.name, team_category: team.category, 
-        games_played: 0, wins: 0, losses: 0, draws: 0, 
-        points_for: 0, points_against: 0, points_difference: 0, points: 0 
+      return {
+        team_id: team.id,
+        team_name: team.name,
+        team_category: team.category,
+        games_played: 0,
+        games_won: 0,
+        games_lost: 0,
+        games_tied: 0,
+        points_for: 0,
+        points_against: 0,
+        points_difference: 0,
+        points: 0,
       };
     });
 
-    return allStats.sort((a, b) => {
+    return allStats.sort((a: any, b: any) => {
       if (b.points !== a.points) return (b.points || 0) - (a.points || 0);
-      if (b.points_difference !== a.points_difference) return (b.points_difference || 0) - (a.points_difference || 0);
+      if ((b.points_difference ?? 0) !== (a.points_difference ?? 0)) {
+        return (b.points_difference ?? 0) - (a.points_difference ?? 0);
+      }
       return (b.points_for || 0) - (a.points_for || 0);
     });
   }, [stats, teams]);
 
-  const statsByMainCat = useMemo(() => {
-    if (!statsWithZeros) return [];
-    if (selectedMainCat === "all") return statsWithZeros;
-    return statsWithZeros.filter((s: any) => s.team_category?.toLowerCase().startsWith(selectedMainCat.toLowerCase()));
-  }, [statsWithZeros, selectedMainCat]);
-
   const availableSubCats = useMemo(() => {
     if (selectedMainCat === "all") return [];
+    const group = CATEGORY_GROUPS.find((g) => g.id === selectedMainCat);
+    if (group?.tiers?.length) {
+      const present = new Set<string>();
+      statsWithZeros.forEach((s: any) => {
+        if (!s.team_category?.toLowerCase().startsWith(selectedMainCat)) return;
+        const parts = s.team_category.split("-");
+        if (parts.length > 1) present.add(parts[1].toLowerCase());
+      });
+      const ordered = group.tiers.filter((t) => present.has(t));
+      const extras = Array.from(present).filter((t) => !group.tiers.includes(t));
+      return [...ordered, ...extras.sort()];
+    }
     const subs = new Set<string>();
-    statsByMainCat.forEach((s: any) => {
+    statsWithZeros.forEach((s: any) => {
+      if (!s.team_category?.toLowerCase().startsWith(selectedMainCat)) return;
       const parts = s.team_category?.split("-");
       if (parts && parts.length > 1) subs.add(parts[1].toLowerCase());
     });
     return Array.from(subs).sort();
-  }, [statsByMainCat, selectedMainCat]);
+  }, [statsWithZeros, selectedMainCat]);
 
   const finalFilteredStats = useMemo(() => {
-    if (selectedSubCat === "all") return statsByMainCat;
-    return statsByMainCat.filter((s: any) => {
-      const parts = s.team_category?.split("-");
-      return parts && parts.length > 1 && parts[1].toLowerCase() === selectedSubCat.toLowerCase();
-    });
-  }, [statsByMainCat, selectedSubCat]);
-
-  // 🔥 LÓGICA CONSOLIDADA DE LÍDERES (Soporta Normal y MVPs) 🔥
-  const topPlayers = useMemo(() => {
-    if (statType === "mvps") {
-      // 🏆 Filtrado especial para la lista de MVPs
-      let filtered = playerStats ?? [];
-      if (selectedMainCat !== "all") {
-        filtered = filtered.filter((p: any) => p.teams?.category?.toLowerCase().startsWith(selectedMainCat.toLowerCase()));
-      }
-      if (selectedSubCat !== "all") {
-        filtered = filtered.filter((p: any) => {
-          const parts = p.teams?.category?.split("-");
-          return parts && parts.length > 1 && parts[1].toLowerCase() === selectedSubCat.toLowerCase();
-        });
-      }
-
-      // Mapeamos los datos para que el componente Card los lea igual que a un jugador normal
-      return filtered.map((m: any) => ({
-        id: m.id,
-        name: m.name,
-        photo_url: m.photo_url,
-        teams: m.teams,
-        mvps: m.mvps,
-        weighted_mvps: m.mvps,
-      })).sort((a, b) => b.weighted_mvps - a.weighted_mvps).slice(0, 50);
-
-    } else {
-      // 🏈 Filtrado normal para Estadísticas de Juego (TDs, INTs, etc.)
-      if (!playerStats) return [];
-      let filtered = playerStats;
-      if (selectedMainCat !== "all") {
-        filtered = filtered.filter(p => p.teams?.category?.toLowerCase().startsWith(selectedMainCat.toLowerCase()));
-      }
-      if (selectedSubCat !== "all") {
-        filtered = filtered.filter(p => {
-          const parts = p.teams?.category?.split("-");
-          return parts && parts.length > 1 && parts[1].toLowerCase() === selectedSubCat.toLowerCase();
-        });
-      }
-      return filtered.sort((a, b) => (b[statType] || 0) - (a[statType] || 0)).slice(0, 50); 
+    let list = statsWithZeros;
+    if (selectedMainCat !== "all") {
+      list = list.filter((s: any) => s.team_category?.toLowerCase().startsWith(selectedMainCat.toLowerCase()));
     }
+    if (selectedSubCat !== "all") {
+      list = list.filter((s: any) => {
+        const parts = s.team_category?.split("-");
+        return parts && parts.length > 1 && parts[1].toLowerCase() === selectedSubCat.toLowerCase();
+      });
+    }
+    return list;
+  }, [statsWithZeros, selectedMainCat, selectedSubCat]);
+
+  const groupedSections = useMemo(() => {
+    if (selectedMainCat !== "all" || viewMode !== "teams") return null;
+
+    const sections: { key: string; title: string; tier?: string; data: any[] }[] = [];
+
+    CATEGORY_GROUPS.forEach((group) => {
+      const groupTeams = statsWithZeros.filter((s: any) =>
+        s.team_category?.toLowerCase().startsWith(group.id)
+      );
+      if (groupTeams.length === 0) return;
+
+      if (group.tiers.length === 0) {
+        sections.push({ key: group.id, title: group.label, data: groupTeams });
+        return;
+      }
+
+      group.tiers.forEach((tier) => {
+        const tierTeams = groupTeams.filter((s: any) => {
+          const parts = s.team_category?.split("-");
+          return parts && parts[1]?.toLowerCase() === tier;
+        });
+        if (tierTeams.length === 0) return;
+        sections.push({
+          key: `${group.id}-${tier}`,
+          title: `${group.label} · ${tier.charAt(0).toUpperCase()}${tier.slice(1)}`,
+          tier,
+          data: tierTeams,
+        });
+      });
+
+      const leftover = groupTeams.filter((s: any) => {
+        const parts = s.team_category?.split("-");
+        const t = parts?.[1]?.toLowerCase();
+        return !t || !group.tiers.includes(t);
+      });
+      if (leftover.length > 0) {
+        sections.push({ key: `${group.id}-other`, title: `${group.label} · Otros`, data: leftover });
+      }
+    });
+
+    const known = new Set(CATEGORY_GROUPS.map((g) => g.id));
+    const others = statsWithZeros.filter((s: any) => {
+      const main = s.team_category?.split("-")?.[0]?.toLowerCase();
+      return !main || !known.has(main);
+    });
+    if (others.length > 0) {
+      sections.push({ key: "otros", title: "Otras categorías", data: others });
+    }
+
+    return sections;
+  }, [statsWithZeros, selectedMainCat, viewMode]);
+
+  const topPlayers = useMemo(() => {
+    let filtered = playerStats ?? [];
+    if (selectedMainCat !== "all") {
+      filtered = filtered.filter((p: any) =>
+        p.teams?.category?.toLowerCase().startsWith(selectedMainCat.toLowerCase())
+      );
+    }
+    if (selectedSubCat !== "all") {
+      filtered = filtered.filter((p: any) => {
+        const parts = p.teams?.category?.split("-");
+        return parts && parts.length > 1 && parts[1].toLowerCase() === selectedSubCat.toLowerCase();
+      });
+    }
+
+    if (statType === "mvps") {
+      return filtered
+        .map((m: any) => ({
+          id: m.id,
+          name: m.name,
+          photo_url: m.photo_url,
+          teams: m.teams,
+          jersey_number: m.jersey_number,
+          mvps: m.mvps,
+        }))
+        .sort((a, b) => (b.mvps || 0) - (a.mvps || 0))
+        .slice(0, 50);
+    }
+
+    return filtered
+      .sort((a: any, b: any) => (b[statType] || 0) - (a[statType] || 0))
+      .slice(0, 50);
   }, [playerStats, selectedMainCat, selectedSubCat, statType]);
 
-  // 🔥 Estilos de Podio Premium 🔥
   const getRankStyle = (index: number) => {
-    if (index === 0) return { bg: isDark ? 'rgba(245, 158, 11, 0.15)' : '#FFFBEB', color: '#F59E0B', border: '#FDE68A', icon: "trophy" }; 
-    if (index === 1) return { bg: isDark ? 'rgba(148, 163, 184, 0.15)' : '#F8FAFC', color: '#94A3B8', border: '#E2E8F0', icon: "medal" }; 
-    if (index === 2) return { bg: isDark ? 'rgba(217, 119, 6, 0.15)' : '#FFF7ED', color: '#D97706', border: '#FFEDD5', icon: "medal" }; 
-    return { bg: isDark ? currentColors.bgSecondary : '#F1F5F9', color: currentColors.textMuted, border: isDark ? currentColors.borderLight : '#E2E8F0', icon: null };
+    if (index === 0) return { bg: theme === "dark" ? "rgba(245,158,11,0.15)" : "#FFFBEB", color: "#F59E0B" };
+    if (index === 1) return { bg: theme === "dark" ? "rgba(148,163,184,0.15)" : "#F8FAFC", color: "#94A3B8" };
+    if (index === 2) return { bg: theme === "dark" ? "rgba(217,119,6,0.15)" : "#FFF7ED", color: "#D97706" };
+    return { bg: currentColors.bgSecondary, color: currentColors.textMuted };
   };
 
   const getStatLabel = (type: StatType) => {
-    switch(type) {
-      case 'touchdowns_totales': return 'TDs';
-      case 'pases_completos': return 'COMP';
-      case 'puntos_extra': return 'PTS EX';
-      case 'sacks': return 'SACKS';
-      case 'intercepciones': return 'INTs';
-      case 'banderas_jaladas': return 'SAF';
-      case 'mvps': return 'MVPs';
-      default: return '';
+    switch (type) {
+      case "touchdowns_totales":
+        return "TDs";
+      case "pases_completos":
+        return "COMP";
+      case "puntos_extra":
+        return "PTS EX";
+      case "sacks":
+        return "SACKS";
+      case "intercepciones":
+        return "INTs";
+      case "banderas_jaladas":
+        return "SAF";
+      case "mvps":
+        return "MVPs";
+      default:
+        return "";
     }
   };
 
   const handleCategoryPress = (category: StatCategory) => {
     setActiveStatCategory(category);
-    if (category === "ofensiva") setStatType("touchdowns_totales"); // 🔥 Corregido a 'ofensiva'
+    if (category === "ofensiva") setStatType("touchdowns_totales");
     if (category === "defensa") setStatType("sacks");
     if (category === "premios") setStatType("mvps");
   };
 
+  const maxPointsInView = useMemo(() => {
+    const list = groupedSections
+      ? groupedSections.flatMap((s) => s.data)
+      : finalFilteredStats;
+    return Math.max(1, ...list.map((t: any) => t.points || 0));
+  }, [groupedSections, finalFilteredStats]);
+
+  const renderTeamList = (list: any[], startRank = 1) => (
+    <View style={styles.teamGrid}>
+      {list.map((team, index) => (
+        <FadeInView key={team.team_id || team.team_name || index} delay={(index % 8) * 40}>
+          <TeamStatCard
+            team={team}
+            rank={startRank + index}
+            teams={teams || []}
+            maxPoints={maxPointsInView}
+            currentColors={currentColors}
+          />
+        </FadeInView>
+      ))}
+    </View>
+  );
+
   return (
-    <View style={[styles.container, { backgroundColor: currentColors.bg }]}>
-      
-      {/* ── HEADER PREMIUM ── */}
-      <View style={[styles.header, { paddingTop: topPad, backgroundColor: currentColors.card, borderBottomColor: currentColors.borderLight, shadowColor: isDark ? '#000' : '#475569' }]}>
-        <View style={styles.headerContentWrapper}>
-          
-          <View style={styles.headerTopRow}>
-            <Text style={[styles.screenTitle, { color: currentColors.text }]}>Clasificación</Text>
+    <View style={[styles.container, { backgroundColor: screenBg }]}>
+      <View style={[styles.header, { paddingTop: topPad, backgroundColor: screenBg }]}>
+        <View style={styles.headerInner}>
+          <Text style={[styles.screenTitle, { color: currentColors.text }]}>Estadísticas</Text>
+          <SeasonSelector compact style={styles.seasonSelector} />
+
+          <View style={[styles.toggleWrap, { backgroundColor: currentColors.card }, softShadow]}>
+            <Pressable
+              style={[
+                styles.toggleBtn,
+                viewMode === "teams" && { backgroundColor: BRAND_GRADIENT[0] },
+              ]}
+              onPress={() => setViewMode("teams")}
+            >
+              <Ionicons
+                name="shield"
+                size={15}
+                color={viewMode === "teams" ? "#FFF" : currentColors.textSecondary}
+              />
+              <Text
+                style={[
+                  styles.toggleText,
+                  { color: viewMode === "teams" ? "#FFF" : currentColors.textSecondary },
+                ]}
+              >
+                Equipos
+              </Text>
+            </Pressable>
+            <Pressable
+              style={[
+                styles.toggleBtn,
+                viewMode === "players" && { backgroundColor: BRAND_GRADIENT[0] },
+              ]}
+              onPress={() => setViewMode("players")}
+            >
+              <Ionicons
+                name="people"
+                size={16}
+                color={viewMode === "players" ? "#FFF" : currentColors.textSecondary}
+              />
+              <Text
+                style={[
+                  styles.toggleText,
+                  { color: viewMode === "players" ? "#FFF" : currentColors.textSecondary },
+                ]}
+              >
+                Líderes
+              </Text>
+            </Pressable>
           </View>
 
-          <SeasonSelector compact style={styles.seasonSelectorInline} />
-
-          {/* Toggle Teams / Players */}
-          <View style={styles.toggleWrapper}>
-            <View style={[styles.toggleContainer, { backgroundColor: currentColors.bgSecondary }]}>
-              <Pressable 
-                style={[styles.toggleBtn, viewMode === "teams" && [styles.toggleBtnActive, { backgroundColor: currentColors.text, shadowColor: isDark ? '#000' : '#475569' }]]}
-                onPress={() => setViewMode("teams")}
-              >
-                <Ionicons name="shield" size={16} color={viewMode === "teams" ? currentColors.bg : currentColors.textSecondary} />
-                <Text style={[styles.toggleText, { color: currentColors.textSecondary }, viewMode === "teams" && [styles.toggleTextActive, { color: currentColors.bg }]]}>Equipos</Text>
-              </Pressable>
-              
-              <Pressable 
-                style={[styles.toggleBtn, viewMode === "players" && [styles.toggleBtnActive, { backgroundColor: currentColors.text, shadowColor: isDark ? '#000' : '#475569' }]]}
-                onPress={() => setViewMode("players")}
-              >
-                <Ionicons name="people" size={18} color={viewMode === "players" ? currentColors.bg : currentColors.textSecondary} />
-                <Text style={[styles.toggleText, { color: currentColors.textSecondary }, viewMode === "players" && [styles.toggleTextActive, { color: currentColors.bg }]]}>Líderes</Text>
-              </Pressable>
-            </View>
-          </View>
-
-          {/* Menú Principal */}
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={[styles.mainCategoryScroll, isTablet && { justifyContent: "center", flexGrow: 1 }]}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={[styles.mainCatScroll, isTablet && { justifyContent: "center", flexGrow: 1 }]}
+          >
             {MAIN_CATEGORIES.map((cat) => {
-              const isActive = selectedMainCat === cat.id;
+              const active = selectedMainCat === cat.id;
               return (
-                <Pressable key={cat.id} style={[styles.mainTab, isActive && styles.mainTabActive]} onPress={() => setSelectedMainCat(cat.id)}>
-                  <Text style={[styles.mainTabText, { color: currentColors.textMuted }, isActive && styles.mainTabTextActive]}>{cat.label}</Text>
-                  {isActive && <View style={styles.activeIndicator} />}
+                <Pressable
+                  key={cat.id}
+                  onPress={() => setSelectedMainCat(cat.id)}
+                  style={[
+                    styles.mainChip,
+                    softShadow,
+                    {
+                      backgroundColor: active ? BRAND_GRADIENT[0] : currentColors.card,
+                      borderColor: currentColors.borderLight,
+                    },
+                  ]}
+                >
+                  <Text style={[styles.mainChipText, { color: active ? "#FFF" : currentColors.textSecondary }]}>
+                    {cat.label}
+                  </Text>
                 </Pressable>
               );
             })}
           </ScrollView>
-        </View>
 
-        {/* Menú Secundario */}
-        {selectedMainCat !== "all" && availableSubCats.length > 0 && (
-          <View style={[styles.subCategoryWrapper, { backgroundColor: currentColors.bgSecondary, borderTopColor: currentColors.borderLight }]}>
-            <View style={styles.headerContentWrapper}>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={[styles.subCategoryScroll, isTablet && { justifyContent: "center", flexGrow: 1 }]}>
-                
-                <Pressable 
-                  style={[styles.subChip, { backgroundColor: currentColors.card, borderColor: currentColors.borderLight }, selectedSubCat === "all" && { backgroundColor: currentColors.text, borderColor: currentColors.text }]} 
-                  onPress={() => setSelectedSubCat("all")}
+          {selectedMainCat !== "all" && availableSubCats.length > 0 && (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.subCatScroll}
+            >
+              <Pressable
+                style={[
+                  styles.subChip,
+                  {
+                    backgroundColor: selectedSubCat === "all" ? currentColors.text : currentColors.bgSecondary,
+                  },
+                ]}
+                onPress={() => setSelectedSubCat("all")}
+              >
+                <Text
+                  style={[
+                    styles.subChipText,
+                    { color: selectedSubCat === "all" ? currentColors.bg : currentColors.textSecondary },
+                  ]}
                 >
-                  <Text style={[styles.subChipText, { color: currentColors.textSecondary }, selectedSubCat === "all" && { color: currentColors.bg }]}>Todas</Text>
-                </Pressable>
-                
-                {availableSubCats.map(sub => (
-                  <Pressable 
-                    key={sub} 
-                    style={[styles.subChip, { backgroundColor: currentColors.card, borderColor: currentColors.borderLight }, selectedSubCat === sub && { backgroundColor: currentColors.text, borderColor: currentColors.text }]} 
+                  Todas
+                </Text>
+              </Pressable>
+              {availableSubCats.map((sub) => {
+                const active = selectedSubCat === sub;
+                const accent = TIER_COLORS[sub] || BRAND_GRADIENT[0];
+                return (
+                  <Pressable
+                    key={sub}
+                    style={[
+                      styles.subChip,
+                      {
+                        backgroundColor: active ? accent : currentColors.bgSecondary,
+                      },
+                    ]}
                     onPress={() => setSelectedSubCat(sub)}
                   >
-                    <Text style={[styles.subChipText, { color: currentColors.textSecondary }, selectedSubCat === sub && { color: currentColors.bg }]}>{sub.toUpperCase()}</Text>
+                    <Text style={[styles.subChipText, { color: active ? "#FFF" : currentColors.textSecondary }]}>
+                      {sub.toUpperCase()}
+                    </Text>
                   </Pressable>
-                ))}
-              </ScrollView>
-            </View>
-          </View>
-        )}
+                );
+              })}
+            </ScrollView>
+          )}
 
-        {/* Filtros de Jugador */}
-        {viewMode === "players" && (
-          <View style={[styles.filterContainer, { backgroundColor: currentColors.card, borderTopColor: currentColors.borderLight }]}>
-            <View style={styles.headerContentWrapper}>
-              
+          {viewMode === "players" && (
+            <View style={styles.playerFilters}>
               <View style={styles.filterMainRow}>
-                <Pressable 
-                  style={[styles.filterMainBtn, {backgroundColor: isDark ? currentColors.bgSecondary : '#F8FAFC'}, activeStatCategory === "ofensiva" && [styles.filterMainBtnActive, { backgroundColor: isDark ? 'rgba(59,130,246,0.15)' : '#EFF6FF', borderColor: '#3B82F6' }]]} 
-                  onPress={() => handleCategoryPress("ofensiva")}
-                >
-                  <Text style={[styles.filterMainText, { color: currentColors.textMuted }, activeStatCategory === "ofensiva" && { color: '#3B82F6' }]}>⚔️ OFENSIVA</Text> 
-                  {/* 🔥 Cambio visual de ATAQUE a OFENSIVA */}
-                </Pressable>
-                
-                <Pressable 
-                  style={[styles.filterMainBtn, {backgroundColor: isDark ? currentColors.bgSecondary : '#F8FAFC'}, activeStatCategory === "defensa" && [styles.filterMainBtnActive, { backgroundColor: isDark ? 'rgba(239,68,68,0.15)' : '#FEF2F2', borderColor: '#EF4444' }]]} 
-                  onPress={() => handleCategoryPress("defensa")}
-                >
-                  <Text style={[styles.filterMainText, { color: currentColors.textMuted }, activeStatCategory === "defensa" && { color: '#EF4444' }]}>🛡️ DEFENSA</Text>
-                </Pressable>
-
-                <Pressable 
-                  style={[styles.filterMainBtn, {backgroundColor: isDark ? currentColors.bgSecondary : '#F8FAFC'}, activeStatCategory === "premios" && [styles.filterMainBtnActive, { backgroundColor: isDark ? 'rgba(245,158,11,0.15)' : '#FFFBEB', borderColor: '#F59E0B' }]]} 
-                  onPress={() => handleCategoryPress("premios")}
-                >
-                  <Text style={[styles.filterMainText, { color: currentColors.textMuted }, activeStatCategory === "premios" && { color: '#F59E0B' }]}>🏆 PREMIOS</Text>
-                </Pressable>
+                {(
+                  [
+                    { id: "ofensiva", label: "Ofensiva", color: "#3B82F6" },
+                    { id: "defensa", label: "Defensa", color: "#EF4444" },
+                    { id: "premios", label: "Premios", color: "#F59E0B" },
+                  ] as const
+                ).map((item) => {
+                  const active = activeStatCategory === item.id;
+                  return (
+                    <Pressable
+                      key={item.id}
+                      style={[
+                        styles.filterMainBtn,
+                        {
+                          backgroundColor: active ? `${item.color}18` : currentColors.card,
+                          borderColor: active ? item.color : currentColors.borderLight,
+                        },
+                      ]}
+                      onPress={() => handleCategoryPress(item.id)}
+                    >
+                      <Text style={[styles.filterMainText, { color: active ? item.color : currentColors.textMuted }]}>
+                        {item.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
               </View>
-
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={[styles.filterSubScroll, isTablet && { justifyContent: "center", flexGrow: 1 }]}>
-                {activeStatCategory === "ofensiva" && ( // 🔥 Corregido condicional
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterSubScroll}>
+                {activeStatCategory === "ofensiva" && (
                   <>
-                    <StatChip type="touchdowns_totales" label="🏈 Anotaciones" active={statType} onPress={setStatType} colors={currentColors} />
-                    <StatChip type="pases_completos" label="🎯 QB Pass" active={statType} onPress={setStatType} colors={currentColors} />
+                    <StatChip type="touchdowns_totales" label="Anotaciones" active={statType} onPress={setStatType} colors={currentColors} />
+                    <StatChip type="pases_completos" label="QB Pass" active={statType} onPress={setStatType} colors={currentColors} />
                   </>
                 )}
                 {activeStatCategory === "defensa" && (
                   <>
-                    <StatChip type="sacks" label="🛑 Sacks" active={statType} onPress={setStatType} colors={currentColors} />
-                    <StatChip type="intercepciones" label="🤲 Intercepciones" active={statType} onPress={setStatType} colors={currentColors} />
+                    <StatChip type="sacks" label="Sacks" active={statType} onPress={setStatType} colors={currentColors} />
+                    <StatChip type="intercepciones" label="Intercepciones" active={statType} onPress={setStatType} colors={currentColors} />
                   </>
                 )}
                 {activeStatCategory === "premios" && (
-                  <>
-                    <StatChip type="mvps" label="⭐ MVPs" active={statType} onPress={setStatType} colors={currentColors} />
-                  </>
+                  <StatChip type="mvps" label="MVPs" active={statType} onPress={setStatType} colors={currentColors} />
                 )}
               </ScrollView>
             </View>
-          </View>
-        )}
+          )}
+        </View>
       </View>
 
-      {/* ── CUERPO PRINCIPAL ── */}
       <ScrollView
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: isTablet ? insets.bottom + 100 : insets.bottom + 80 }]}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: isTablet ? insets.bottom + 100 : insets.bottom + 88 },
+        ]}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BRAND_GRADIENT[0]} />}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BRAND_GRADIENT[0]} />
+        }
       >
-        <View style={styles.mainContentWrapper}>
+        <View style={styles.mainContent}>
           {isLoading && !refreshing ? (
-             <ActivityIndicator size="large" color={BRAND_GRADIENT[0]} style={{ marginTop: 50 }} />
+            <ActivityIndicator size="large" color={BRAND_GRADIENT[0]} style={{ marginTop: 48 }} />
           ) : viewMode === "teams" ? (
-            
-            // 🔥 VISTA EQUIPOS
-            finalFilteredStats.length > 0 ? (
-              <FadeInView delay={100}>
-                <View style={[styles.tableContainer, { backgroundColor: currentColors.card, borderColor: currentColors.borderLight, shadowColor: isDark ? '#000' : '#475569' }]}>
-                  <StandingsTable stats={finalFilteredStats} teams={teams || []} />
-                </View>
-              </FadeInView>
+            groupedSections ? (
+              groupedSections.length > 0 ? (
+                groupedSections.map((section) => (
+                  <View key={section.key} style={styles.categorySection}>
+                    <View style={styles.categoryHeader}>
+                      {section.tier && (
+                        <View
+                          style={[
+                            styles.tierDot,
+                            { backgroundColor: TIER_COLORS[section.tier] || BRAND_GRADIENT[0] },
+                          ]}
+                        />
+                      )}
+                      <Text style={[styles.categoryTitle, { color: currentColors.text }]}>{section.title}</Text>
+                      <Text style={[styles.categoryCount, { color: currentColors.textMuted }]}>
+                        {section.data.length}
+                      </Text>
+                    </View>
+                    {renderTeamList(section.data)}
+                  </View>
+                ))
+              ) : (
+                <EmptyState
+                  icon="trophy-outline"
+                  title="Sin datos"
+                  subtitle="No hay equipos registrados en esta temporada"
+                  colors={currentColors}
+                />
+              )
+            ) : finalFilteredStats.length > 0 ? (
+              renderTeamList(finalFilteredStats)
             ) : (
-              <View style={[styles.emptyCard, { backgroundColor: currentColors.card, borderColor: currentColors.borderLight }]}>
-                <Ionicons name="trophy-outline" size={48} color={currentColors.textMuted} />
-                <Text style={[styles.emptyTitle, { color: currentColors.text }]}>Sin datos</Text>
-                <Text style={[styles.emptySubtitle, { color: currentColors.textSecondary }]}>No hay equipos registrados en esta categoría</Text>
-              </View>
+              <EmptyState
+                icon="trophy-outline"
+                title="Sin datos"
+                subtitle="No hay equipos registrados en esta categoría"
+                colors={currentColors}
+              />
             )
+          ) : topPlayers.length > 0 ? (
+            <View style={styles.playersList}>
+              {topPlayers.map((player: any, index: number) => {
+                const rankStyles = getRankStyle(index);
+                const hasPhoto = player.photo_url && !player.photo_url.startsWith("blob:");
+                const maxStat = Math.max(1, ...(topPlayers.map((p: any) => p[statType] || 0) as number[]));
+                const value = player[statType] || 0;
 
+                return (
+                  <FadeInView key={player.id} delay={(index % 10) * 40}>
+                    <Pressable
+                      onPress={() => router.push(`/player/${player.id}`)}
+                      style={({ pressed }) => [
+                        styles.playerCard,
+                        softShadow,
+                        {
+                          backgroundColor: currentColors.card,
+                          borderColor: currentColors.borderLight,
+                          opacity: pressed ? 0.92 : 1,
+                        },
+                      ]}
+                    >
+                      <View style={[styles.playerRank, { backgroundColor: rankStyles.bg }]}>
+                        <Text style={[styles.playerRankText, { color: rankStyles.color }]}>{index + 1}</Text>
+                      </View>
+                      <View style={styles.playerAvatarWrap}>
+                        {hasPhoto ? (
+                          <Image source={{ uri: player.photo_url }} style={styles.playerAvatar} />
+                        ) : (
+                          <View
+                            style={[
+                              styles.playerAvatar,
+                              {
+                                backgroundColor: currentColors.bgSecondary,
+                                alignItems: "center",
+                                justifyContent: "center",
+                              },
+                            ]}
+                          >
+                            <Ionicons name="person" size={20} color={currentColors.textMuted} />
+                          </View>
+                        )}
+                      </View>
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <Text style={[styles.playerName, { color: currentColors.text }]} numberOfLines={1}>
+                          {player.name}
+                        </Text>
+                        <Text style={[styles.playerTeam, { color: currentColors.textSecondary }]} numberOfLines={1}>
+                          {player.teams?.name}
+                          {player.jersey_number ? ` #${player.jersey_number}` : ""}
+                        </Text>
+                        <ProgressBar
+                          value={value}
+                          max={maxStat}
+                          color={BRAND_GRADIENT[0]}
+                          trackColor={currentColors.bgSecondary}
+                        />
+                      </View>
+                      <View style={styles.statBox}>
+                        <Text style={[styles.statNum, { color: currentColors.text }]}>{value}</Text>
+                        <Text style={[styles.statLbl, { color: currentColors.textMuted }]}>
+                          {getStatLabel(statType)}
+                        </Text>
+                      </View>
+                    </Pressable>
+                  </FadeInView>
+                );
+              })}
+            </View>
           ) : (
-
-            // 🔥 VISTA JUGADORES
-            topPlayers.length > 0 ? (
-              <View style={styles.playersList}>
-                {topPlayers.map((player, index) => {
-                  const rankStyles = getRankStyle(index);
-                  const hasPhoto = player.photo_url && !player.photo_url.startsWith("blob:");
-
-                  return (
-                    <FadeInView key={player.id} delay={(index % 10) * 50}>
-                      <Pressable 
-                        // 🔥 NAVEGACIÓN A PERFIL DE JUGADOR 🔥
-                        onPress={() => router.push(`/player/${player.id}`)}
-                        style={({pressed}) => [
-                          styles.playerCard, 
-                          { backgroundColor: currentColors.card, borderColor: currentColors.borderLight, shadowColor: isDark ? '#000' : '#475569' },
-                          pressed && { transform: [{ scale: 0.98 }] }
-                        ]}
-                      >
-                        
-                        {/* PODIO */}
-                        <View style={[styles.rankBadge, { backgroundColor: rankStyles.bg, borderColor: rankStyles.border }]}>
-                          {rankStyles.icon ? (
-                            <Ionicons name={rankStyles.icon as any} size={16} color={rankStyles.color} />
-                          ) : (
-                            <Text style={[styles.rankText, { color: rankStyles.color }]}>{index + 1}</Text>
-                          )}
-                        </View>
-                        
-                        {/* AVATAR Y EQUIPO */}
-                        <View style={styles.playerAvatarWrapper}>
-                          {hasPhoto ? (
-                            <Image source={{ uri: player.photo_url }} style={[styles.playerAvatar, { borderColor: currentColors.borderLight }]} />
-                          ) : (
-                            <View style={[styles.playerAvatar, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.borderLight, justifyContent: 'center', alignItems: 'center' }]}>
-                              <Ionicons name="person" size={22} color={currentColors.textMuted} />
-                            </View>
-                          )}
-                          
-                          {player.teams?.logo_url && (
-                            <View style={[styles.tinyTeamLogoWrapper, { borderColor: currentColors.card }]}>
-                              <Image source={{ uri: player.teams.logo_url }} style={styles.tinyTeamLogo} />
-                            </View>
-                          )}
-                        </View>
-
-                        {/* INFO JUGADOR */}
-                        <View style={styles.playerInfo}>
-                          <Text style={[styles.playerName, { color: currentColors.text }]} numberOfLines={1}>{player.name}</Text>
-                          <Text style={[styles.playerTeam, { color: currentColors.textSecondary }]} numberOfLines={1}>
-                            {player.teams?.name} 
-                            {player.jersey_number ? <Text style={{color: BRAND_GRADIENT[0]}}> #{player.jersey_number}</Text> : null}
-                          </Text>
-                        </View>
-
-                        {/* STATS DESTACADA */}
-                        <View style={styles.statValueBox}>
-                          <Text style={[styles.statValueNumber, { color: currentColors.text }]}>{player[statType] || 0}</Text>
-                          <Text style={[styles.statValueLabel, { color: currentColors.textMuted }]}>{getStatLabel(statType)}</Text>
-                        </View>
-                        
-                        <Ionicons name="chevron-forward" size={16} color={currentColors.textMuted} style={{marginLeft: 8}} />
-
-                      </Pressable>
-                    </FadeInView>
-                  );
-                })}
-              </View>
-            ) : (
-              <View style={[styles.emptyCard, { backgroundColor: currentColors.card, borderColor: currentColors.borderLight }]}>
-                <Ionicons name="medal-outline" size={48} color={currentColors.textMuted} />
-                <Text style={[styles.emptyTitle, { color: currentColors.text }]}>Sin jugadores</Text>
-                <Text style={[styles.emptySubtitle, { color: currentColors.textSecondary }]}>Aún no hay registros para esta estadística.</Text>
-              </View>
-            )
-
+            <EmptyState
+              icon="medal-outline"
+              title="Sin jugadores"
+              subtitle="Aún no hay registros para esta estadística."
+              colors={currentColors}
+            />
           )}
         </View>
       </ScrollView>
@@ -452,100 +843,177 @@ export default function StandingsScreen() {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// COMPONENTE CHIP
-// ─────────────────────────────────────────────────────────────────────────────
-const StatChip = ({ type, label, active, onPress, colors }: any) => {
-  const isActive = active === type;
+function EmptyState({
+  icon,
+  title,
+  subtitle,
+  colors,
+}: {
+  icon: any;
+  title: string;
+  subtitle: string;
+  colors: any;
+}) {
   return (
-    <Pressable 
-      style={[
-        styles.statChip, 
-        { backgroundColor: colors.bgSecondary, borderColor: colors.borderLight },
-        isActive && styles.statChipActive
-      ]} 
-      onPress={() => onPress(type)}
-    >
-      <Text style={[
-        styles.statChipText, 
-        { color: colors.textSecondary },
-        isActive && styles.statChipTextActive
-      ]}>{label}</Text>
-    </Pressable>
+    <View style={[styles.emptyCard, softShadow, { backgroundColor: colors.card, borderColor: colors.borderLight }]}>
+      <Ionicons name={icon} size={44} color={colors.textMuted} />
+      <Text style={[styles.emptyTitle, { color: colors.text }]}>{title}</Text>
+      <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>{subtitle}</Text>
+    </View>
   );
-};
+}
 
-// ─────────────────────────────────────────────────────────────────────────────
-// ESTILOS PREMIUM
-// ─────────────────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { borderBottomWidth: 1, paddingBottom: 10, zIndex: 10, elevation: 6, shadowOpacity: 0.1, shadowRadius: 12 },
-  headerContentWrapper: { width: "100%", maxWidth: 800, alignSelf: "center" },
-  
-  headerTopRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 24 },
-  screenTitle: { fontSize: 26, fontWeight: "900", letterSpacing: -0.5 },
-  seasonSelectorInline: { paddingHorizontal: 24, marginTop: 12 },
-  
-  toggleWrapper: { paddingHorizontal: 24, marginVertical: 15 },
-  toggleContainer: { flexDirection: "row", borderRadius: 16, padding: 6 },
-  toggleBtn: { flex: 1, flexDirection: "row", justifyContent: "center", alignItems: "center", paddingVertical: 10, borderRadius: 12, gap: 8 },
-  toggleBtnActive: { elevation: 3, shadowOpacity: 0.1, shadowRadius: 6 },
-  toggleText: { fontSize: 13, fontWeight: "800", letterSpacing: 0.5 },
-  toggleTextActive: {},
+  header: { zIndex: 10, paddingBottom: 4 },
+  headerInner: { width: "100%", maxWidth: 800, alignSelf: "center" },
+  screenTitle: {
+    fontSize: 28,
+    fontWeight: "900",
+    letterSpacing: -0.6,
+    paddingHorizontal: 20,
+  },
+  seasonSelector: { paddingHorizontal: 20, marginTop: 10 },
 
-  mainCategoryScroll: { paddingHorizontal: 24, paddingBottom: 5, gap: 24 },
-  mainTab: { paddingVertical: 10, position: "relative", alignItems: "center" },
-  mainTabActive: {},
-  mainTabText: { fontSize: 13, fontWeight: "800", letterSpacing: 1, textTransform: 'uppercase' },
-  mainTabTextActive: { color: BRAND_GRADIENT[0] },
-  activeIndicator: { position: "absolute", bottom: -5, width: "100%", height: 3, backgroundColor: BRAND_GRADIENT[0], borderRadius: 2 },
+  toggleWrap: {
+    flexDirection: "row",
+    marginHorizontal: 20,
+    marginTop: 14,
+    marginBottom: 12,
+    borderRadius: 16,
+    padding: 4,
+  },
+  toggleBtn: {
+    flex: 1,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: 10,
+    borderRadius: 12,
+    gap: 6,
+  },
+  toggleText: { fontSize: 13, fontWeight: "800" },
 
-  subCategoryWrapper: { paddingVertical: 14, borderTopWidth: 1, marginTop: 10 },
-  subCategoryScroll: { paddingHorizontal: 20, gap: 10 },
-  subChip: { paddingHorizontal: 18, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
-  subChipText: { fontSize: 12, fontWeight: "800", textTransform: 'uppercase', letterSpacing: 0.5 },
+  mainCatScroll: { paddingHorizontal: 20, gap: 8, paddingBottom: 10 },
+  mainChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  mainChipText: { fontSize: 13, fontWeight: "700" },
 
-  filterContainer: { paddingTop: 15, paddingBottom: 10, borderTopWidth: 1 },
-  filterMainRow: { flexDirection: "row", paddingHorizontal: 20, gap: 10, marginBottom: 15 },
-  filterMainBtn: { flex: 1, alignItems: "center", paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: "transparent" },
-  filterMainBtnActive: { elevation: 1 },
-  filterMainText: { fontSize: 11, fontWeight: "900", letterSpacing: 0.5 },
-  
-  filterSubScroll: { paddingHorizontal: 20, gap: 8 },
-  statChip: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 16, borderWidth: 1 },
-  statChipActive: { backgroundColor: BRAND_GRADIENT[0], borderColor: BRAND_GRADIENT[0], elevation: 2 },
-  statChipText: { fontSize: 12, fontWeight: "800" },
-  statChipTextActive: { color: "#FFFFFF" },
+  subCatScroll: { paddingHorizontal: 20, gap: 8, paddingBottom: 10 },
+  subChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12 },
+  subChipText: { fontSize: 11, fontWeight: "800", letterSpacing: 0.4 },
 
-  scrollContent: { paddingHorizontal: 16, paddingTop: 20 },
-  mainContentWrapper: { width: "100%", maxWidth: 800, alignSelf: "center" },
+  playerFilters: { paddingBottom: 6 },
+  filterMainRow: { flexDirection: "row", paddingHorizontal: 20, gap: 8, marginBottom: 10 },
+  filterMainBtn: {
+    flex: 1,
+    alignItems: "center",
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  filterMainText: { fontSize: 12, fontWeight: "800" },
+  filterSubScroll: { paddingHorizontal: 20, gap: 8, paddingBottom: 8 },
+  statChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  statChipText: { fontSize: 12, fontWeight: "700" },
 
-  // --- TABLA EQUIPOS ---
-  tableContainer: { borderRadius: 28, borderWidth: 1, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.05, shadowRadius: 15, elevation: 3, overflow: "hidden", marginBottom: 20 },
-  
-  // --- LISTA JUGADORES BENTO BOX ---
-  playersList: { gap: 12 },
-  playerCard: { flexDirection: "row", alignItems: "center", paddingVertical: 14, paddingHorizontal: 16, borderRadius: 24, borderWidth: 1, elevation: 2, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.04, shadowRadius: 8 },
-  
-  rankBadge: { width: 34, height: 34, borderRadius: 17, justifyContent: "center", alignItems: "center", marginRight: 14, borderWidth: 1 },
-  rankText: { fontSize: 14, fontWeight: "900" },
-  
-  playerAvatarWrapper: { position: "relative", marginRight: 16 },
-  playerAvatar: { width: 50, height: 50, borderRadius: 25, borderWidth: 2 },
-  
-  tinyTeamLogoWrapper: { position: "absolute", bottom: -2, right: -4, width: 24, height: 24, borderRadius: 12, backgroundColor: '#FFFFFF', borderWidth: 2, justifyContent: 'center', alignItems: 'center', overflow: 'hidden', padding: 2 },
-  tinyTeamLogo: { width: '100%', height: '100%', resizeMode: 'contain' },
-  
-  playerInfo: { flex: 1, justifyContent: "center" },
-  playerName: { fontSize: 16, fontWeight: "900", marginBottom: 2, letterSpacing: -0.3 },
-  playerTeam: { fontSize: 12, fontWeight: "700", letterSpacing: 0.5 },
-  
-  statValueBox: { alignItems: "flex-end", minWidth: 45 },
-  statValueNumber: { fontSize: 20, fontWeight: "900", letterSpacing: -0.5 },
-  statValueLabel: { fontSize: 9, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.5 },
+  scrollContent: { paddingHorizontal: 16, paddingTop: 12 },
+  mainContent: { width: "100%", maxWidth: 800, alignSelf: "center" },
 
-  emptyCard: { alignItems: "center", paddingVertical: 50, marginTop: 40, borderRadius: 32, borderWidth: 1, borderStyle: "dashed" },
-  emptyTitle: { fontSize: 19, fontWeight: "900", marginTop: 12, letterSpacing: -0.5 },
-  emptySubtitle: { fontSize: 14, fontWeight: "600", marginTop: 6, paddingHorizontal: 40, textAlign: 'center' },
+  categorySection: { marginBottom: 22 },
+  categoryHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 12,
+    paddingHorizontal: 4,
+  },
+  tierDot: { width: 8, height: 8, borderRadius: 4 },
+  categoryTitle: { flex: 1, fontSize: 16, fontWeight: "800", letterSpacing: -0.3 },
+  categoryCount: { fontSize: 12, fontWeight: "700" },
+
+  teamGrid: { gap: 12 },
+  teamCard: {
+    borderRadius: 20,
+    borderWidth: 1,
+    padding: 16,
+  },
+  teamCardTop: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 14 },
+  rankCircle: { width: 24, alignItems: "center" },
+  rankNum: { fontSize: 16, fontWeight: "900" },
+  teamLogoWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+  },
+  teamLogo: { width: "100%", height: "100%" },
+  teamInitials: { fontSize: 12, fontWeight: "800" },
+  teamName: { fontSize: 15, fontWeight: "800", letterSpacing: -0.2 },
+  teamMeta: { fontSize: 11, fontWeight: "600", marginTop: 2 },
+
+  metricsRow: { flexDirection: "row", gap: 10 },
+  metricBlock: { flex: 1 },
+  metricValue: { fontSize: 20, fontWeight: "900", letterSpacing: -0.4 },
+  metricLabel: { fontSize: 9, fontWeight: "800", letterSpacing: 0.6, marginBottom: 6, marginTop: 2 },
+  barTrack: { height: 6, borderRadius: 3, overflow: "hidden" },
+  barFill: { height: "100%", borderRadius: 3 },
+
+  diffRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  diffText: { fontSize: 12, fontWeight: "600" },
+  diffValue: { fontSize: 13, fontWeight: "800" },
+
+  playersList: { gap: 10 },
+  playerCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    borderWidth: 1,
+    gap: 10,
+  },
+  playerRank: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  playerRankText: { fontSize: 13, fontWeight: "900" },
+  playerAvatarWrap: {},
+  playerAvatar: { width: 44, height: 44, borderRadius: 22 },
+  playerName: { fontSize: 15, fontWeight: "800", marginBottom: 2 },
+  playerTeam: { fontSize: 11, fontWeight: "600", marginBottom: 6 },
+  statBox: { alignItems: "flex-end", minWidth: 44 },
+  statNum: { fontSize: 20, fontWeight: "900" },
+  statLbl: { fontSize: 9, fontWeight: "800", letterSpacing: 0.4 },
+
+  emptyCard: {
+    alignItems: "center",
+    paddingVertical: 48,
+    marginTop: 24,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  emptyTitle: { fontSize: 17, fontWeight: "800", marginTop: 12 },
+  emptySubtitle: { fontSize: 13, fontWeight: "600", marginTop: 6, paddingHorizontal: 32, textAlign: "center" },
 });

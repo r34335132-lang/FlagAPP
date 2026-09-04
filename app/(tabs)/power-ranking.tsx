@@ -4,6 +4,7 @@ import {
   Animated,
   Easing,
   Image,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -23,6 +24,14 @@ import { BRAND_GRADIENT, Colors } from "@/constants/colors";
 import { usePlayerStats } from "@/hooks/usePlayerStats";
 import { useStats } from "@/hooks/useStats";
 import { useTeams } from "@/hooks/useTeams";
+
+const DASH_BG = "#F7F9FC";
+
+const TOP_ACCENTS = {
+  1: { bg: "#FFFBEB", bgDark: "rgba(245,158,11,0.15)", color: "#F59E0B", label: "Oro" },
+  2: { bg: "#F8FAFC", bgDark: "rgba(148,163,184,0.15)", color: "#94A3B8", label: "Plata" },
+  3: { bg: "#FFF7ED", bgDark: "rgba(217,119,6,0.15)", color: "#D97706", label: "Bronce" },
+} as const;
 
 type RankingTab = "teams" | "players";
 
@@ -64,22 +73,38 @@ type PlayerRankingItem = {
   score: number;
 };
 
+const softShadow = Platform.select({
+  ios: {
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+  },
+  android: { elevation: 2 },
+  default: {
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+  },
+});
+
 const FadeInView = ({ children, delay = 0 }: { children: React.ReactNode; delay?: number }) => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(18)).current;
+  const slideAnim = useRef(new Animated.Value(12)).current;
 
   useEffect(() => {
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
-        duration: 420,
+        duration: 380,
         delay,
         useNativeDriver: true,
         easing: Easing.out(Easing.cubic),
       }),
       Animated.timing(slideAnim, {
         toValue: 0,
-        duration: 420,
+        duration: 380,
         delay,
         useNativeDriver: true,
         easing: Easing.out(Easing.cubic),
@@ -87,7 +112,11 @@ const FadeInView = ({ children, delay = 0 }: { children: React.ReactNode; delay?
     ]).start();
   }, [delay, fadeAnim, slideAnim]);
 
-  return <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>{children}</Animated.View>;
+  return (
+    <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
+      {children}
+    </Animated.View>
+  );
 };
 
 const getInitials = (name?: string | null) => {
@@ -97,18 +126,30 @@ const getInitials = (name?: string | null) => {
   return `${words[0][0]}${words[1][0]}`.toUpperCase();
 };
 
-const getRankBadge = (rank: number) => {
-  if (rank === 1) return { label: "Top 1", icon: "trophy" };
-  if (rank === 2) return { label: "Top 2", icon: "medal" };
-  if (rank === 3) return { label: "Top 3", icon: "medal-outline" };
-  return { label: `#${rank}`, icon: null };
-};
-
 const getPlayerTag = (player: PlayerRankingItem, rank: number) => {
   if (rank === 1 || (player.mvps || 0) > 0) return "MVP";
-  if ((player.touchdowns_totales || 0) >= 3) return "Jugador destacado";
-  return "Rising star";
+  if ((player.touchdowns_totales || 0) >= 3) return "Destacado";
+  return "Rising";
 };
+
+function ProgressBar({
+  value,
+  max,
+  color,
+  trackColor,
+}: {
+  value: number;
+  max: number;
+  color: string;
+  trackColor: string;
+}) {
+  const pct = max > 0 ? Math.min(100, (value / max) * 100) : 0;
+  return (
+    <View style={[styles.barTrack, { backgroundColor: trackColor }]}>
+      <View style={[styles.barFill, { width: `${pct}%`, backgroundColor: color }]} />
+    </View>
+  );
+}
 
 export default function PowerRankingScreen() {
   const insets = useSafeAreaInsets();
@@ -117,6 +158,7 @@ export default function PowerRankingScreen() {
   const theme = useColorScheme() ?? "light";
   const currentColors = Colors[theme];
   const isDark = theme === "dark";
+  const screenBg = isDark ? currentColors.bg : DASH_BG;
 
   const { selectedSeasonId } = useSelectedSeason();
   const { data: stats, isLoading: statsLoading, refetch: refetchStats } = useStats(selectedSeasonId);
@@ -125,7 +167,7 @@ export default function PowerRankingScreen() {
   const [activeTab, setActiveTab] = useState<RankingTab>("teams");
   const [refreshing, setRefreshing] = useState(false);
 
-  const topPad = insets.top + 10;
+  const topPad = insets.top + (Platform.OS === "web" ? 20 : 10);
   const isLoading = statsLoading || teamsLoading || playersLoading;
 
   const teamRanking = useMemo<TeamRankingItem[]>(() => {
@@ -176,18 +218,13 @@ export default function PowerRankingScreen() {
       .map((player: any) => {
         const mvpScore = Number(player.mvps || 0) * 1000;
         const scoringScore =
-          Number(player.touchdowns_totales || 0) * 60 +
-          Number(player.puntos_extra || 0) * 10;
+          Number(player.touchdowns_totales || 0) * 60 + Number(player.puntos_extra || 0) * 10;
         const passingScore = Number(player.pases_completos || 0) * 2;
         const defenseScore =
           Number(player.intercepciones || 0) * 35 +
           Number(player.sacks || 0) * 25 +
           Number(player.banderas_jaladas || 0) * 8;
-        const score =
-          mvpScore +
-          scoringScore +
-          passingScore +
-          defenseScore;
+        const score = mvpScore + scoringScore + passingScore + defenseScore;
 
         return { ...player, score };
       })
@@ -212,111 +249,189 @@ export default function PowerRankingScreen() {
   };
 
   const rankingCount = activeTab === "teams" ? teamRanking.length : playerRanking.length;
+  const maxTeamScore = useMemo(
+    () => Math.max(1, ...teamRanking.map((t) => t.score || 0)),
+    [teamRanking]
+  );
+  const maxPlayerScore = useMemo(
+    () => Math.max(1, ...playerRanking.map((p) => p.score || 0)),
+    [playerRanking]
+  );
+
+  const leaderName =
+    activeTab === "teams"
+      ? teamRanking[0]?.name
+      : playerRanking[0]?.name;
 
   return (
-    <View style={[styles.container, { backgroundColor: currentColors.bg }]}>
-      <View
-        style={[
-          styles.header,
-          {
-            paddingTop: topPad,
-            backgroundColor: currentColors.card,
-            borderBottomColor: currentColors.borderLight,
-            shadowColor: isDark ? "#000" : "#475569",
-          },
-        ]}
-      >
+    <View style={[styles.container, { backgroundColor: screenBg }]}>
+      <View style={[styles.header, { paddingTop: topPad, backgroundColor: screenBg }]}>
         <View style={styles.headerInner}>
           <View style={styles.headerTop}>
-            <View>
+            <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={[styles.eyebrow, { color: currentColors.textMuted }]}>FLAG DURANGO</Text>
-              <Text style={[styles.title, { color: currentColors.text }]}>Power Ranking</Text>
+              <Text style={[styles.screenTitle, { color: currentColors.text }]}>Power Ranking</Text>
             </View>
             <Pressable
               onPress={onRefresh}
+              hitSlop={8}
               style={({ pressed }) => [
                 styles.refreshButton,
-                { backgroundColor: currentColors.bgSecondary, opacity: pressed ? 0.75 : 1 },
+                softShadow,
+                {
+                  backgroundColor: currentColors.card,
+                  borderColor: currentColors.borderLight,
+                  opacity: pressed ? 0.75 : 1,
+                },
               ]}
             >
-              <Ionicons name="refresh" size={20} color={currentColors.text} />
+              <Ionicons name="refresh" size={18} color={currentColors.textSecondary} />
             </Pressable>
           </View>
 
-          <SeasonSelector compact style={styles.seasonSelectorInline} />
+          <SeasonSelector compact style={styles.seasonSelector} />
 
-          <LinearGradient colors={BRAND_GRADIENT} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.heroStrip}>
-            <View style={styles.heroIcon}>
-              <Ionicons name="podium" size={22} color="#FFFFFF" />
+          <LinearGradient
+            colors={isDark ? ["#1A2440", "#141C2E"] : ["#FFFFFF", "#F0F5FF"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={[styles.heroCard, softShadow, { borderColor: currentColors.borderLight }]}
+          >
+            <View style={styles.heroTop}>
+              <View style={[styles.heroIcon, { backgroundColor: `${BRAND_GRADIENT[0]}14` }]}>
+                <Ionicons name="podium-outline" size={18} color={BRAND_GRADIENT[0]} />
+              </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={[styles.heroTitle, { color: currentColors.text }]} numberOfLines={1}>
+                  {rankingCount > 0 ? `${rankingCount} contendientes` : "Sin datos aún"}
+                </Text>
+                <Text style={[styles.heroSubtitle, { color: currentColors.textSecondary }]} numberOfLines={1}>
+                  {leaderName ? `Líder: ${leaderName}` : "Ranking con estadísticas de temporada"}
+                </Text>
+              </View>
             </View>
-            <View style={styles.heroTextBlock}>
-              <Text style={styles.heroTitle}>{rankingCount > 0 ? `${rankingCount} contendientes` : "Listo para datos reales"}</Text>
-              <Text style={styles.heroSubtitle}>Ranking vivo con estadisticas disponibles en Supabase.</Text>
+            <View style={styles.miniStatsRow}>
+              <MiniStat
+                label="Equipos"
+                value={teamRanking.length}
+                colors={currentColors}
+              />
+              <View style={[styles.miniDivider, { backgroundColor: currentColors.borderLight }]} />
+              <MiniStat
+                label="Jugadores"
+                value={playerRanking.length}
+                colors={currentColors}
+              />
+              <View style={[styles.miniDivider, { backgroundColor: currentColors.borderLight }]} />
+              <MiniStat
+                label="Top score"
+                value={
+                  activeTab === "teams"
+                    ? teamRanking[0]?.score ?? "—"
+                    : playerRanking[0]?.score ?? "—"
+                }
+                colors={currentColors}
+                accent
+              />
             </View>
           </LinearGradient>
 
-          <View style={[styles.segment, { backgroundColor: currentColors.bgSecondary }]}>
-            <SegmentButton
-              active={activeTab === "teams"}
-              icon="shield"
-              label="Equipos"
+          <View style={[styles.toggleWrap, softShadow, { backgroundColor: currentColors.card }]}>
+            <Pressable
+              style={[styles.toggleBtn, activeTab === "teams" && { backgroundColor: BRAND_GRADIENT[0] }]}
               onPress={() => setActiveTab("teams")}
-              colors={currentColors}
-              isDark={isDark}
-            />
-            <SegmentButton
-              active={activeTab === "players"}
-              icon="people"
-              label="Jugadores"
+            >
+              <Ionicons
+                name="shield"
+                size={15}
+                color={activeTab === "teams" ? "#FFF" : currentColors.textSecondary}
+              />
+              <Text
+                style={[
+                  styles.toggleText,
+                  { color: activeTab === "teams" ? "#FFF" : currentColors.textSecondary },
+                ]}
+              >
+                Equipos
+              </Text>
+            </Pressable>
+            <Pressable
+              style={[styles.toggleBtn, activeTab === "players" && { backgroundColor: BRAND_GRADIENT[0] }]}
               onPress={() => setActiveTab("players")}
-              colors={currentColors}
-              isDark={isDark}
-            />
+            >
+              <Ionicons
+                name="people"
+                size={15}
+                color={activeTab === "players" ? "#FFF" : currentColors.textSecondary}
+              />
+              <Text
+                style={[
+                  styles.toggleText,
+                  { color: activeTab === "players" ? "#FFF" : currentColors.textSecondary },
+                ]}
+              >
+                Jugadores
+              </Text>
+            </Pressable>
           </View>
         </View>
       </View>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BRAND_GRADIENT[0]} />}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BRAND_GRADIENT[0]} />
+        }
         contentContainerStyle={[
           styles.scrollContent,
-          {
-            paddingBottom: isTablet ? insets.bottom + 110 : insets.bottom + 90,
-          },
+          { paddingBottom: isTablet ? insets.bottom + 100 : insets.bottom + 88 },
         ]}
       >
         <View style={styles.contentInner}>
           {isLoading && !refreshing ? (
-            <View style={styles.loadingWrap}>
-              <ActivityIndicator size="large" color={BRAND_GRADIENT[0]} />
-            </View>
+            <ActivityIndicator size="large" color={BRAND_GRADIENT[0]} style={{ marginTop: 48 }} />
           ) : activeTab === "teams" ? (
             teamRanking.length > 0 ? (
-              teamRanking.map((team, index) => (
-                <FadeInView key={team.id} delay={(index % 8) * 45}>
-                  <TeamRankCard team={team} rank={index + 1} colors={currentColors} isDark={isDark} />
-                </FadeInView>
-              ))
+              <View style={styles.listGap}>
+                {teamRanking.map((team, index) => (
+                  <FadeInView key={team.id} delay={(index % 8) * 40}>
+                    <TeamRankCard
+                      team={team}
+                      rank={index + 1}
+                      maxScore={maxTeamScore}
+                      colors={currentColors}
+                      isDark={isDark}
+                    />
+                  </FadeInView>
+                ))}
+              </View>
             ) : (
               <EmptyState
                 icon="analytics-outline"
                 title="Power Ranking pendiente"
-                subtitle="Aun no hay resultados suficientes para ordenar equipos. Cuando existan puntos, victorias o marcadores, esta lista se activara sola."
+                subtitle="Aún no hay resultados suficientes para ordenar equipos. Cuando existan puntos, victorias o marcadores, esta lista se activará sola."
                 colors={currentColors}
               />
             )
           ) : playerRanking.length > 0 ? (
-            playerRanking.map((player, index) => (
-              <FadeInView key={player.id} delay={(index % 8) * 45}>
-                <PlayerRankCard player={player} rank={index + 1} colors={currentColors} isDark={isDark} />
-              </FadeInView>
-            ))
+            <View style={styles.listGap}>
+              {playerRanking.map((player, index) => (
+                <FadeInView key={player.id} delay={(index % 8) * 40}>
+                  <PlayerRankCard
+                    player={player}
+                    rank={index + 1}
+                    maxScore={maxPlayerScore}
+                    colors={currentColors}
+                    isDark={isDark}
+                  />
+                </FadeInView>
+              ))}
+            </View>
           ) : (
             <EmptyState
               icon="person-add-outline"
               title="Jugadores por conectar"
-              subtitle="No hay estadisticas acumuladas suficientes para crear ranking de jugadores. La estructura ya queda lista para datos reales."
+              subtitle="No hay estadísticas acumuladas suficientes para crear ranking de jugadores. La estructura ya queda lista para datos reales."
               colors={currentColors}
             />
           )}
@@ -326,90 +441,167 @@ export default function PowerRankingScreen() {
   );
 }
 
-function SegmentButton({ active, icon, label, onPress, colors, isDark }: any) {
+function MiniStat({
+  label,
+  value,
+  colors,
+  accent = false,
+}: {
+  label: string;
+  value: string | number;
+  colors: any;
+  accent?: boolean;
+}) {
   return (
-    <Pressable
-      onPress={onPress}
-      style={[
-        styles.segmentButton,
-        active && [styles.segmentButtonActive, { backgroundColor: colors.card, shadowColor: isDark ? "#000" : "#475569" }],
-      ]}
-    >
-      <Ionicons name={active ? icon : `${icon}-outline`} size={18} color={active ? BRAND_GRADIENT[0] : colors.textSecondary} />
-      <Text style={[styles.segmentText, { color: active ? colors.text : colors.textSecondary }]}>{label}</Text>
-    </Pressable>
+    <View style={styles.miniStat}>
+      <Text style={[styles.miniStatValue, { color: accent ? BRAND_GRADIENT[0] : colors.text }]}>
+        {value}
+      </Text>
+      <Text style={[styles.miniStatLabel, { color: colors.textMuted }]}>{label}</Text>
+    </View>
   );
 }
 
-function TeamRankCard({ team, rank, colors, isDark }: { team: TeamRankingItem; rank: number; colors: any; isDark: boolean }) {
-  const isLeader = rank === 1;
-  const badge = getRankBadge(rank);
+function TeamRankCard({
+  team,
+  rank,
+  maxScore,
+  colors,
+  isDark,
+}: {
+  team: TeamRankingItem;
+  rank: number;
+  maxScore: number;
+  colors: any;
+  isDark: boolean;
+}) {
+  const accent = TOP_ACCENTS[rank as 1 | 2 | 3];
   const diff = team.points_for - team.points_against;
   const record = `${team.games_won}-${team.games_lost}${team.games_tied ? `-${team.games_tied}` : ""}`;
+  const hasLogo = !!team.logo_url && !team.logo_url.startsWith("blob:");
 
   return (
     <Pressable
       onPress={() => router.push({ pathname: "/team/[id]", params: { id: team.id } })}
       style={({ pressed }) => [
         styles.rankCard,
-        isLeader && styles.rankCardLeader,
+        softShadow,
         {
           backgroundColor: colors.card,
-          borderColor: isLeader ? BRAND_GRADIENT[0] : colors.borderLight,
-          shadowColor: isLeader ? BRAND_GRADIENT[0] : isDark ? "#000" : "#475569",
-          opacity: pressed ? 0.9 : 1,
-          transform: [{ scale: pressed ? 0.985 : 1 }],
+          borderColor: accent ? `${accent.color}55` : colors.borderLight,
+          opacity: pressed ? 0.92 : 1,
         },
       ]}
     >
-      {isLeader && <LinearGradient colors={BRAND_GRADIENT} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.leaderBar} />}
-      <View style={styles.rankLeft}>
-        <View style={[styles.positionBadge, rank <= 3 && { backgroundColor: colors.text }]}>
-          {badge.icon ? (
-            <Ionicons name={badge.icon as any} size={16} color={rank <= 3 ? colors.bg : colors.textMuted} />
-          ) : (
-            <Text style={[styles.positionText, { color: colors.textSecondary }]}>{rank}</Text>
-          )}
+      <View style={styles.rankCardTop}>
+        <View
+          style={[
+            styles.positionBadge,
+            {
+              backgroundColor: accent
+                ? isDark
+                  ? accent.bgDark
+                  : accent.bg
+                : colors.bgSecondary,
+            },
+          ]}
+        >
+          <Text style={[styles.positionText, { color: accent ? accent.color : colors.textMuted }]}>
+            {rank}
+          </Text>
         </View>
-        <View style={[styles.logoWrap, { backgroundColor: team.color1 || colors.bgSecondary, borderColor: colors.borderLight }]}>
-          {team.logo_url ? (
-            <Image source={{ uri: team.logo_url }} style={styles.logo} resizeMode="contain" />
+
+        <View
+          style={[
+            styles.logoWrap,
+            { backgroundColor: team.color1 || colors.bgSecondary },
+          ]}
+        >
+          {hasLogo ? (
+            <Image source={{ uri: team.logo_url as string }} style={styles.logo} resizeMode="contain" />
           ) : (
             <Text style={styles.logoInitials}>{getInitials(team.name)}</Text>
           )}
         </View>
-      </View>
 
-      <View style={styles.rankInfo}>
-        <View style={styles.nameRow}>
-          <Text style={[styles.itemName, { color: colors.text }]} numberOfLines={1}>
-            {team.name}
+        <View style={styles.rankInfo}>
+          <View style={styles.nameRow}>
+            <Text style={[styles.itemName, { color: colors.text }]} numberOfLines={1}>
+              {team.name}
+            </Text>
+            {accent && (
+              <View style={[styles.topChip, { backgroundColor: isDark ? accent.bgDark : accent.bg }]}>
+                <Text style={[styles.topChipText, { color: accent.color }]}>{accent.label}</Text>
+              </View>
+            )}
+          </View>
+          <Text style={[styles.itemSub, { color: colors.textMuted }]} numberOfLines={1}>
+            {team.category?.replace("-", " ").toUpperCase() || "SIN CATEGORÍA"} · {record}
           </Text>
-          {rank <= 3 && (
-            <View style={[styles.smallBadge, { backgroundColor: colors.bgSecondary }]}>
-              <Text style={[styles.smallBadgeText, { color: BRAND_GRADIENT[0] }]}>{badge.label}</Text>
-            </View>
-          )}
         </View>
-        <Text style={[styles.itemSub, { color: colors.textSecondary }]} numberOfLines={1}>
-          {team.category?.replace("-", " ").toUpperCase() || "SIN CATEGORIA"} · Record {record}
-        </Text>
-        <View style={styles.statRow}>
-          <Metric label="PTS" value={team.points} colors={colors} featured />
-          <Metric label="PF" value={team.points_for} colors={colors} />
-          <Metric label="PC" value={team.points_against} colors={colors} />
-          <Metric label="DIF" value={diff > 0 ? `+${diff}` : diff} colors={colors} />
+
+        <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
+      </View>
+
+      <View style={styles.metricsRow}>
+        <View style={styles.metricBlock}>
+          <Text style={[styles.metricValue, { color: colors.text }]}>{team.points}</Text>
+          <Text style={[styles.metricLabel, { color: colors.textMuted }]}>PTS</Text>
+        </View>
+        <View style={styles.metricBlock}>
+          <Text style={[styles.metricValue, { color: colors.text }]}>{team.points_for}</Text>
+          <Text style={[styles.metricLabel, { color: colors.textMuted }]}>PF</Text>
+        </View>
+        <View style={styles.metricBlock}>
+          <Text style={[styles.metricValue, { color: colors.text }]}>{team.points_against}</Text>
+          <Text style={[styles.metricLabel, { color: colors.textMuted }]}>PC</Text>
+        </View>
+        <View style={styles.metricBlock}>
+          <Text
+            style={[
+              styles.metricValue,
+              {
+                color:
+                  diff > 0 ? Colors.light.green : diff < 0 ? Colors.light.loss : colors.textMuted,
+              },
+            ]}
+          >
+            {diff > 0 ? `+${diff}` : diff}
+          </Text>
+          <Text style={[styles.metricLabel, { color: colors.textMuted }]}>DIF</Text>
         </View>
       </View>
 
-      <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+      <View style={styles.scoreBarWrap}>
+        <View style={styles.scoreBarHeader}>
+          <Text style={[styles.scoreBarLabel, { color: colors.textMuted }]}>Score relativo</Text>
+          <Text style={[styles.scoreBarNum, { color: BRAND_GRADIENT[0] }]}>{team.score}</Text>
+        </View>
+        <ProgressBar
+          value={team.score}
+          max={maxScore}
+          color={accent?.color || BRAND_GRADIENT[0]}
+          trackColor={colors.bgSecondary}
+        />
+      </View>
     </Pressable>
   );
 }
 
-function PlayerRankCard({ player, rank, colors, isDark }: { player: PlayerRankingItem; rank: number; colors: any; isDark: boolean }) {
-  const isLeader = rank === 1;
-  const badge = getRankBadge(rank);
+function PlayerRankCard({
+  player,
+  rank,
+  maxScore,
+  colors,
+  isDark,
+}: {
+  player: PlayerRankingItem;
+  rank: number;
+  maxScore: number;
+  colors: any;
+  isDark: boolean;
+}) {
+  const accent = TOP_ACCENTS[rank as 1 | 2 | 3];
   const tag = getPlayerTag(player, rank);
   const hasPhoto = !!player.photo_url && !player.photo_url?.startsWith("blob:");
   const photoUrl = player.photo_url as string;
@@ -419,81 +611,165 @@ function PlayerRankCard({ player, rank, colors, isDark }: { player: PlayerRankin
       onPress={() => router.push({ pathname: "/player/[id]", params: { id: player.id } })}
       style={({ pressed }) => [
         styles.rankCard,
-        isLeader && styles.rankCardLeader,
+        softShadow,
         {
           backgroundColor: colors.card,
-          borderColor: isLeader ? BRAND_GRADIENT[1] : colors.borderLight,
-          shadowColor: isLeader ? BRAND_GRADIENT[1] : isDark ? "#000" : "#475569",
-          opacity: pressed ? 0.9 : 1,
-          transform: [{ scale: pressed ? 0.985 : 1 }],
+          borderColor: accent ? `${accent.color}55` : colors.borderLight,
+          opacity: pressed ? 0.92 : 1,
         },
       ]}
     >
-      {isLeader && <LinearGradient colors={BRAND_GRADIENT} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.leaderBar} />}
-      <View style={styles.rankLeft}>
-        <View style={[styles.positionBadge, rank <= 3 && { backgroundColor: colors.text }]}>
-          {badge.icon ? (
-            <Ionicons name={badge.icon as any} size={16} color={rank <= 3 ? colors.bg : colors.textMuted} />
-          ) : (
-            <Text style={[styles.positionText, { color: colors.textSecondary }]}>{rank}</Text>
-          )}
+      <View style={styles.rankCardTop}>
+        <View
+          style={[
+            styles.positionBadge,
+            {
+              backgroundColor: accent
+                ? isDark
+                  ? accent.bgDark
+                  : accent.bg
+                : colors.bgSecondary,
+            },
+          ]}
+        >
+          <Text style={[styles.positionText, { color: accent ? accent.color : colors.textMuted }]}>
+            {rank}
+          </Text>
         </View>
-        <View style={[styles.avatarWrap, { backgroundColor: colors.bgSecondary, borderColor: colors.borderLight }]}>
+
+        <View style={styles.avatarWrap}>
           {hasPhoto ? (
             <Image source={{ uri: photoUrl }} style={styles.avatar} resizeMode="cover" />
           ) : (
-            <Text style={[styles.avatarInitials, { color: colors.text }]}>{getInitials(player.name)}</Text>
+            <View
+              style={[
+                styles.avatar,
+                {
+                  backgroundColor: colors.bgSecondary,
+                  alignItems: "center",
+                  justifyContent: "center",
+                },
+              ]}
+            >
+              <Text style={[styles.avatarInitials, { color: colors.textMuted }]}>
+                {getInitials(player.name)}
+              </Text>
+            </View>
           )}
-          {player.teams?.logo_url && (
-            <View style={[styles.teamMini, { borderColor: colors.card }]}>
-              <Image source={{ uri: player.teams.logo_url }} style={styles.teamMiniLogo} resizeMode="contain" />
+          {player.teams?.logo_url && !player.teams.logo_url.startsWith("blob:") && (
+            <View style={[styles.teamMini, { borderColor: colors.card, backgroundColor: colors.card }]}>
+              <Image
+                source={{ uri: player.teams.logo_url }}
+                style={styles.teamMiniLogo}
+                resizeMode="contain"
+              />
             </View>
           )}
         </View>
-      </View>
 
-      <View style={styles.rankInfo}>
-        <View style={styles.nameRow}>
-          <Text style={[styles.itemName, { color: colors.text }]} numberOfLines={1}>
-            {player.name}
-          </Text>
-          <View style={[styles.smallBadge, { backgroundColor: colors.bgSecondary }]}>
-            <Text style={[styles.smallBadgeText, { color: BRAND_GRADIENT[1] }]}>{tag}</Text>
+        <View style={styles.rankInfo}>
+          <View style={styles.nameRow}>
+            <Text style={[styles.itemName, { color: colors.text }]} numberOfLines={1}>
+              {player.name}
+            </Text>
+            <View
+              style={[
+                styles.topChip,
+                {
+                  backgroundColor: accent
+                    ? isDark
+                      ? accent.bgDark
+                      : accent.bg
+                    : colors.bgSecondary,
+                },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.topChipText,
+                  { color: accent ? accent.color : BRAND_GRADIENT[0] },
+                ]}
+              >
+                {accent ? accent.label : tag}
+              </Text>
+            </View>
           </View>
+          <Text style={[styles.itemSub, { color: colors.textMuted }]} numberOfLines={1}>
+            {player.teams?.name || "Equipo pendiente"}
+            {player.jersey_number ? ` · #${player.jersey_number}` : ""}
+          </Text>
         </View>
-        <Text style={[styles.itemSub, { color: colors.textSecondary }]} numberOfLines={1}>
-          {player.teams?.name || "Equipo pendiente"}
-          {player.jersey_number ? ` · #${player.jersey_number}` : ""}
-        </Text>
-        <View style={styles.statRow}>
-          <Metric label="MVP" value={player.mvps || 0} colors={colors} featured />
-          <Metric label="TD" value={player.touchdowns_totales || 0} colors={colors} />
-          <Metric label="QB" value={player.pases_completos || 0} colors={colors} />
-          <Metric label="SACK" value={player.sacks || 0} colors={colors} />
-          <Metric label="INT" value={player.intercepciones || 0} colors={colors} />
+
+        <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
+      </View>
+
+      <View style={styles.metricsRow}>
+        <View style={styles.metricBlock}>
+          <Text style={[styles.metricValue, { color: BRAND_GRADIENT[0] }]}>{player.mvps || 0}</Text>
+          <Text style={[styles.metricLabel, { color: colors.textMuted }]}>MVP</Text>
+        </View>
+        <View style={styles.metricBlock}>
+          <Text style={[styles.metricValue, { color: colors.text }]}>
+            {player.touchdowns_totales || 0}
+          </Text>
+          <Text style={[styles.metricLabel, { color: colors.textMuted }]}>TD</Text>
+        </View>
+        <View style={styles.metricBlock}>
+          <Text style={[styles.metricValue, { color: colors.text }]}>
+            {player.pases_completos || 0}
+          </Text>
+          <Text style={[styles.metricLabel, { color: colors.textMuted }]}>QB</Text>
+        </View>
+        <View style={styles.metricBlock}>
+          <Text style={[styles.metricValue, { color: colors.text }]}>{player.sacks || 0}</Text>
+          <Text style={[styles.metricLabel, { color: colors.textMuted }]}>SACK</Text>
+        </View>
+        <View style={styles.metricBlock}>
+          <Text style={[styles.metricValue, { color: colors.text }]}>
+            {player.intercepciones || 0}
+          </Text>
+          <Text style={[styles.metricLabel, { color: colors.textMuted }]}>INT</Text>
         </View>
       </View>
 
-      <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+      <View style={styles.scoreBarWrap}>
+        <View style={styles.scoreBarHeader}>
+          <Text style={[styles.scoreBarLabel, { color: colors.textMuted }]}>Score relativo</Text>
+          <Text style={[styles.scoreBarNum, { color: BRAND_GRADIENT[0] }]}>{player.score}</Text>
+        </View>
+        <ProgressBar
+          value={player.score}
+          max={maxScore}
+          color={accent?.color || BRAND_GRADIENT[0]}
+          trackColor={colors.bgSecondary}
+        />
+      </View>
     </Pressable>
   );
 }
 
-function Metric({ label, value, colors, featured = false }: { label: string; value: string | number; colors: any; featured?: boolean }) {
+function EmptyState({
+  icon,
+  title,
+  subtitle,
+  colors,
+}: {
+  icon: any;
+  title: string;
+  subtitle: string;
+  colors: any;
+}) {
   return (
-    <View style={[styles.metric, { backgroundColor: featured ? `${BRAND_GRADIENT[0]}18` : colors.bgSecondary }]}>
-      <Text style={[styles.metricValue, { color: featured ? BRAND_GRADIENT[0] : colors.text }]}>{value}</Text>
-      <Text style={[styles.metricLabel, { color: colors.textMuted }]}>{label}</Text>
-    </View>
-  );
-}
-
-function EmptyState({ icon, title, subtitle, colors }: { icon: any; title: string; subtitle: string; colors: any }) {
-  return (
-    <FadeInView delay={100}>
-      <View style={[styles.emptyCard, { backgroundColor: colors.card, borderColor: colors.borderLight }]}>
+    <FadeInView delay={80}>
+      <View
+        style={[
+          styles.emptyCard,
+          softShadow,
+          { backgroundColor: colors.card, borderColor: colors.borderLight },
+        ]}
+      >
         <View style={[styles.emptyIcon, { backgroundColor: colors.bgSecondary }]}>
-          <Ionicons name={icon} size={42} color={BRAND_GRADIENT[0]} />
+          <Ionicons name={icon} size={36} color={colors.textMuted} />
         </View>
         <Text style={[styles.emptyTitle, { color: colors.text }]}>{title}</Text>
         <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>{subtitle}</Text>
@@ -504,70 +780,179 @@ function EmptyState({ icon, title, subtitle, colors }: { icon: any; title: strin
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: {
-    borderBottomWidth: 1,
-    elevation: 8,
-    shadowOpacity: 0.08,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 8 },
-  },
-  headerInner: { width: "100%", maxWidth: 800, alignSelf: "center", paddingHorizontal: 20, paddingBottom: 16 },
-  headerTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 },
-  eyebrow: { fontSize: 11, fontWeight: "900", letterSpacing: 1.2, marginBottom: 4 },
-  title: { fontSize: 28, fontWeight: "900" },
-  refreshButton: { width: 42, height: 42, borderRadius: 16, alignItems: "center", justifyContent: "center" },
-  seasonSelectorInline: { marginBottom: 14 },
-  heroStrip: { minHeight: 86, borderRadius: 24, padding: 16, flexDirection: "row", alignItems: "center", marginBottom: 14 },
-  heroIcon: { width: 46, height: 46, borderRadius: 16, backgroundColor: "rgba(255,255,255,0.18)", alignItems: "center", justifyContent: "center", marginRight: 14 },
-  heroTextBlock: { flex: 1 },
-  heroTitle: { color: "#FFFFFF", fontSize: 18, fontWeight: "900", marginBottom: 4 },
-  heroSubtitle: { color: "rgba(255,255,255,0.82)", fontSize: 12, fontWeight: "700", lineHeight: 17 },
-  segment: { flexDirection: "row", padding: 6, borderRadius: 18, gap: 6 },
-  segmentButton: { flex: 1, height: 44, borderRadius: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
-  segmentButtonActive: { elevation: 3, shadowOpacity: 0.08, shadowRadius: 8, shadowOffset: { width: 0, height: 4 } },
-  segmentText: { fontSize: 13, fontWeight: "900" },
-  scrollContent: { paddingHorizontal: 16, paddingTop: 18 },
-  contentInner: { width: "100%", maxWidth: 800, alignSelf: "center" },
-  loadingWrap: { paddingVertical: 60 },
-  rankCard: {
-    position: "relative",
+  header: { zIndex: 10, paddingBottom: 4 },
+  headerInner: { width: "100%", maxWidth: 800, alignSelf: "center" },
+  headerTop: {
     flexDirection: "row",
     alignItems: "center",
-    borderRadius: 24,
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    gap: 12,
+  },
+  eyebrow: {
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 1.1,
+    marginBottom: 2,
+  },
+  screenTitle: {
+    fontSize: 28,
+    fontWeight: "900",
+    letterSpacing: -0.6,
+  },
+  refreshButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 14,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  seasonSelector: { paddingHorizontal: 20, marginTop: 10 },
+
+  heroCard: {
+    marginHorizontal: 20,
+    marginTop: 12,
+    borderRadius: 20,
     borderWidth: 1,
     padding: 14,
-    marginBottom: 12,
-    overflow: "hidden",
-    elevation: 3,
-    shadowOpacity: 0.05,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
   },
-  rankCardLeader: { paddingTop: 18, elevation: 8, shadowOpacity: 0.14, shadowRadius: 18 },
-  leaderBar: { position: "absolute", top: 0, left: 0, right: 0, height: 5 },
-  rankLeft: { flexDirection: "row", alignItems: "center", marginRight: 14 },
-  positionBadge: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center", marginRight: 10 },
+  heroTop: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 12 },
+  heroIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  heroTitle: { fontSize: 16, fontWeight: "800", letterSpacing: -0.2 },
+  heroSubtitle: { fontSize: 12, fontWeight: "600", marginTop: 2 },
+  miniStatsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  miniStat: { flex: 1, alignItems: "center" },
+  miniStatValue: { fontSize: 18, fontWeight: "900", letterSpacing: -0.3 },
+  miniStatLabel: { fontSize: 10, fontWeight: "700", marginTop: 2, letterSpacing: 0.3 },
+  miniDivider: { width: 1, height: 28 },
+
+  toggleWrap: {
+    flexDirection: "row",
+    marginHorizontal: 20,
+    marginTop: 12,
+    marginBottom: 10,
+    borderRadius: 16,
+    padding: 4,
+  },
+  toggleBtn: {
+    flex: 1,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: 10,
+    borderRadius: 12,
+    gap: 6,
+  },
+  toggleText: { fontSize: 13, fontWeight: "800" },
+
+  scrollContent: { paddingHorizontal: 16, paddingTop: 12 },
+  contentInner: { width: "100%", maxWidth: 800, alignSelf: "center" },
+  listGap: { gap: 12 },
+
+  rankCard: {
+    borderRadius: 20,
+    borderWidth: 1,
+    padding: 14,
+  },
+  rankCardTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 12,
+  },
+  positionBadge: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   positionText: { fontSize: 13, fontWeight: "900" },
-  logoWrap: { width: 58, height: 58, borderRadius: 20, alignItems: "center", justifyContent: "center", overflow: "hidden", borderWidth: 1 },
+  logoWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+  },
   logo: { width: "100%", height: "100%" },
-  logoInitials: { color: "#FFFFFF", fontSize: 16, fontWeight: "900" },
-  avatarWrap: { width: 58, height: 58, borderRadius: 29, alignItems: "center", justifyContent: "center", borderWidth: 1 },
-  avatar: { width: "100%", height: "100%", borderRadius: 29 },
-  avatarInitials: { fontSize: 16, fontWeight: "900" },
-  teamMini: { position: "absolute", bottom: -2, right: -3, width: 24, height: 24, borderRadius: 12, backgroundColor: "#FFFFFF", borderWidth: 2, padding: 2 },
+  logoInitials: { color: "#FFFFFF", fontSize: 13, fontWeight: "900" },
+  avatarWrap: { width: 44, height: 44 },
+  avatar: { width: 44, height: 44, borderRadius: 22 },
+  avatarInitials: { fontSize: 13, fontWeight: "800" },
+  teamMini: {
+    position: "absolute",
+    bottom: -2,
+    right: -3,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 1.5,
+    overflow: "hidden",
+    padding: 1,
+  },
   teamMiniLogo: { width: "100%", height: "100%" },
   rankInfo: { flex: 1, minWidth: 0 },
-  nameRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 },
-  itemName: { flex: 1, fontSize: 16, fontWeight: "900" },
-  itemSub: { fontSize: 12, fontWeight: "700", marginBottom: 10 },
-  smallBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10 },
-  smallBadgeText: { fontSize: 9, fontWeight: "900", textTransform: "uppercase" },
-  statRow: { flexDirection: "row", gap: 7, flexWrap: "wrap" },
-  metric: { minWidth: 48, borderRadius: 12, paddingHorizontal: 8, paddingVertical: 6, alignItems: "center" },
-  metricValue: { fontSize: 14, fontWeight: "900" },
-  metricLabel: { fontSize: 9, fontWeight: "900", marginTop: 2 },
-  emptyCard: { borderWidth: 1, borderStyle: "dashed", borderRadius: 30, alignItems: "center", paddingHorizontal: 24, paddingVertical: 52, marginTop: 26 },
-  emptyIcon: { width: 82, height: 82, borderRadius: 28, alignItems: "center", justifyContent: "center", marginBottom: 18 },
-  emptyTitle: { fontSize: 20, fontWeight: "900", textAlign: "center", marginBottom: 8 },
-  emptySubtitle: { fontSize: 14, fontWeight: "600", lineHeight: 22, textAlign: "center", maxWidth: 420 },
+  nameRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  itemName: { flex: 1, fontSize: 15, fontWeight: "800", letterSpacing: -0.2 },
+  itemSub: { fontSize: 11, fontWeight: "600", marginTop: 2 },
+  topChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  topChipText: { fontSize: 9, fontWeight: "800", letterSpacing: 0.3, textTransform: "uppercase" },
+
+  metricsRow: { flexDirection: "row", gap: 8, marginBottom: 12 },
+  metricBlock: { flex: 1, alignItems: "center" },
+  metricValue: { fontSize: 18, fontWeight: "900", letterSpacing: -0.3 },
+  metricLabel: { fontSize: 9, fontWeight: "800", letterSpacing: 0.5, marginTop: 2 },
+
+  scoreBarWrap: { gap: 6 },
+  scoreBarHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  scoreBarLabel: { fontSize: 10, fontWeight: "700" },
+  scoreBarNum: { fontSize: 12, fontWeight: "800" },
+  barTrack: { height: 6, borderRadius: 3, overflow: "hidden" },
+  barFill: { height: "100%", borderRadius: 3 },
+
+  emptyCard: {
+    alignItems: "center",
+    paddingVertical: 48,
+    marginTop: 24,
+    borderRadius: 20,
+    borderWidth: 1,
+    paddingHorizontal: 24,
+  },
+  emptyIcon: {
+    width: 72,
+    height: 72,
+    borderRadius: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 14,
+  },
+  emptyTitle: { fontSize: 17, fontWeight: "800", textAlign: "center" },
+  emptySubtitle: {
+    fontSize: 13,
+    fontWeight: "600",
+    marginTop: 6,
+    textAlign: "center",
+    lineHeight: 20,
+    maxWidth: 420,
+  },
 });

@@ -22,10 +22,10 @@ export const Colors = {
   // ☀️ MODO CLARO
   light: {
     ...BRAND,
-    bg: "#F8FAFC",              // Gris súper clarito para el fondo
-    bgSecondary: "#F1F5F9",     // Gris secundario
+    bg: "#F7F9FC",              // Dashboard claro minimalista
+    bgSecondary: "#EEF2F7",     // Gris secundario suave
     card: "#FFFFFF",            // Tarjetas blancas limpias
-    cardLight: "#F8FAFC",
+    cardLight: "#F7F9FC",
     text: "#0F172A",            // Texto casi negro
     textSecondary: "#64748B",   // Texto secundario grisáceo
     textMuted: "#94A3B8",       // Texto silenciado

@@ -314,7 +314,7 @@ export default function RegisterScreen() {
 
               <View style={styles.footerLinks}>
                 <Text style={[styles.footerText, { color: currentColors.textSecondary }]}>¿Ya tienes cuenta?</Text>
-                <Pressable onPress={() => router.back()}>
+                <Pressable onPress={() => router.replace("/login")}>
                   <Text style={styles.linkText}>Inicia Sesión</Text>
                 </Pressable>
               </View>

@@ -12,7 +12,6 @@ import { LinearGradient } from "expo-linear-gradient";
 import * as ImagePicker from "expo-image-picker";
 import { supabase } from "@/lib/supabase"; 
 import { BRAND_GRADIENT, Colors } from "@/constants/colors";
-import PlayerCredentialCard from "@/components/PlayerCredentialCard";
 
 const BASE_URL = "https://www.flagdurango.com.mx";
 
@@ -67,7 +66,7 @@ export default function PlayerDashboard() {
     try {
       const sessionData = await AsyncStorage.getItem("userSession");
       if (!sessionData) {
-        router.replace("/login");
+        router.replace("/");
         return;
       }
       const parsedUser = JSON.parse(sessionData);
@@ -278,7 +277,8 @@ export default function PlayerDashboard() {
             const data = await res.json();
             if (data.success) {
               await AsyncStorage.removeItem("userSession");
-              router.replace("/login");
+              await AsyncStorage.removeItem("user");
+              router.replace("/");
               Alert.alert("Cuenta Eliminada", "Tu cuenta ha sido eliminada del sistema.");
             } else {
               Alert.alert("Error", data.message || "No se pudo eliminar la cuenta.");
@@ -293,7 +293,8 @@ export default function PlayerDashboard() {
 
   const handleLogout = async () => {
     await AsyncStorage.removeItem("userSession");
-    router.replace("/login");
+    await AsyncStorage.removeItem("user");
+    router.replace("/");
   };
 
   // 🔥 1. Variables preparadas (Antes del early return)
@@ -326,120 +327,110 @@ export default function PlayerDashboard() {
     return <View style={[styles.loading, { backgroundColor: currentColors.bg }]}><ActivityIndicator size="large" color={BRAND_GRADIENT[0]} /></View>;
   }
 
+  const firstName = (playerInfo?.name || user?.name || "Jugador").split(" ")[0];
+
   return (
     <View style={[styles.container, { backgroundColor: currentColors.bg }]}>
-      
-      {/* HEADER DE LA PANTALLA */}
-      <View style={[styles.header, { paddingTop: insets.top + 10, backgroundColor: currentColors.card, borderBottomColor: currentColors.borderLight }]}>
-        <View style={styles.headerLeft}>
-          <Pressable onPress={() => router.push('/')} style={styles.homeIcon}>
-            <Ionicons name="home-outline" size={24} color={currentColors.text} />
-          </Pressable>
-          <Text style={[styles.headerTitle, { color: currentColors.text }]}>Mi Perfil</Text>
-        </View>
-        <Pressable onPress={handleLogout} style={styles.logoutIcon}>
-          <Ionicons name="log-out-outline" size={26} color="#EF4444" />
-        </Pressable>
-      </View>
-
-      <ScrollView 
-        contentContainerStyle={styles.scrollContent} 
+      <ScrollView
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: 100 }]}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BRAND_GRADIENT[0]} colors={[BRAND_GRADIENT[0]]} />}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#FFF"
+            colors={[BRAND_GRADIENT[0]]}
+          />
+        }
       >
-        <View style={styles.contentWrapper}>
-          
-          {/* --- CARTA UPPER DECK (CREDENCIA OFICIAL) CARRUSEL --- */}
-          {playerInfo && (
-            <View style={styles.credentialWrapper}>
-              
-              <ScrollView
-                horizontal
-                pagingEnabled
-                showsHorizontalScrollIndicator={false}
-                onMomentumScrollEnd={(e) => {
-                  const newIndex = Math.round(e.nativeEvent.contentOffset.x / (width - 40));
-                  setActiveCardIndex(newIndex);
-                }}
-              >
-                {teamsToRender.map((pt, index) => {
-                  const isPlaceholder = pt._id === 'empty';
-                  const teamId = pt.team?.id || pt.team_id;
-                  
-                  const displayTeam = isPlaceholder ? "LIGA FLAG DURANGO" : pt.team?.name;
-                  const displayJersey = isPlaceholder ? (playerInfo?.jersey_number?.toString() || "00") : pt.jersey_number?.toString();
-                  const displayPosition = isPlaceholder ? (playerInfo?.position || "F/A") : pt.position;
+        {/* ——— UPPER DECK (sin credencial) ——— */}
+        <View style={[styles.upperDeck, { paddingTop: insets.top + 8 }]}>
+          <LinearGradient
+            colors={["#0B1B3A", "#122B5C", "#1E5DBB"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={StyleSheet.absoluteFillObject}
+          />
+          <LinearGradient
+            colors={["transparent", "rgba(224,90,166,0.18)"]}
+            style={StyleSheet.absoluteFillObject}
+          />
 
-                  // Estadísticas aisladas por carta en el carrusel
-                  const cardStatsData = gameStats.filter(s => s.team_id === teamId);
-                  const cardTotals = cardStatsData.reduce((acc, curr) => ({
-                    touchdowns: acc.touchdowns + (Number(curr.touchdowns_totales) || 0),
-                    pases: acc.pases + (Number(curr.pases_completos) || 0),
-                    intercepciones: acc.intercepciones + (Number(curr.intercepciones) || 0),
-                    sacks: acc.sacks + (Number(curr.sacks) || 0),
-                  }), { touchdowns: 0, pases: 0, intercepciones: 0, sacks: 0 });
+          <View style={styles.upperBar}>
+            <Pressable onPress={() => router.push("/")} style={styles.upperIconBtn} hitSlop={8}>
+              <Ionicons name="home-outline" size={22} color="#FFF" />
+            </Pressable>
+            <Text style={styles.upperBrand}>Mi Perfil</Text>
+            <Pressable onPress={handleLogout} style={styles.upperIconBtn} hitSlop={8}>
+              <Ionicons name="log-out-outline" size={22} color="#FCA5A5" />
+            </Pressable>
+          </View>
 
-                  const cardMvps = mvpsList.filter(m => m.team_id === teamId).length;
+          <Text style={styles.greeting}>Hola, {firstName}</Text>
+          <Text style={styles.greetingSub}>Tu rendimiento en la temporada</Text>
 
-                  return (
-                    <View key={index} style={{ width: width - 40, alignItems: 'center' }}>
-                      <PlayerCredentialCard
-                        playerName={playerInfo.name}
-                        playerNumber={displayJersey}
-                        position={displayPosition}
-                        team={displayTeam}
-                        photoUrl={playerInfo.photo_url}
-                        stats={{
-                          ...cardTotals,
-                          mvps: cardMvps
-                        }}
-                      />
-                    </View>
-                  );
-                })}
-              </ScrollView>
-
-              {/* Indicadores de página (Puntitos) */}
-              {teamsToRender.length > 1 && (
-                <View style={styles.paginationContainer}>
-                  {teamsToRender.map((_, idx) => (
-                    <View 
-                      key={idx} 
-                      style={[styles.dot, activeCardIndex === idx && styles.activeDot]} 
-                    />
-                  ))}
-                </View>
+          <View style={styles.headerActions}>
+            <Pressable
+              style={styles.headerActionBtn}
+              onPress={handlePickImage}
+              disabled={uploadingImage}
+            >
+              {uploadingImage ? (
+                <ActivityIndicator size="small" color="#FFF" />
+              ) : (
+                <>
+                  <Ionicons name="camera-outline" size={16} color="#FFF" />
+                  <Text style={styles.headerActionText}>Foto</Text>
+                </>
               )}
+            </Pressable>
+            <Pressable style={styles.headerActionBtn} onPress={() => setShowEditModal(true)}>
+              <Ionicons name="create-outline" size={16} color="#FFF" />
+              <Text style={styles.headerActionText}>Editar</Text>
+            </Pressable>
+          </View>
+        </View>
 
-              <Text style={[styles.hintText, { color: currentColors.textMuted }]}>
-                {teamsToRender.length > 1 
-                  ? "Desliza para ver tus otros equipos • Toca para girar" 
-                  : "Toca la credencial para ver tus estadísticas"}
-              </Text>
-              
-              <View style={styles.cardActionsRow}>
-                <Pressable style={[styles.actionBtn, { backgroundColor: currentColors.card, borderColor: currentColors.borderLight }]} onPress={handlePickImage} disabled={uploadingImage}>
-                  {uploadingImage ? (
-                    <ActivityIndicator size="small" color={BRAND_GRADIENT[0]} />
-                  ) : (
-                    <>
-                      <Ionicons name="camera-outline" size={18} color={currentColors.text} />
-                      <Text style={[styles.actionBtnText, { color: currentColors.text }]}>Cambiar Foto</Text>
-                    </>
-                  )}
-                </Pressable>
-                
-                <Pressable style={[styles.actionBtn, { backgroundColor: currentColors.card, borderColor: currentColors.borderLight }]} onPress={() => setShowEditModal(true)}>
-                  <Ionicons name="create-outline" size={18} color={currentColors.text} />
-                  <Text style={[styles.actionBtnText, { color: currentColors.text }]}>Editar Datos</Text>
-                </Pressable>
-              </View>
-            </View>
+        <View style={styles.contentWrapper}>
+          {/* Selector de equipo para filtrar stats */}
+          {playerTeams.length > 1 && (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.teamChips}
+              style={{ marginBottom: 8 }}
+            >
+              {playerTeams.map((pt, idx) => {
+                const active = activeCardIndex === idx;
+                return (
+                  <Pressable
+                    key={pt.team?.id || pt.team_id || idx}
+                    onPress={() => setActiveCardIndex(idx)}
+                    style={[
+                      styles.teamChip,
+                      {
+                        backgroundColor: active ? BRAND_GRADIENT[0] : currentColors.card,
+                        borderColor: active ? BRAND_GRADIENT[0] : currentColors.borderLight,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.teamChipText,
+                        { color: active ? "#FFF" : currentColors.text },
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {pt.team?.name || "Equipo"}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
           )}
 
-          {/* --- RENDIMIENTO DINÁMICO (BENTO BOX COMPLETO) --- */}
           <Text style={[styles.sectionTitle, { color: currentColors.text }]}>
-            Rendimiento {activeTeam?._id === 'empty' ? '' : `en ${activeTeam?.team?.name}`}
+            Rendimiento {activeTeam?._id === "empty" ? "" : `en ${activeTeam?.team?.name}`}
           </Text>
           <View style={[styles.globalStatsCard, { backgroundColor: currentColors.card, borderColor: currentColors.borderLight, shadowColor: isDark ? '#000' : '#475569' }]}>
             
@@ -662,21 +653,77 @@ export default function PlayerDashboard() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   loading: { flex: 1, justifyContent: "center", alignItems: "center" },
-  contentWrapper: { width: "100%", maxWidth: 800, alignSelf: "center" },
-  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 20, paddingBottom: 15, borderBottomWidth: 1, elevation: 4, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 5 },
-  headerLeft: { flexDirection: "row", alignItems: "center" },
-  homeIcon: { marginRight: 15, padding: 5 },
-  headerTitle: { fontSize: 26, fontWeight: "900", letterSpacing: -0.5 },
-  logoutIcon: { padding: 5 },
-  scrollContent: { padding: 20, paddingBottom: 100 },
-  credentialWrapper: { alignItems: 'center', marginBottom: 30 },
-  hintText: { fontSize: 11, textAlign: 'center', marginTop: 5, marginBottom: 15, fontWeight: '600' },
-  cardActionsRow: { flexDirection: 'row', justifyContent: 'center', gap: 15, width: '100%' },
-  actionBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 20, borderRadius: 12, borderWidth: 1, gap: 8 },
-  actionBtnText: { fontSize: 13, fontWeight: 'bold' },
-  paginationContainer: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 10, marginBottom: 5 },
-  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#555', marginHorizontal: 5 },
-  activeDot: { backgroundColor: BRAND_GRADIENT[0], width: 22 }, 
+  scrollContent: { paddingBottom: 40 },
+  upperDeck: {
+    paddingHorizontal: 20,
+    paddingBottom: 28,
+    borderBottomLeftRadius: 36,
+    borderBottomRightRadius: 36,
+    overflow: "hidden",
+    marginBottom: 20,
+  },
+  upperBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 18,
+  },
+  upperIconBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.12)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  upperBrand: {
+    color: "rgba(255,255,255,0.85)",
+    fontSize: 13,
+    fontWeight: "800",
+    letterSpacing: 1.4,
+    textTransform: "uppercase",
+  },
+  greeting: {
+    color: "#FFFFFF",
+    fontSize: 30,
+    fontWeight: "900",
+    letterSpacing: -0.6,
+  },
+  greetingSub: {
+    color: "rgba(255,255,255,0.65)",
+    fontSize: 14,
+    fontWeight: "600",
+    marginTop: 4,
+    marginBottom: 14,
+  },
+  headerActions: { flexDirection: "row", gap: 10 },
+  headerActionBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(255,255,255,0.14)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.2)",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+  },
+  headerActionText: { color: "#FFF", fontSize: 12, fontWeight: "800" },
+  contentWrapper: {
+    width: "100%",
+    maxWidth: 800,
+    alignSelf: "center",
+    paddingHorizontal: 16,
+  },
+  teamChips: { gap: 8, paddingBottom: 8 },
+  teamChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+    borderWidth: 1,
+    maxWidth: 180,
+  },
+  teamChipText: { fontSize: 12, fontWeight: "800" }, 
   globalStatsCard: { borderRadius: 28, borderWidth: 1, padding: 24, marginBottom: 30, elevation: 3, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.05, shadowRadius: 12 },
   statsGridRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 15 },
   statGridBox: { flex: 1, alignItems: 'center' },

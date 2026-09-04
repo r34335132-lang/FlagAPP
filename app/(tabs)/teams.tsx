@@ -13,57 +13,86 @@ import {
   useColorScheme,
   useWindowDimensions,
   Animated,
-  Easing
+  Easing,
+  Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { SeasonSelector } from "@/components/SeasonSelector";
 import { useTeams } from "@/hooks/useTeams";
-import { BRAND_GRADIENT, Colors } from "@/constants/colors"; 
+import { BRAND_GRADIENT, Colors } from "@/constants/colors";
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 1. ANIMACIONES BASE
-// ─────────────────────────────────────────────────────────────────────────────
-const FadeInView = ({ children, delay = 0 }: { children: any, delay?: number }) => {
+const DASH_BG = "#F7F9FC";
+
+const MAIN_CATEGORIES = [
+  { id: "all", label: "Todas" },
+  { id: "varonil", label: "Varonil" },
+  { id: "femenil", label: "Femenil" },
+  { id: "mixto", label: "Mixto" },
+  { id: "teens", label: "Teens" },
+];
+
+const TIER_COLORS: Record<string, string> = {
+  copper: "#B87333",
+  silver: "#94A3B8",
+  gold: "#F59E0B",
+};
+
+const softShadow = Platform.select({
+  ios: {
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+  },
+  android: { elevation: 2 },
+  default: {
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+  },
+});
+
+const FadeInView = ({ children, delay = 0 }: { children: any; delay?: number }) => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(15)).current;
+  const slideAnim = useRef(new Animated.Value(12)).current;
 
   useEffect(() => {
     Animated.parallel([
-      Animated.timing(fadeAnim, { toValue: 1, duration: 400, delay, useNativeDriver: true, easing: Easing.out(Easing.cubic) }),
-      Animated.timing(slideAnim, { toValue: 0, duration: 400, delay, useNativeDriver: true, easing: Easing.out(Easing.cubic) })
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 380,
+        delay,
+        useNativeDriver: true,
+        easing: Easing.out(Easing.cubic),
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 380,
+        delay,
+        useNativeDriver: true,
+        easing: Easing.out(Easing.cubic),
+      }),
     ]).start();
-  }, [delay]);
+  }, [delay, fadeAnim, slideAnim]);
 
   return (
-    <Animated.View style={[{ flex: 1, opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
+    <Animated.View style={{ flex: 1, opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
       {children}
     </Animated.View>
   );
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 2. CONSTANTES
-// ─────────────────────────────────────────────────────────────────────────────
-const MAIN_CATEGORIES = [
-  { id: "all", label: "TODOS" },
-  { id: "varonil", label: "VARONIL" },
-  { id: "femenil", label: "FEMENIL" },
-  { id: "mixto", label: "MIXTO" },
-  { id: "teens", label: "TEENS" },
-];
-
 export default function TeamsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { data: teams, isLoading, refetch } = useTeams();
-  
-  // 🔥 MEDIDAS PARA TABLETS 🔥
+
   const { width } = useWindowDimensions();
   const isTablet = width >= 768;
-  const numColumns = width >= 1024 ? 4 : (width >= 768 ? 3 : 2);
+  const numColumns = width >= 1024 ? 4 : width >= 768 ? 3 : 2;
 
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedMainCat, setSelectedMainCat] = useState("all");
@@ -71,6 +100,8 @@ export default function TeamsScreen() {
 
   const theme = useColorScheme() ?? "light";
   const currentColors = Colors[theme];
+  const screenBg = theme === "dark" ? currentColors.bg : DASH_BG;
+  const topPad = insets.top + (Platform.OS === "web" ? 20 : 10);
 
   const [refreshing, setRefreshing] = useState(false);
 
@@ -85,128 +116,120 @@ export default function TeamsScreen() {
 
   const filteredByMain = useMemo(() => {
     if (!teams) return [];
-    
+
     return teams.filter((team) => {
       const matchesSearch = team.name.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesMainCat = selectedMainCat === "all" || 
-                             team.category?.toLowerCase().startsWith(selectedMainCat.toLowerCase());
+      const matchesMainCat =
+        selectedMainCat === "all" ||
+        team.category?.toLowerCase().startsWith(selectedMainCat.toLowerCase());
       return matchesSearch && matchesMainCat;
     });
   }, [teams, searchQuery, selectedMainCat]);
 
   const availableSubCats = useMemo(() => {
     if (selectedMainCat === "all") return [];
-    
+
     const subs = new Set<string>();
-    filteredByMain.forEach(t => {
-      const parts = t.category?.split("-"); 
+    filteredByMain.forEach((t) => {
+      const parts = t.category?.split("-");
       if (parts && parts.length > 1) {
         subs.add(parts[1].toLowerCase());
       }
     });
-    
+
     return Array.from(subs).sort();
   }, [filteredByMain, selectedMainCat]);
 
   const finalFilteredTeams = useMemo(() => {
     let filtered = filteredByMain;
-    
+
     if (selectedSubCat !== "all") {
-      filtered = filtered.filter(t => {
+      filtered = filtered.filter((t) => {
         const parts = t.category?.split("-");
         return parts && parts.length > 1 && parts[1].toLowerCase() === selectedSubCat.toLowerCase();
       });
     }
-    
+
     return filtered.sort((a, b) => a.name.localeCompare(b.name));
   }, [filteredByMain, selectedSubCat]);
 
   if (isLoading && !refreshing) {
     return (
-      <View style={[styles.loading, { backgroundColor: currentColors.bg }]}>
+      <View style={[styles.loading, { backgroundColor: screenBg }]}>
         <ActivityIndicator size="large" color={BRAND_GRADIENT[0]} />
       </View>
     );
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // TARJETA DE EQUIPO (DISEÑO PREMIUM)
-  // ─────────────────────────────────────────────────────────────────────────────
-  const renderTeamCard = ({ item, index }: { item: any, index: number }) => {
-    const hasLogo = !!item.logo_url;
-    const color1 = item.color1 || "#334155";
-    const color2 = item.color2 || "#0F172A";
+  const renderTeamCard = ({ item, index }: { item: any; index: number }) => {
+    const hasLogo = !!item.logo_url && !String(item.logo_url).startsWith("blob:");
+    const accent = item.color1 || BRAND_GRADIENT[0];
+    const categoryLabel = item.category?.replace("-", " ") || "Sin categoría";
 
     return (
-      <FadeInView delay={(index % numColumns) * 100}>
-        <Pressable 
-          style={[
-            styles.cardContainer, 
-            { 
+      <FadeInView delay={(index % numColumns) * 60}>
+        <Pressable
+          style={({ pressed }) => [
+            styles.card,
+            softShadow,
+            {
               backgroundColor: currentColors.card,
               borderColor: currentColors.borderLight,
-              shadowColor: theme === 'dark' ? '#000' : '#475569' 
-            }
+              opacity: pressed ? 0.92 : 1,
+            },
           ]}
-          onPress={() => router.push({ pathname: "/team/[id]", params: { id: item.id } })} 
+          onPress={() => router.push({ pathname: "/team/[id]", params: { id: item.id } })}
         >
-          <LinearGradient 
-            colors={[color1, color2]} 
-            start={{ x: 0, y: 0 }} 
-            end={{ x: 1, y: 1 }}
-            style={styles.cardGradient}
-          >
-            <View style={[styles.logoWrapper, { shadowColor: theme === 'dark' ? '#000' : '#0F172A' }]}>
-              {hasLogo ? (
-                <Image 
-                  source={{ uri: item.logo_url }} 
-                  style={styles.teamLogo} 
-                  resizeMode="cover" 
-                />
-              ) : (
-                <Text style={[styles.initialsText, { color: color2 }]}>
-                  {item.name.substring(0, 2).toUpperCase()}
-                </Text>
-              )}
-            </View>
-            
-            <Text style={styles.teamName} numberOfLines={1}>{item.name}</Text>
-            
-            <View style={styles.categoryBadge}>
-              <Text style={styles.categoryText}>{item.category?.replace("-", " ").toUpperCase() || "SIN CATEGORÍA"}</Text>
-            </View>
-          </LinearGradient>
+          <View style={[styles.cardAccent, { backgroundColor: accent }]} />
+
+          <View style={[styles.logoWrap, { backgroundColor: currentColors.bgSecondary }]}>
+            {hasLogo ? (
+              <Image source={{ uri: item.logo_url }} style={styles.teamLogo} resizeMode="contain" />
+            ) : (
+              <Text style={[styles.initials, { color: accent }]}>
+                {item.name.substring(0, 2).toUpperCase()}
+              </Text>
+            )}
+          </View>
+
+          <Text style={[styles.teamName, { color: currentColors.text }]} numberOfLines={2}>
+            {item.name}
+          </Text>
+          <Text style={[styles.teamCategory, { color: currentColors.textMuted }]} numberOfLines={1}>
+            {categoryLabel}
+          </Text>
         </Pressable>
       </FadeInView>
     );
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: currentColors.bg }]}>
-      
-      {/* --- HEADER Y FILTROS --- */}
-      <View style={[styles.header, { 
-        paddingTop: insets.top + 10, 
-        backgroundColor: currentColors.card,
-        borderBottomColor: currentColors.border,
-        shadowColor: theme === 'dark' ? '#000' : '#0F172A'
-      }]}>
-        
-        {/* Contenedor centralizado para que en tablets se vea como un panel */}
-        <View style={styles.headerContentWrapper}>
-          
+    <View style={[styles.container, { backgroundColor: screenBg }]}>
+      <View style={[styles.header, { paddingTop: topPad, backgroundColor: screenBg }]}>
+        <View style={styles.headerInner}>
           <View style={styles.headerTop}>
-            <Text style={[styles.title, { color: currentColors.text }]}>Equipos</Text>
-            <Pressable onPress={() => refetch()} style={styles.refreshBtn}>
-              <Ionicons name="refresh" size={20} color={currentColors.textMuted} />
+            <Text style={[styles.screenTitle, { color: currentColors.text }]}>Equipos</Text>
+            <Pressable
+              onPress={() => refetch()}
+              style={[styles.refreshBtn, { backgroundColor: currentColors.card }, softShadow]}
+            >
+              <Ionicons name="refresh" size={18} color={currentColors.textMuted} />
             </Pressable>
           </View>
 
-          <SeasonSelector compact style={styles.seasonSelectorInline} />
+          <SeasonSelector compact style={styles.seasonSelector} />
 
-          {/* BUSCADOR PREMIUM */}
-          <View style={[styles.searchBar, { backgroundColor: currentColors.bgSecondary, borderColor: currentColors.borderLight }]}>
-            <Ionicons name="search" size={20} color={currentColors.textMuted} style={styles.searchIcon} />
+          <View
+            style={[
+              styles.searchBar,
+              softShadow,
+              {
+                backgroundColor: currentColors.card,
+                borderColor: currentColors.borderLight,
+              },
+            ]}
+          >
+            <Ionicons name="search" size={18} color={currentColors.textMuted} style={styles.searchIcon} />
             <TextInput
               style={[styles.searchInput, { color: currentColors.text }]}
               placeholder="Buscar un equipo..."
@@ -216,103 +239,108 @@ export default function TeamsScreen() {
               autoCorrect={false}
             />
             {searchQuery.length > 0 && (
-              <Pressable onPress={() => setSearchQuery("")} style={styles.clearBtn}>
+              <Pressable onPress={() => setSearchQuery("")} style={styles.clearBtn} hitSlop={8}>
                 <Ionicons name="close-circle" size={18} color={currentColors.textMuted} />
               </Pressable>
             )}
           </View>
 
-          {/* SELECTOR PRINCIPAL */}
-          <ScrollView 
-            horizontal 
-            showsHorizontalScrollIndicator={false} 
-            contentContainerStyle={[styles.mainCategoryScroll, isTablet && { justifyContent: "center", flexGrow: 1 }]}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={[
+              styles.mainCatScroll,
+              isTablet && { justifyContent: "center", flexGrow: 1 },
+            ]}
           >
             {MAIN_CATEGORIES.map((cat) => {
-              const isActive = selectedMainCat === cat.id;
+              const active = selectedMainCat === cat.id;
               return (
-                <Pressable 
-                  key={cat.id} 
-                  style={[styles.mainTab, isActive && styles.mainTabActive]}
+                <Pressable
+                  key={cat.id}
                   onPress={() => setSelectedMainCat(cat.id)}
+                  style={[
+                    styles.mainChip,
+                    softShadow,
+                    {
+                      backgroundColor: active ? BRAND_GRADIENT[0] : currentColors.card,
+                      borderColor: currentColors.borderLight,
+                    },
+                  ]}
                 >
-                  <Text style={[
-                    styles.mainTabText, 
-                    { color: currentColors.textMuted },
-                    isActive && styles.mainTabTextActive
-                  ]}>
+                  <Text style={[styles.mainChipText, { color: active ? "#FFF" : currentColors.textSecondary }]}>
                     {cat.label}
                   </Text>
-                  {isActive && <View style={styles.activeIndicator} />}
                 </Pressable>
               );
             })}
           </ScrollView>
-        </View>
 
-        {/* SELECTOR SECUNDARIO (Niveles en Píldoras Limpias) */}
-        {selectedMainCat !== "all" && availableSubCats.length > 0 && (
-          <View style={[styles.subCategoryWrapper, { backgroundColor: currentColors.bgSecondary, borderTopColor: currentColors.borderLight }]}>
-            <View style={styles.headerContentWrapper}>
-              <ScrollView 
-                horizontal 
-                showsHorizontalScrollIndicator={false} 
-                contentContainerStyle={[styles.subCategoryScroll, isTablet && { justifyContent: "center", flexGrow: 1 }]}
+          {selectedMainCat !== "all" && availableSubCats.length > 0 && (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={[
+                styles.subCatScroll,
+                isTablet && { justifyContent: "center", flexGrow: 1 },
+              ]}
+            >
+              <Pressable
+                style={[
+                  styles.subChip,
+                  {
+                    backgroundColor:
+                      selectedSubCat === "all" ? currentColors.text : currentColors.bgSecondary,
+                  },
+                ]}
+                onPress={() => setSelectedSubCat("all")}
               >
-                <Pressable 
+                <Text
                   style={[
-                    styles.subChip, 
-                    { backgroundColor: currentColors.card, borderColor: currentColors.borderLight },
-                    selectedSubCat === "all" && { backgroundColor: BRAND_GRADIENT[0], borderColor: BRAND_GRADIENT[0] }
+                    styles.subChipText,
+                    { color: selectedSubCat === "all" ? currentColors.bg : currentColors.textSecondary },
                   ]}
-                  onPress={() => setSelectedSubCat("all")}
                 >
-                  <Text style={[
-                    styles.subChipText, 
-                    { color: currentColors.textSecondary },
-                    selectedSubCat === "all" && { color: '#FFF' }
-                  ]}>
-                    Nivel Todas
-                  </Text>
-                </Pressable>
-                
-                {availableSubCats.map(sub => (
-                  <Pressable 
-                    key={sub} 
+                  Todas
+                </Text>
+              </Pressable>
+              {availableSubCats.map((sub) => {
+                const active = selectedSubCat === sub;
+                const accent = TIER_COLORS[sub] || BRAND_GRADIENT[0];
+                return (
+                  <Pressable
+                    key={sub}
                     style={[
-                      styles.subChip, 
-                      { backgroundColor: currentColors.card, borderColor: currentColors.borderLight },
-                      selectedSubCat === sub && { backgroundColor: BRAND_GRADIENT[0], borderColor: BRAND_GRADIENT[0] }
+                      styles.subChip,
+                      { backgroundColor: active ? accent : currentColors.bgSecondary },
                     ]}
                     onPress={() => setSelectedSubCat(sub)}
                   >
-                    <Text style={[
-                      styles.subChipText, 
-                      { color: currentColors.textSecondary },
-                      selectedSubCat === sub && { color: '#FFF' }
-                    ]}>
+                    <Text style={[styles.subChipText, { color: active ? "#FFF" : currentColors.textSecondary }]}>
                       {sub.toUpperCase()}
                     </Text>
                   </Pressable>
-                ))}
-              </ScrollView>
-            </View>
-          </View>
-        )}
+                );
+              })}
+            </ScrollView>
+          )}
+        </View>
       </View>
 
-      {/* --- GRID DE EQUIPOS --- */}
       <FlatList
-        key={numColumns} 
+        key={numColumns}
         data={finalFilteredTeams}
         keyExtractor={(item) => item.id.toString()}
-        numColumns={numColumns} 
-        contentContainerStyle={[styles.listContent, { paddingBottom: isTablet ? insets.bottom + 100 : insets.bottom + 80 }]}
+        numColumns={numColumns}
+        contentContainerStyle={[
+          styles.listContent,
+          { paddingBottom: isTablet ? insets.bottom + 100 : insets.bottom + 88 },
+        ]}
         columnWrapperStyle={styles.columnWrapper}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl 
-            refreshing={refreshing} 
+          <RefreshControl
+            refreshing={refreshing}
             onRefresh={onRefresh}
             tintColor={BRAND_GRADIENT[0]}
             colors={[BRAND_GRADIENT[0]]}
@@ -320,13 +348,21 @@ export default function TeamsScreen() {
         }
         renderItem={renderTeamCard}
         ListEmptyComponent={
-          <FadeInView delay={200}>
-            <View style={[styles.emptyState, { backgroundColor: currentColors.card, borderColor: currentColors.borderLight }]}>
+          <FadeInView delay={120}>
+            <View
+              style={[
+                styles.emptyCard,
+                softShadow,
+                { backgroundColor: currentColors.card, borderColor: currentColors.borderLight },
+              ]}
+            >
               <View style={[styles.emptyIconWrap, { backgroundColor: currentColors.bgSecondary }]}>
-                <Ionicons name="shield-outline" size={45} color={BRAND_GRADIENT[0]} />
+                <Ionicons name="shield-outline" size={40} color={currentColors.textMuted} />
               </View>
               <Text style={[styles.emptyTitle, { color: currentColors.text }]}>No hay equipos</Text>
-              <Text style={[styles.emptySub, { color: currentColors.textSecondary }]}>No encontramos equipos que coincidan con tus filtros o búsqueda actual.</Text>
+              <Text style={[styles.emptySubtitle, { color: currentColors.textSecondary }]}>
+                No encontramos equipos que coincidan con tus filtros o búsqueda actual.
+              </Text>
             </View>
           </FadeInView>
         }
@@ -335,126 +371,136 @@ export default function TeamsScreen() {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 5. ESTILOS PREMIUM
-// ─────────────────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   container: { flex: 1 },
   loading: { flex: 1, justifyContent: "center", alignItems: "center" },
-  
-  // Header Base
-  header: { 
-    borderBottomWidth: 1, 
-    paddingBottom: 0, // Ajustado para que el Scroll quede al borde
-    zIndex: 10,
-    elevation: 6,
-    shadowOpacity: 0.1,
-    shadowRadius: 15,
-  },
-  headerContentWrapper: { width: "100%", maxWidth: 800, alignSelf: "center" },
-  headerTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 24, marginBottom: 15 },
-  title: { fontSize: 26, fontWeight: "900", letterSpacing: -0.5 },
-  refreshBtn: { padding: 8, backgroundColor: 'rgba(150,150,150,0.1)', borderRadius: 12 },
-  seasonSelectorInline: { paddingHorizontal: 24, marginBottom: 12 },
 
-  // Buscador Moderno
+  header: { zIndex: 10, paddingBottom: 4 },
+  headerInner: { width: "100%", maxWidth: 800, alignSelf: "center" },
+  headerTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+  },
+  screenTitle: {
+    fontSize: 28,
+    fontWeight: "900",
+    letterSpacing: -0.6,
+  },
+  refreshBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  seasonSelector: { paddingHorizontal: 20, marginTop: 10, marginBottom: 12 },
+
   searchBar: {
     flexDirection: "row",
     alignItems: "center",
-    borderRadius: 20,
-    borderWidth: 1,
     marginHorizontal: 20,
-    paddingHorizontal: 15,
-    height: 50,
-    marginBottom: 20,
+    marginBottom: 14,
+    paddingHorizontal: 14,
+    height: 48,
+    borderRadius: 16,
+    borderWidth: 1,
   },
   searchIcon: { marginRight: 10 },
   searchInput: { flex: 1, fontSize: 15, fontWeight: "600" },
   clearBtn: { padding: 4 },
 
-  // Selector Principal
-  mainCategoryScroll: { paddingHorizontal: 24, paddingBottom: 0, gap: 25 },
-  mainTab: { paddingVertical: 12, position: "relative", alignItems: "center" },
-  mainTabActive: {},
-  mainTabText: { fontSize: 13, fontWeight: "800", letterSpacing: 1, textTransform: 'uppercase' },
-  mainTabTextActive: { color: BRAND_GRADIENT[0] },
-  activeIndicator: { 
-    position: "absolute", 
-    bottom: 0, 
-    width: "100%", 
-    height: 4, 
-    backgroundColor: BRAND_GRADIENT[0], 
-    borderTopLeftRadius: 4,
-    borderTopRightRadius: 4
-  },
-
-  // Selector Secundario (Píldoras Flotantes)
-  subCategoryWrapper: { paddingVertical: 14, borderTopWidth: 1 },
-  subCategoryScroll: { paddingHorizontal: 20, gap: 10 },
-  subChip: {
-    paddingHorizontal: 18,
-    paddingVertical: 8,
-    borderRadius: 20,
+  mainCatScroll: { paddingHorizontal: 20, gap: 8, paddingBottom: 10 },
+  mainChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 14,
     borderWidth: 1,
-    elevation: 1,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
   },
-  subChipText: { fontSize: 12, fontWeight: "800", textTransform: 'uppercase', letterSpacing: 0.5 },
+  mainChipText: { fontSize: 13, fontWeight: "700" },
 
-  // Grid
-  listContent: { 
-    padding: 16, 
-    paddingTop: 24,
-    maxWidth: 1200, 
-    alignSelf: "center", 
+  subCatScroll: { paddingHorizontal: 20, gap: 8, paddingBottom: 10 },
+  subChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12 },
+  subChipText: { fontSize: 11, fontWeight: "800", letterSpacing: 0.4 },
+
+  listContent: {
+    padding: 16,
+    paddingTop: 12,
+    maxWidth: 1200,
+    alignSelf: "center",
     width: "100%",
   },
-  columnWrapper: { gap: 16, justifyContent: "flex-start", marginBottom: 16 },
-  
-  // Tarjeta de Equipo (Bento Box Style)
-  cardContainer: {
+  columnWrapper: { gap: 12, justifyContent: "flex-start", marginBottom: 12 },
+
+  card: {
     flex: 1,
-    maxWidth: 400, 
-    aspectRatio: 0.85,
-    borderRadius: 28,
+    maxWidth: 400,
+    borderRadius: 20,
     borderWidth: 1,
     overflow: "hidden",
-    elevation: 4,
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-  },
-  cardGradient: { flex: 1, padding: 18, alignItems: "center", justifyContent: "center" },
-  
-  logoWrapper: {
-    width: 76,
-    height: 76,
-    borderRadius: 24, // Suave squircle
-    backgroundColor: "#FFFFFF",
-    justifyContent: "center",
+    paddingTop: 18,
+    paddingBottom: 16,
+    paddingHorizontal: 14,
     alignItems: "center",
-    marginBottom: 16,
-    elevation: 5,
-    shadowOpacity: 0.15,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    overflow: "hidden", 
-    padding: 0,
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.8)'
+  },
+  cardAccent: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 3,
+  },
+  logoWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+    marginBottom: 12,
   },
   teamLogo: { width: "100%", height: "100%" },
-  initialsText: { fontSize: 26, fontWeight: "900" },
-  
-  teamName: { fontSize: 17, fontWeight: "900", color: "#FFFFFF", textAlign: "center", marginBottom: 10, letterSpacing: -0.3 },
-  categoryBadge: { backgroundColor: "rgba(0,0,0,0.25)", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, borderWidth: 1, borderColor: "rgba(255,255,255,0.15)" },
-  categoryText: { fontSize: 10, fontWeight: "900", color: "#FFFFFF", letterSpacing: 1 },
+  initials: { fontSize: 22, fontWeight: "900", letterSpacing: -0.4 },
+  teamName: {
+    fontSize: 15,
+    fontWeight: "800",
+    letterSpacing: -0.2,
+    textAlign: "center",
+    marginBottom: 4,
+  },
+  teamCategory: {
+    fontSize: 11,
+    fontWeight: "600",
+    textTransform: "capitalize",
+    textAlign: "center",
+  },
 
-  // Empty State Premium
-  emptyState: { alignItems: "center", marginTop: 40, paddingVertical: 50, paddingHorizontal: 20, borderRadius: 32, borderWidth: 1, borderStyle: "dashed", alignSelf: 'center', width: '100%', maxWidth: 600 },
-  emptyIconWrap: { width: 80, height: 80, borderRadius: 40, alignItems: "center", justifyContent: "center", marginBottom: 16 },
-  emptyTitle: { fontSize: 19, fontWeight: "900", marginBottom: 8 },
-  emptySub: { fontSize: 14, textAlign: "center", paddingHorizontal: 30, lineHeight: 22 },
+  emptyCard: {
+    alignItems: "center",
+    paddingVertical: 48,
+    marginTop: 24,
+    borderRadius: 20,
+    borderWidth: 1,
+    alignSelf: "center",
+    width: "100%",
+    maxWidth: 600,
+  },
+  emptyIconWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 14,
+  },
+  emptyTitle: { fontSize: 17, fontWeight: "800" },
+  emptySubtitle: {
+    fontSize: 13,
+    fontWeight: "600",
+    marginTop: 6,
+    paddingHorizontal: 32,
+    textAlign: "center",
+    lineHeight: 20,
+  },
 });

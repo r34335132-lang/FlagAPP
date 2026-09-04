@@ -190,7 +190,10 @@ export default function LoginScreen() {
                <Text style={[styles.forgotText, { color: currentColors.textSecondary }]}>¿Olvidaste tu contraseña?</Text>
               </Pressable>
 
-              <Pressable style={styles.backBtn} onPress={() => router.back()}>
+              <Pressable
+                style={styles.backBtn}
+                onPress={() => router.replace("/")}
+              >
                 <View style={[styles.backBtnCircle, { backgroundColor: currentColors.bgSecondary }]}>
                   <Ionicons name="arrow-back" size={16} color={currentColors.text} />
                 </View>

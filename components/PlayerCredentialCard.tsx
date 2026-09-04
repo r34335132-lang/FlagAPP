@@ -1,9 +1,24 @@
-import React, { useRef, useState } from 'react';
-import { View, Text, StyleSheet, Animated, TouchableWithoutFeedback, Image, Pressable, Alert } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
-import { captureRef } from 'react-native-view-shot';
-import * as Sharing from 'expo-sharing';
+import React, { useRef, useState } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  Animated,
+  TouchableWithoutFeedback,
+  Image,
+  Pressable,
+  Alert,
+  Platform,
+} from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import { Ionicons } from "@expo/vector-icons";
+import { captureRef } from "react-native-view-shot";
+import * as Sharing from "expo-sharing";
+
+/** Placeholders — reemplaza las rutas si mueves los archivos */
+const LOGO_LEFT = require("@/assets/images/brands/logo-fad.png");
+const LOGO_CENTER = require("@/assets/images/brands/logo-flag-durango.png");
+const LOGO_RIGHT = require("@/assets/images/brands/logo-fmfa.png");
 
 interface PlayerStats {
   touchdowns: number;
@@ -18,24 +33,24 @@ interface CredentialProps {
   playerNumber: string;
   position: string;
   team: string;
-  photoUrl: string;       // Foto de fondo (Acción)
-  portraitUrl?: string;   // Foto pequeña tipo ID (Gafete)
+  category?: string;
+  photoUrl: string;
+  portraitUrl?: string;
   stats: PlayerStats;
 }
 
-export default function PlayerCredentialCard({ 
-  playerName, 
-  playerNumber, 
-  position, 
-  team, 
-  photoUrl, 
+export default function PlayerCredentialCard({
+  playerName,
+  playerNumber,
+  position,
+  team,
+  category,
+  photoUrl,
   portraitUrl,
-  stats 
+  stats,
 }: CredentialProps) {
   const flipAnimation = useRef(new Animated.Value(0)).current;
   const [isFlipped, setIsFlipped] = useState(false);
-  
-  // Referencia para capturar la tarjeta
   const cardRef = useRef<View>(null);
 
   const flipCard = () => {
@@ -50,277 +65,421 @@ export default function PlayerCredentialCard({
 
   const frontInterpolate = flipAnimation.interpolate({
     inputRange: [0, 180],
-    outputRange: ['0deg', '180deg'],
+    outputRange: ["0deg", "180deg"],
   });
-
   const backInterpolate = flipAnimation.interpolate({
     inputRange: [0, 180],
-    outputRange: ['180deg', '360deg'],
+    outputRange: ["180deg", "360deg"],
   });
 
   const frontAnimatedStyle = { transform: [{ rotateY: frontInterpolate }] };
   const backAnimatedStyle = { transform: [{ rotateY: backInterpolate }] };
 
-  // Imágenes
-  const bgImageSource = photoUrl && !photoUrl.startsWith('blob:') ? { uri: photoUrl } : require('@/assets/images/icon.png'); 
-  const idImageSource = portraitUrl && !portraitUrl.startsWith('blob:') ? { uri: portraitUrl } : bgImageSource; 
+  const photoSource =
+    photoUrl && !photoUrl.startsWith("blob:")
+      ? { uri: photoUrl }
+      : require("@/assets/images/icon.png");
+  const portraitSource =
+    portraitUrl && !portraitUrl.startsWith("blob:")
+      ? { uri: portraitUrl }
+      : photoSource;
 
-  // Función REAL para descargar/compartir
+  const categoryLabel = (category || position || "JUGADOR")
+    .replace(/-/g, " ")
+    .toUpperCase();
+
   const handleSaveCredential = async () => {
     try {
-      // Si la carta está volteada, la regresamos al frente antes de tomar la foto
       if (isFlipped) flipCard();
-
-      // Damos un pequeño respiro para que la animación termine si es que estaba volteada
-      setTimeout(async () => {
-        const uri = await captureRef(cardRef, {
-          format: 'png',
-          quality: 1,
-        });
-
-        const isSharingAvailable = await Sharing.isAvailableAsync();
-        if (isSharingAvailable) {
-          await Sharing.shareAsync(uri, {
-            mimeType: 'image/png',
-            dialogTitle: `Credencial de ${playerName}`,
-            UTI: 'public.png'
-          });
-        } else {
-          Alert.alert("Error", "La opción de compartir no está disponible en tu dispositivo.");
-        }
-      }, isFlipped ? 500 : 0);
-
-    } catch (error) {
-      console.error(error);
+      setTimeout(
+        async () => {
+          const uri = await captureRef(cardRef, { format: "png", quality: 1 });
+          const available = await Sharing.isAvailableAsync();
+          if (available) {
+            await Sharing.shareAsync(uri, {
+              mimeType: "image/png",
+              dialogTitle: `Credencial de ${playerName}`,
+              UTI: "public.png",
+            });
+          } else {
+            Alert.alert("Error", "Compartir no está disponible en este dispositivo.");
+          }
+        },
+        isFlipped ? 500 : 0
+      );
+    } catch {
       Alert.alert("Error", "No se pudo generar la credencial.");
     }
   };
 
   return (
     <View style={styles.wrapper}>
-      {/* Contenedor Refeenciado para capturar la imagen */}
-      <View style={styles.container} ref={cardRef} collapsable={false}>
+      <View style={styles.captureBox} ref={cardRef} collapsable={false}>
         <TouchableWithoutFeedback onPress={flipCard}>
-          <View style={styles.cardContainer}>
-            
-            {/* FRENTE DE LA CARTA */}
-            <Animated.View style={[styles.card, frontAnimatedStyle]}>
-              <LinearGradient colors={['#D4AF37', '#FFF3B0', '#D4AF37']} style={styles.borderGradient}>
-                <View style={styles.innerCard}>
-                  
-                  {/* Foto de fondo completo (Acción) */}
-                  <Image source={bgImageSource} style={styles.playerImage} />
-                  
-                  {/* Perforación de Gafete */}
-                  <View style={styles.lanyardHole} />
+          <View style={styles.cardStage}>
+            {/* ——— FRENTE ——— */}
+            <Animated.View style={[styles.cardFace, frontAnimatedStyle]}>
+              <LinearGradient
+                colors={["#0B1B3A", "#122B5C", "#1E5DBB"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.cardShell}
+              >
+                {/* Brillo glass */}
+                <LinearGradient
+                  colors={["rgba(255,255,255,0.18)", "transparent", "rgba(224,90,166,0.12)"]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={StyleSheet.absoluteFillObject}
+                />
 
-                  {/* Sello Top Right */}
-                  <View style={styles.sealContainer}>
-                    <Image source={require('@/assets/images/icon.png')} style={styles.sealImage} />
+                {/* Header logos */}
+                <View style={styles.logoRow}>
+                  <Image source={LOGO_LEFT} style={styles.logoSide} resizeMode="contain" />
+                  <Image source={LOGO_CENTER} style={styles.logoCenter} resizeMode="contain" />
+                  <Image source={LOGO_RIGHT} style={styles.logoSide} resizeMode="contain" />
+                </View>
+
+                <View style={styles.divider} />
+
+                {/* Cuerpo jugador */}
+                <View style={styles.body}>
+                  <View style={styles.avatarRing}>
+                    <Image source={portraitSource} style={styles.avatar} />
                   </View>
 
-                  {/* Overlay Inferior */}
-                  <LinearGradient colors={['transparent', 'rgba(0,0,0,0.8)', 'rgba(0,0,0,1)']} style={styles.infoOverlay}>
-                    
-                    <View style={styles.infoRow}>
-                      {/* Foto ID Pequeña */}
-                      <View style={styles.portraitContainer}>
-                        <Image source={idImageSource} style={styles.portraitImage} />
-                      </View>
+                  <Text style={styles.badge}>CREDENCIAL OFICIAL</Text>
+                  <Text style={styles.playerName} numberOfLines={2} adjustsFontSizeToFit>
+                    {playerName}
+                  </Text>
 
-                      {/* Datos del Jugador */}
-                      <View style={styles.textDataContainer}>
-                        <View style={styles.officialBadge}>
-                          <Text style={styles.officialBadgeText}>ID OFICIAL LIGA FLAG DURANGO</Text>
-                        </View>
-                        <Text style={styles.teamText}>{team.toUpperCase()}</Text>
-                        <Text style={styles.playerName} numberOfLines={1} adjustsFontSizeToFit>{playerName.toUpperCase()}</Text>
-                        
-                        <View style={styles.statsRow}>
-                          <Text style={styles.positionText}>{position}</Text>
-                          <Text style={styles.numberText}>#{playerNumber}</Text>
-                        </View>
-                      </View>
-                    </View>
+                  <View style={styles.jerseyPill}>
+                    <Text style={styles.jerseyHash}>#</Text>
+                    <Text style={styles.jerseyNum}>{playerNumber || "00"}</Text>
+                  </View>
 
-                  </LinearGradient>
-                </View>
-              </LinearGradient>
-            </Animated.View>
-
-            {/* REVERSO DE LA CARTA (ESTADÍSTICAS) */}
-            <Animated.View style={[styles.card, styles.cardBack, backAnimatedStyle]}>
-              <LinearGradient colors={['#D4AF37', '#8A6D22']} style={styles.borderGradient}>
-                <View style={[styles.innerCard, styles.backInnerCard]}>
-                  
-                  <Image source={require('@/assets/images/icon.png')} style={styles.backLogo} />
-                  <Text style={styles.backTitle}>ESTADÍSTICAS DE TEMPORADA</Text>
-                  <Text style={styles.backSubtitle}>LIGA FLAG DURANGO PASSPORT</Text>
-
-                  <View style={styles.statsContainer}>
-                    <View style={styles.statRow}>
-                      <Text style={styles.statLabel}>ANOTACIONES (TD)</Text>
-                      <Text style={styles.statValue}>{stats.touchdowns}</Text>
+                  <View style={styles.metaBlock}>
+                    <View style={styles.metaItem}>
+                      <Ionicons name="shield-checkmark" size={14} color="#93C5FD" />
+                      <Text style={styles.metaLabel}>EQUIPO</Text>
+                      <Text style={styles.metaValue} numberOfLines={1}>
+                        {team}
+                      </Text>
                     </View>
-                    <View style={styles.statRow}>
-                      <Text style={styles.statLabel}>PASES QB</Text>
-                      <Text style={styles.statValue}>{stats.pases}</Text>
-                    </View>
-                    <View style={styles.statRow}>
-                      <Text style={styles.statLabel}>INTERCEPCIONES</Text>
-                      <Text style={styles.statValue}>{stats.intercepciones}</Text>
-                    </View>
-                    <View style={styles.statRow}>
-                      <Text style={styles.statLabel}>SACKS</Text>
-                      <Text style={styles.statValue}>{stats.sacks}</Text>
-                    </View>
-                    <View style={[styles.statRow, { borderBottomWidth: 0, backgroundColor: 'rgba(212, 175, 55, 0.1)' }]}>
-                      <Text style={[styles.statLabel, { color: '#FCD34D' }]}>PREMIOS MVP</Text>
-                      <Text style={[styles.statValue, { color: '#FCD34D', fontSize: 18 }]}>
-                        <Ionicons name="trophy" size={16} color="#FCD34D" /> {stats.mvps}
+                    <View style={styles.metaSep} />
+                    <View style={styles.metaItem}>
+                      <Ionicons name="ribbon" size={14} color="#F9A8D4" />
+                      <Text style={styles.metaLabel}>CATEGORÍA</Text>
+                      <Text style={styles.metaValue} numberOfLines={1}>
+                        {categoryLabel}
                       </Text>
                     </View>
                   </View>
 
-                  <View style={styles.hologram}>
-                    <Ionicons name="shield-checkmark" size={14} color="#333" style={{marginRight: 4}} />
-                    <Text style={styles.hologramText}>AUTÉNTICO Y VERIFICADO</Text>
-                  </View>
-
+                  <Text style={styles.flipHint}>Toca para ver estadísticas</Text>
                 </View>
+
+                {/* Franja marca inferior */}
+                <LinearGradient
+                  colors={["#1E5DBB", "#E05AA6", "#FF6B1A"]}
+                  start={{ x: 0, y: 0.5 }}
+                  end={{ x: 1, y: 0.5 }}
+                  style={styles.brandStripe}
+                />
               </LinearGradient>
             </Animated.View>
 
+            {/* ——— REVERSO ——— */}
+            <Animated.View style={[styles.cardFace, styles.cardBack, backAnimatedStyle]}>
+              <LinearGradient
+                colors={["#0A1224", "#152445", "#1A3A6E"]}
+                style={styles.cardShell}
+              >
+                <Image source={LOGO_CENTER} style={styles.backLogo} resizeMode="contain" />
+                <Text style={styles.backTitle}>TEMPORADA</Text>
+                <Text style={styles.backSub}>PASSPORT · FLAG DURANGO</Text>
+
+                <View style={styles.statsGlass}>
+                  {(
+                    [
+                      ["ANOTACIONES (TD)", stats.touchdowns],
+                      ["PASES QB", stats.pases],
+                      ["INTERCEPCIONES", stats.intercepciones],
+                      ["SACKS", stats.sacks],
+                    ] as const
+                  ).map(([label, value]) => (
+                    <View key={label} style={styles.statRow}>
+                      <Text style={styles.statLabel}>{label}</Text>
+                      <Text style={styles.statValue}>{value}</Text>
+                    </View>
+                  ))}
+                  <View style={[styles.statRow, styles.statRowMvp]}>
+                    <Text style={[styles.statLabel, { color: "#FCD34D" }]}>PREMIOS MVP</Text>
+                    <Text style={[styles.statValue, { color: "#FCD34D" }]}>
+                      <Ionicons name="trophy" size={14} color="#FCD34D" /> {stats.mvps}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.verified}>
+                  <Ionicons name="shield-checkmark" size={14} color="#0F172A" />
+                  <Text style={styles.verifiedText}>AUTÉNTICO Y VERIFICADO</Text>
+                </View>
+              </LinearGradient>
+            </Animated.View>
           </View>
         </TouchableWithoutFeedback>
       </View>
 
-      {/* BOTÓN REAL PARA GUARDAR/COMPARTIR */}
-      <Pressable style={styles.downloadBtn} onPress={handleSaveCredential}>
-        <LinearGradient colors={['#D4AF37', '#B45309']} style={styles.downloadBtnGradient}>
-          <Ionicons name="share-social-outline" size={20} color="#FFF" />
-          <Text style={styles.downloadBtnText}>GUARDAR / COMPARTIR CREDENCIAL</Text>
+      <Pressable style={styles.shareBtn} onPress={handleSaveCredential}>
+        <LinearGradient
+          colors={["#1E5DBB", "#E05AA6"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={styles.shareBtnInner}
+        >
+          <Ionicons name="share-social-outline" size={18} color="#FFF" />
+          <Text style={styles.shareBtnText}>GUARDAR / COMPARTIR</Text>
         </LinearGradient>
       </Pressable>
-
     </View>
   );
 }
 
+const CARD_W = 320;
+const CARD_H = 460;
+
 const styles = StyleSheet.create({
-  wrapper: { alignItems: 'center', marginVertical: 10 },
-  container: { alignItems: 'center', justifyContent: 'center', backgroundColor: 'transparent' },
-  cardContainer: { width: 310, height: 480, perspective: 1000 },
-  card: { width: '100%', height: '100%', position: 'absolute', backfaceVisibility: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.4, shadowRadius: 15, elevation: 10 },
-  cardBack: { }, 
-  borderGradient: { flex: 1, borderRadius: 20, padding: 6 },
-  innerCard: { flex: 1, backgroundColor: '#111', borderRadius: 15, overflow: 'hidden' },
-  backInnerCard: { backgroundColor: '#1A1A1A', padding: 20, alignItems: 'center' },
-  
-  playerImage: { width: '100%', height: '100%', resizeMode: 'cover', position: 'absolute' },
-  
-  lanyardHole: {
-    position: 'absolute',
-    top: 12,
-    alignSelf: 'center',
-    width: 60,
-    height: 12,
-    backgroundColor: '#000',
-    borderRadius: 6,
-    borderWidth: 1.5,
-    borderColor: 'rgba(212, 175, 55, 0.8)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.8,
-    shadowRadius: 2,
-    zIndex: 10,
+  wrapper: { alignItems: "center", width: "100%" },
+  captureBox: { alignItems: "center", backgroundColor: "transparent" },
+  cardStage: {
+    width: CARD_W,
+    height: CARD_H,
   },
-
-  sealContainer: { 
-    position: 'absolute', 
-    top: 35, 
-    right: 15, 
-    width: 55, 
-    height: 55, 
-    alignItems: 'center', 
-    justifyContent: 'center', 
-    shadowColor: '#000', 
-    shadowOffset: { width: 0, height: 4 }, 
-    shadowOpacity: 0.6, 
-    shadowRadius: 5,
-    borderRadius: 27.5,
-    backgroundColor: '#000',
-    borderWidth: 1.5,
-    borderColor: '#D4AF37'
+  cardFace: {
+    position: "absolute",
+    width: "100%",
+    height: "100%",
+    backfaceVisibility: "hidden",
+    borderRadius: 20,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#0B1B3A",
+        shadowOffset: { width: 0, height: 18 },
+        shadowOpacity: 0.45,
+        shadowRadius: 24,
+      },
+      android: { elevation: 16 },
+    }),
   },
-  sealImage: { width: '100%', height: '100%', resizeMode: 'contain', borderRadius: 27.5 },
-
-  infoOverlay: { position: 'absolute', bottom: 0, width: '100%', paddingTop: 50, paddingBottom: 20, paddingHorizontal: 15 },
-  
-  infoRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-  },
-
-  // Estilos de la foto tipo credencial (Pequeña)
-  portraitContainer: {
-    width: 70,
-    height: 90,
-    borderRadius: 8,
-    borderWidth: 2,
-    borderColor: '#D4AF37',
-    backgroundColor: '#000',
-    overflow: 'hidden',
-    marginRight: 15,
-    shadowColor: '#000',
-    shadowOffset: { width: 2, height: 2 },
-    shadowOpacity: 0.8,
-    shadowRadius: 4,
-  },
-  portraitImage: {
-    width: '100%',
-    height: '100%',
-    resizeMode: 'cover',
-  },
-
-  textDataContainer: {
+  cardBack: {},
+  cardShell: {
     flex: 1,
+    borderRadius: 20,
+    overflow: "hidden",
+    borderWidth: 1.5,
+    borderColor: "rgba(255,255,255,0.22)",
+    paddingTop: 14,
+    paddingHorizontal: 16,
+    paddingBottom: 0,
   },
 
-  officialBadge: {
-    backgroundColor: 'rgba(212, 175, 55, 0.2)',
-    borderWidth: 1,
-    borderColor: '#D4AF37',
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    borderRadius: 4,
-    alignSelf: 'flex-start',
+  logoRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 4,
+    minHeight: 52,
+  },
+  logoSide: { width: 48, height: 48 },
+  logoCenter: { width: 78, height: 56 },
+
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: "rgba(255,255,255,0.25)",
+    marginTop: 10,
+    marginBottom: 18,
+  },
+
+  body: { flex: 1, alignItems: "center" },
+
+  avatarRing: {
+    width: 108,
+    height: 108,
+    borderRadius: 54,
+    padding: 3,
+    borderWidth: 2.5,
+    borderColor: "rgba(255,255,255,0.85)",
+    backgroundColor: "rgba(255,255,255,0.08)",
+    marginBottom: 14,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.35,
+        shadowRadius: 12,
+      },
+      android: { elevation: 8 },
+    }),
+  },
+  avatar: { width: "100%", height: "100%", borderRadius: 52 },
+
+  badge: {
+    color: "rgba(147,197,253,0.95)",
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 1.6,
     marginBottom: 6,
   },
-  officialBadgeText: { color: '#D4AF37', fontSize: 7, fontWeight: '900', letterSpacing: 1 },
+  playerName: {
+    color: "#FFFFFF",
+    fontSize: 24,
+    fontWeight: "900",
+    textAlign: "center",
+    letterSpacing: -0.4,
+    paddingHorizontal: 8,
+    textTransform: "uppercase",
+  },
 
-  teamText: { color: '#E5E7EB', fontSize: 11, fontWeight: '800', letterSpacing: 2, marginBottom: 2 },
-  playerName: { color: '#FFF', fontSize: 24, fontWeight: '900', textTransform: 'uppercase', letterSpacing: -0.5, textShadowColor: '#000', textShadowOffset: { width: 1, height: 1 }, textShadowRadius: 5 },
-  
-  statsRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 5, borderTopWidth: 1, borderTopColor: 'rgba(212, 175, 55, 0.4)', paddingTop: 5 },
-  positionText: { color: '#FFF', fontSize: 16, fontWeight: '900', letterSpacing: 1 },
-  numberText: { color: '#D4AF37', fontSize: 26, fontWeight: '900', fontStyle: 'italic', textShadowColor: '#000', textShadowOffset: { width: 1, height: 1 }, textShadowRadius: 3 },
+  jerseyPill: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    marginTop: 10,
+    marginBottom: 18,
+    backgroundColor: "rgba(255,255,255,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.22)",
+    paddingHorizontal: 18,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+  jerseyHash: {
+    color: "rgba(255,255,255,0.7)",
+    fontSize: 16,
+    fontWeight: "800",
+    marginRight: 2,
+    marginBottom: 2,
+  },
+  jerseyNum: {
+    color: "#FFF",
+    fontSize: 28,
+    fontWeight: "900",
+    letterSpacing: -1,
+    fontStyle: "italic",
+  },
 
-  // REVERSO
-  backLogo: { width: 50, height: 50, resizeMode: 'contain', marginBottom: 10, borderRadius: 25 },
-  backTitle: { color: '#D4AF37', fontSize: 20, fontWeight: '900', textAlign: 'center', letterSpacing: 1.5 },
-  backSubtitle: { color: '#FFF', fontSize: 10, marginBottom: 30, opacity: 0.7, letterSpacing: 2 },
-  
-  statsContainer: { width: '100%', backgroundColor: 'rgba(0, 0, 0, 0.4)', borderRadius: 12, padding: 10, borderWidth: 1, borderColor: 'rgba(212, 175, 55, 0.3)' },
-  statRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 12, paddingHorizontal: 10, borderBottomWidth: 1, borderBottomColor: 'rgba(255, 255, 255, 0.05)' },
-  statLabel: { color: '#CCC', fontSize: 12, fontWeight: '800', letterSpacing: 1 },
-  statValue: { color: '#D4AF37', fontSize: 16, fontWeight: '900' },
-  
-  hologram: { flexDirection: 'row', alignItems: 'center', position: 'absolute', bottom: 25, backgroundColor: '#E5E7EB', paddingHorizontal: 15, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: '#A1A1AA' },
-  hologramText: { color: '#333', fontSize: 10, fontWeight: '900', letterSpacing: 1 },
+  metaBlock: {
+    flexDirection: "row",
+    width: "100%",
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.14)",
+    paddingVertical: 12,
+    paddingHorizontal: 10,
+  },
+  metaItem: { flex: 1, alignItems: "center", gap: 3 },
+  metaSep: {
+    width: 1,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    marginVertical: 4,
+  },
+  metaLabel: {
+    color: "rgba(255,255,255,0.55)",
+    fontSize: 9,
+    fontWeight: "800",
+    letterSpacing: 1,
+  },
+  metaValue: {
+    color: "#FFF",
+    fontSize: 12,
+    fontWeight: "800",
+    textAlign: "center",
+    paddingHorizontal: 4,
+  },
 
-  // BOTÓN DE DESCARGA
-  downloadBtn: { marginTop: 25, width: '90%', shadowColor: '#D4AF37', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 5, elevation: 5 },
-  downloadBtnGradient: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, paddingHorizontal: 20, borderRadius: 30, gap: 10 },
-  downloadBtnText: { color: '#FFF', fontSize: 13, fontWeight: '900', letterSpacing: 1 }
+  flipHint: {
+    marginTop: "auto",
+    marginBottom: 14,
+    color: "rgba(255,255,255,0.4)",
+    fontSize: 10,
+    fontWeight: "600",
+    letterSpacing: 0.3,
+  },
+
+  brandStripe: { height: 5, width: "100%" },
+
+  backLogo: { width: 72, height: 52, alignSelf: "center", marginTop: 8, marginBottom: 12 },
+  backTitle: {
+    color: "#93C5FD",
+    fontSize: 18,
+    fontWeight: "900",
+    textAlign: "center",
+    letterSpacing: 2,
+  },
+  backSub: {
+    color: "rgba(255,255,255,0.55)",
+    fontSize: 10,
+    textAlign: "center",
+    letterSpacing: 1.5,
+    marginBottom: 22,
+    fontWeight: "700",
+  },
+  statsGlass: {
+    width: "100%",
+    borderRadius: 16,
+    backgroundColor: "rgba(0,0,0,0.28)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+    overflow: "hidden",
+  },
+  statRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingVertical: 13,
+    paddingHorizontal: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(255,255,255,0.08)",
+  },
+  statRowMvp: { borderBottomWidth: 0, backgroundColor: "rgba(245,158,11,0.1)" },
+  statLabel: { color: "rgba(255,255,255,0.7)", fontSize: 11, fontWeight: "800", letterSpacing: 0.6 },
+  statValue: { color: "#FFF", fontSize: 16, fontWeight: "900" },
+
+  verified: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "center",
+    gap: 6,
+    marginTop: "auto",
+    marginBottom: 22,
+    backgroundColor: "#E2E8F0",
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 10,
+  },
+  verifiedText: { color: "#0F172A", fontSize: 10, fontWeight: "900", letterSpacing: 0.8 },
+
+  shareBtn: {
+    marginTop: 18,
+    width: CARD_W * 0.92,
+    borderRadius: 28,
+    overflow: "hidden",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#1E5DBB",
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.35,
+        shadowRadius: 10,
+      },
+      android: { elevation: 6 },
+    }),
+  },
+  shareBtnInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 14,
+  },
+  shareBtnText: { color: "#FFF", fontSize: 12, fontWeight: "900", letterSpacing: 1 },
 });

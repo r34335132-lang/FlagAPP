@@ -81,7 +81,7 @@ export default function ForgotPasswordScreen() {
 
       if (data.success) {
         Alert.alert("¡Éxito!", "Tu contraseña ha sido restablecida de forma segura.", [
-          { text: "Ir a Iniciar Sesión", onPress: () => router.back() }
+          { text: "Ir a Iniciar Sesión", onPress: () => router.replace("/login") }
         ]);
       } else {
         Alert.alert("Error", data.message || "El código es incorrecto o ha expirado.");
@@ -113,7 +113,7 @@ export default function ForgotPasswordScreen() {
           
           <View style={styles.header}>
             <Pressable 
-              onPress={() => step === 2 ? setStep(1) : router.back()} 
+              onPress={() => step === 2 ? setStep(1) : router.replace("/login")} 
               style={({ pressed }) => [styles.backBtn, { backgroundColor: currentColors.bgSecondary, opacity: pressed ? 0.7 : 1 }]}
             >
               <Ionicons name="arrow-back" size={22} color={currentColors.text} />
